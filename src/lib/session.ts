@@ -20,6 +20,18 @@ type State = {
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch {} };
 
+const fetchSession = () => fetch('/api/session', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => ({ user: null }));
+
+// Local development signs in as a demo account automatically (the server only allows it on loopback, outside
+// production). Visiting /login directly, or signing out, shows the normal form for the rest of the tab session.
+export const DEV_AUTO_LOGIN_OFF = 'mos.devAutoLoginOff';
+function devAutoLogin() {
+  if (!import.meta.env.DEV) return false;
+  const p = location.pathname;
+  if (p === '/login' || p === '/register' || p === '/reset' || p.startsWith('/invite/')) return false;
+  try { return sessionStorage.getItem(DEV_AUTO_LOGIN_OFF) !== '1'; } catch { return true; }
+}
+
 export const useSession = create<State>((set, get) => ({
   status: 'loading',
   user: null,
@@ -28,7 +40,11 @@ export const useSession = create<State>((set, get) => ({
   brandId: null,
   notice: null,
   load: async () => {
-    const res = await fetch('/api/session', { credentials: 'same-origin' }).then((r) => r.json()).catch(() => ({ user: null }));
+    let res = await fetchSession();
+    if (!res.user && devAutoLogin()) {
+      const ok = await fetch('/api/auth/dev-login', { method: 'POST', credentials: 'same-origin' }).then((r) => r.ok).catch(() => false);
+      if (ok) res = await fetchSession();
+    }
     const workspaces: Workspace[] = res.workspaces ?? [];
     const saved = read('mos.ws');
     const ws = workspaces.find((w) => w.id === (get().wsId ?? saved)) ?? workspaces[0] ?? null;
@@ -43,6 +59,7 @@ export const useSession = create<State>((set, get) => ({
   },
   setBrand: (id) => { write(`mos.brand.${get().wsId}`, id); set({ brandId: id }); },
   logout: async () => {
+    try { sessionStorage.setItem(DEV_AUTO_LOGIN_OFF, '1'); } catch {}
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
     set({ user: null, workspaces: [], wsId: null });
   },

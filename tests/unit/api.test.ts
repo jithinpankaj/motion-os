@@ -43,6 +43,15 @@ describe('server-enforced permissions', () => {
     expect(r.status).toBe(401);
     expect((await fetch(`${base}/api/library`)).status).toBe(401);
   });
+  it('development sign-in only works for seeded demo accounts', async () => {
+    const dev = (body: unknown) => fetch(`${base}/api/auth/dev-login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const r = await dev({});
+    expect(r.status).toBe(200);
+    const cookie = r.headers.get('set-cookie')!.split(';')[0];
+    expect((await (await fetch(`${base}/api/session`, { headers: { cookie } })).json()).user.email).toBe('alex@motion.os');
+    expect((await dev({ email: 'mia@motion.os' })).status).toBe(200);
+    expect((await dev({ email: 'outsider@example.com' })).status).toBe(400);
+  });
   it('marketing can browse the library but not projects or scene edits', async () => {
     expect((await call('marketing', 'GET', '/library')).body.templates.length).toBe(6);
     expect((await call('marketing', 'GET', '/projects')).status).toBe(403);

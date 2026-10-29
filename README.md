@@ -21,6 +21,8 @@ npm run dev
 
 Open http://localhost:5173. The first start creates `.data/` (PostgreSQL via PGlite + object storage) and seeds a demo workspace, **Lumen Studio**, with six published templates, four images and one draft project.
 
+In development you're signed in automatically as **alex@motion.os** (Owner) — no login screen. To act as another role, sign out (or open `/login`) and pick an account under *Local development · continue as*. Set `DEV_LOGIN_EMAIL` to change the default account, or `DEV_AUTO_LOGIN=0` to always require a password. Passwordless sign-in is disabled in production and only answers requests from the local machine.
+
 Local demo accounts (development seed only; password `motion-os-demo`):
 
 | Email | Role | Try |
@@ -40,7 +42,7 @@ To use a real PostgreSQL server instead of PGlite set `DATABASE_URL`. To reset, 
 npm test
 ```
 
-43 unit/integration tests: scene serialization & migration, timeline evaluation, parameter validation, campaign inheritance, permissions & status machine, compatibility/flash detection, plus an in-process API suite (permissions, workspace isolation, governed exports, template lifecycle, concurrency conflicts, upload validation, signed URLs, byte ranges).
+44 unit/integration tests: scene serialization & migration, timeline evaluation, parameter validation, campaign inheritance, permissions & status machine, compatibility/flash detection, plus an in-process API suite (permissions, workspace isolation, governed exports, template lifecycle, concurrency conflicts, upload validation, signed URLs, byte ranges).
 
 ```bash
 npm run e2e

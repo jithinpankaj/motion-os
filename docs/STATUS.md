@@ -14,7 +14,7 @@ Everything listed as **Built** was exercised in the running app or by automated 
 | Continuous playback | Studio: edited text while playing; frame counter kept advancing (f51→f54→f57), autosave completed | Pass (also an e2e test) |
 | Determinism | Visual regression baselines re-rendered identically on a second run | Pass |
 
-Automated: `npm test` 43/43, `npm run e2e` 8/8, `tsc --noEmit` clean, `vite build` succeeds.
+Automated: `npm test` 44/44, `npm run e2e` 8/8, `tsc --noEmit` clean, `vite build` succeeds.
 
 Bugs found and fixed during verification: canvas context reuse under React StrictMode; Playground header
 grid-area collision; text-field remount mid-typing; modal initial focus; card grid sizing; missing HTTP

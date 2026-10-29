@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Field, toast } from '../../ui/controls';
 import { Logo } from '../../ui/Icon';
-import { useSession } from '../../lib/session';
+import { DEV_AUTO_LOGIN_OFF, useSession } from '../../lib/session';
 import { MotionCanvas } from '../../components/MotionCanvas';
 import { Clock } from '../../engine/clock';
 import { nullResolver } from '../../engine/assets';
@@ -75,7 +75,31 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             {mode === 'login' ? <Link to="/register">Create an account</Link> : <Link to="/login">I have an account</Link>}
             <Link to="/reset">Forgot password?</Link>
           </div>
+          {mode === 'login' && import.meta.env.DEV && <DevAccounts next={sp.get('next') || '/'} />}
         </form>
+      </div>
+    </div>
+  );
+}
+
+// Development only: one-click sign-in as any seeded demo account (hidden when the server disables it).
+function DevAccounts({ next }: { next: string }) {
+  const [accounts, setAccounts] = useState<{ email: string; name: string; roles: string[] }[]>([]);
+  const load = useSession((s) => s.load);
+  const nav = useNavigate();
+  useEffect(() => { fetch('/api/dev/accounts').then((r) => (r.ok ? r.json() : null)).then((r) => r && setAccounts(r.accounts)).catch(() => {}); }, []);
+  if (!accounts.length) return null;
+  const go = async (email: string) => {
+    try { await post('/auth/dev-login', { email }); } catch (err: any) { toast('danger', 'Could not sign in', err.message); return; }
+    try { sessionStorage.removeItem(DEV_AUTO_LOGIN_OFF); } catch {}
+    await load();
+    nav(next, { replace: true });
+  };
+  return (
+    <div className="col" style={{ gap: 8, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+      <div className="eyebrow">Local development · continue as</div>
+      <div className="row wrap" style={{ gap: 6 }}>
+        {accounts.map((a) => <button key={a.email} type="button" className="chip" onClick={() => go(a.email)}>{a.name.split(' ')[0]} <span className="faint" style={{ fontSize: 11 }}>{a.roles.join(', ')}</span></button>)}
       </div>
     </div>
   );

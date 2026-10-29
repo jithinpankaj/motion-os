@@ -1,9 +1,10 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { createSession, hashPassword, newToken, requireUser, setSessionCookie, sha256, verifyPassword, SESSION_COOKIE } from '../auth';
 import { HttpError, badRequest, parse, rateLimit } from '../http';
 import { provisionWorkspace, addMember } from '../services/workspace';
 import { uid } from '../../shared/util/random';
+import { DEMO_USERS } from '../seed';
 
 const email = z.string().trim().toLowerCase().email().max(200);
 const password = z.string().min(10, 'Use at least 10 characters').max(200);
@@ -83,6 +84,27 @@ export function authRoutes() {
     if (req.ctx.isProd) throw new HttpError(404, 'not_found', 'Not found');
     const rows = await req.ctx.db.query(`SELECT to_email, subject, body, created_at FROM dev_mailbox WHERE lower(to_email) = lower($1) ORDER BY id DESC LIMIT 10`, [String(req.query.email ?? '')]);
     res.json({ messages: rows });
+  });
+
+  // Development sign-in without a password, limited to seeded demo accounts and loopback callers.
+  // Off in production; set DEV_AUTO_LOGIN=0 to turn it off locally.
+  const devLoginEnabled = (req: Request) => {
+    const ip = req.socket.remoteAddress ?? '';
+    return !req.ctx.isProd && process.env.DEV_AUTO_LOGIN !== '0' && (ip === '::1' || ip === '::ffff:127.0.0.1' || ip.startsWith('127.'));
+  };
+  r.get('/dev/accounts', (req, res) => {
+    if (!devLoginEnabled(req)) throw new HttpError(404, 'not_found', 'Not found');
+    res.json({ accounts: DEMO_USERS.map(({ email, name, roles }) => ({ email, name, roles })) });
+  });
+  r.post('/auth/dev-login', async (req, res) => {
+    if (!devLoginEnabled(req)) throw new HttpError(404, 'not_found', 'Not found');
+    const body = parse(z.object({ email: email.optional() }), req.body ?? {});
+    const target = body.email ?? process.env.DEV_LOGIN_EMAIL?.toLowerCase() ?? DEMO_USERS[0].email;
+    if (!DEMO_USERS.some((u) => u.email === target)) throw badRequest('Only seeded demo accounts can use development sign-in');
+    const u = await req.ctx.db.one(`SELECT id FROM users WHERE lower(email) = $1`, [target]);
+    if (!u) throw new HttpError(404, 'not_found', 'Demo account not seeded');
+    setSessionCookie(res, await createSession(req.ctx.db, u.id, req), false);
+    res.json({ ok: true, email: target });
   });
 
   r.get('/session', async (req, res) => {
