@@ -12,7 +12,7 @@ export function homeRoutes() {
   r.get('/home', requirePerm('workspace.view'), async (req, res) => {
     const { db } = req.ctx, ws = req.ws!.id;
     const seeAll = has(req, 'scene.view');
-    const projects = seeAll ? await db.query(`SELECT p.id, p.name, p.updated_at, s.doc, u.name AS updated_by FROM motion_projects p JOIN motion_scenes s ON s.project_id = p.id LEFT JOIN users u ON u.id = s.updated_by WHERE p.workspace_id = $1 AND p.deleted_at IS NULL ORDER BY p.updated_at DESC LIMIT 8`, [ws]) : [];
+    const projects = seeAll ? await db.query(`SELECT p.id, p.name, p.updated_at, s.doc, u.name AS updated_by, (p.recipe IS NOT NULL) AS has_recipe FROM motion_projects p JOIN motion_scenes s ON s.project_id = p.id LEFT JOIN users u ON u.id = s.updated_by WHERE p.workspace_id = $1 AND p.deleted_at IS NULL ORDER BY p.updated_at DESC LIMIT 8`, [ws]) : [];
     const templates = has(req, 'library.view') ? await db.query(
       `SELECT t.id, t.name, t.category, t.description, t.status, tv.published_at, tv.version, sv.doc,
               (SELECT count(*)::int FROM usage_events e WHERE e.subject_id = t.id) AS uses

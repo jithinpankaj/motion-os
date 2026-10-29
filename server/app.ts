@@ -16,6 +16,8 @@ import { assetRoutes, fileRoutes } from './routes/assets';
 import { exportRoutes } from './routes/exports';
 import { integrationRoutes, devReceiver } from './routes/integrations';
 import { homeRoutes } from './routes/home';
+import { importRoutes } from './routes/imports';
+import { analyticsRoutes } from './routes/analytics';
 
 export function createApp(ctx: AppContext) {
   const app = express();
@@ -38,7 +40,7 @@ export function createApp(ctx: AppContext) {
   api.use(devReceiver());
   const tenant = Router();
   tenant.use(requireWorkspace);
-  for (const r of [workspaceRoutes, brandRoutes, projectRoutes, templateRoutes, campaignRoutes, assetRoutes, exportRoutes, integrationRoutes, homeRoutes]) tenant.use(r());
+  for (const r of [workspaceRoutes, brandRoutes, projectRoutes, templateRoutes, campaignRoutes, assetRoutes, exportRoutes, integrationRoutes, homeRoutes, importRoutes, analyticsRoutes]) tenant.use(r());
   api.use(tenant);
   app.use('/api', api);
   app.use('/api', (_req, res) => { res.status(404).json({ error: { code: 'not_found', message: 'Unknown API route' } }); });

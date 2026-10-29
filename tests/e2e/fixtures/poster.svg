@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1350" width="1080" height="1350">
+  <defs><linearGradient id="sun" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB347"/><stop offset="1" stop-color="#FF5A36"/></linearGradient></defs>
+  <g id="Background"><rect width="1080" height="1350" fill="#0B1F3A"/></g>
+  <g id="Sun"><circle cx="760" cy="380" r="200" fill="url(#sun)"/></g>
+  <g id="Hills"><path d="M0 1000 Q 270 820 540 960 T 1080 900 V 1350 H 0 Z" fill="#16A3A0"/></g>
+  <g id="Badge"><rect x="90" y="140" width="250" height="70" rx="35" fill="#F5F1EA"/><text x="215" y="186" font-family="Arial" font-size="28" font-weight="700" text-anchor="middle" fill="#0B1F3A">NEW SEASON</text></g>
+  <g id="Headline"><text x="90" y="1180" font-family="Arial" font-size="92" font-weight="800" fill="#F5F1EA">Spring is here</text></g>
+</svg>

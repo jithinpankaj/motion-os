@@ -84,7 +84,8 @@ export class GPUContext {
         try {
           const res = await fetch(asset.url);
           if (!res.ok) return null;
-          const bmp = await createImageBitmap(await res.blob(), { premultiplyAlpha: 'none' } as any);
+          // Premultiplied so filtering at transparent edges doesn't bleed black; the shader un-premultiplies.
+          const bmp = await createImageBitmap(await res.blob(), { premultiplyAlpha: 'premultiply' } as any);
           const tex = new THREE.Texture(bmp as any);
           tex.flipY = false;
           tex.colorSpace = THREE.NoColorSpace;

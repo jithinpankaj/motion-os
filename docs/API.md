@@ -100,6 +100,29 @@ Binary uploads (`POST /assets`, `POST /assets/:id/replace`, `PUT /exports/:id/re
 as the request body; metadata goes in the query string. Files are classified by magic bytes; active SVG
 content is rejected. Downloads use `/files/<key>?exp=&sig=` signed URLs (HMAC, expiring, Range-capable).
 
+### Simple flows (Create, Brand kit import, Analytics)
+
+| Method | Path | Permission |
+|---|---|---|
+| POST | `/api/projects` (with `recipe`) | scene.create — saves the Create settings with the scene |
+| PUT | `/api/projects/:id/recipe` | scene.edit — rebuilt scene + recipe, same revision check (409 on conflict) |
+| POST | `/api/brand-import/website` | brand.edit — `{ url }` → findings (colours, fonts, logos, copy tone); nothing saved |
+| POST | `/api/brand-import/remote-asset` | asset.upload — server fetches a logo/image URL into the asset library |
+| GET / PUT / DELETE | `/api/connections/figma` | asset.view / integration.manage — token checked with Figma `/v1/me` before saving |
+| POST | `/api/design-import/figma` | asset.upload — `{ link }` → one PNG asset per top-level frame child + positions |
+| GET | `/api/analytics/connections` | analytics.view |
+| POST | `/api/analytics/connections/:provider` | analytics.manage — `ga4 \| meta \| linkedin`; credentials verified with the provider first |
+| DELETE | `/api/analytics/connections/:id` | analytics.manage |
+| POST | `/api/analytics/links` | analytics.manage — `{ projectId, kind: ga4 \| instagram \| facebook \| linkedin, ref? }` |
+| DELETE | `/api/analytics/links/:id` | analytics.manage |
+| POST | `/api/analytics/links/:id/refresh` | analytics.view — fetches live numbers; failures are stored and shown |
+| GET | `/api/analytics/dashboard` | analytics.view — latest snapshot per link, last good numbers kept on failure |
+| GET | `/api/analytics/utm/:projectId` | analytics.view — the `utm_content` value GA4 filters on |
+
+Outbound requests for user-supplied URLs (`safeFetch`) allow only http(s), resolve DNS and refuse private,
+loopback and link-local addresses on every redirect hop, and cap size and time. Third-party credentials are
+stored AES-256-GCM encrypted (`secret_enc`) and never returned.
+
 ## Export job lifecycle
 
 `POST /exports { source, format, settings, channel? }` → server resolves the scene (project draft, or

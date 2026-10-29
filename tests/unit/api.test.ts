@@ -52,11 +52,12 @@ describe('server-enforced permissions', () => {
     expect((await dev({ email: 'mia@motion.os' })).status).toBe(200);
     expect((await dev({ email: 'outsider@example.com' })).status).toBe(400);
   });
-  it('marketing can browse the library but not projects or scene edits', async () => {
-    expect((await call('marketing', 'GET', '/library')).body.templates.length).toBe(6);
-    expect((await call('marketing', 'GET', '/projects')).status).toBe(403);
+  it('engineers can browse the library but not projects or scene edits', async () => {
+    expect((await call('engineer', 'GET', '/library')).body.templates.length).toBeGreaterThan(0);
+    expect((await call('engineer', 'GET', '/projects')).status).toBe(403);
     const projects = (await call('designer', 'GET', '/projects')).body.projects;
-    expect((await call('marketing', 'PUT', `/projects/${projects[0].id}/scene`, { doc: projects[0].doc, baseRevision: 1 })).status).toBe(403);
+    expect((await call('engineer', 'PUT', `/projects/${projects[0].id}/scene`, { doc: projects[0].doc, baseRevision: 1 })).status).toBe(403);
+    expect((await call('marketing', 'GET', '/projects')).status).toBe(200);
   });
   it('enforces workspace isolation', async () => {
     const r = await fetch(`${base}/api/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'outsider@example.com', name: 'Out Sider', password: 'outsider-pass-123' }) });

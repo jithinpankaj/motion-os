@@ -27,7 +27,8 @@ const hueBuckets = (colors: string[]) => {
 type Facets = { q: string; category: string; team: string; brand: string; channel: string; format: string; color: string; interaction: string; compat: string; status: string };
 const EMPTY: Facets = { q: '', category: '', team: '', brand: '', channel: '', format: '', color: '', interaction: '', compat: '', status: '' };
 
-export default function Explore() {
+export default function Explore({ embedded = false }: { embedded?: boolean } = {}) {
+  const [showFilters, setShowFilters] = useState(!embedded);
   const [data, setData] = useState<{ templates: any[]; teams: any[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sp, setSp] = useSearchParams();
@@ -86,13 +87,13 @@ export default function Explore() {
   const openTo = (id: string) => `/play/${id}${channelParam ? `?format=${channelParam}` : ''}`;
 
   return (
-    <div className="page-inner">
+    <div className={embedded ? '' : 'page-inner'}>
       <div className="row between wrap" style={{ alignItems: 'flex-end', gap: 16 }}>
-        <div>
+        {embedded ? <p className="muted" style={{ margin: 0, maxWidth: 520 }}>Brand-approved templates. Pick one, change the words and colours, export.</p> : <div>
           <div className="eyebrow">Approved library</div>
           <h1 className="h1" style={{ marginTop: 8 }}>Explore motion</h1>
           <p className="muted" style={{ margin: '6px 0 0', maxWidth: 520 }}>Brand-approved templates your team can customise. Everything here is governed: locked parameters stay on brand.</p>
-        </div>
+        </div>}
         <div className="row" style={{ width: 'min(440px, 100%)' }}>
           <div className="row grow surface" style={{ padding: '0 10px', height: 38, gap: 8 }}>
             <Icon name="search" />
@@ -100,11 +101,12 @@ export default function Explore() {
             {f.q && <button className="icon-btn sm" onClick={() => { setF({ ...f, q: '' }); setAi(null); }} aria-label="Clear search"><Icon name="x" /></button>}
           </div>
           <button className="btn lg" onClick={ask} title="Natural-language search"><Icon name="wand" />Ask</button>
+          {embedded && <button className="btn lg" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}>Filters{active > 0 ? ` (${active})` : ''}</button>}
         </div>
       </div>
       {channelParam && <div className="badge info" style={{ marginTop: 14 }}>Creating for {CHANNEL_FORMATS.find((c) => c.id === channelParam)?.name}</div>}
 
-      <div className="col" style={{ marginTop: 22, gap: 10 }} role="group" aria-label="Filters">
+      {showFilters && <div className="col" style={{ marginTop: 22, gap: 10 }} role="group" aria-label="Filters">
         <FacetRow label="Category" values={options.category} value={f.category} onPick={(v) => set('category', v)} />
         <FacetRow label="Channel" values={CHANNEL_FORMATS.map((c) => c.id)} labels={Object.fromEntries(CHANNEL_FORMATS.map((c) => [c.id, c.name]))} value={f.channel} onPick={(v) => set('channel', v)} />
         <div className="row wrap" style={{ gap: 18 }}>
@@ -123,7 +125,7 @@ export default function Explore() {
           {data && data.teams.length > 0 && <FacetRow label="Team" values={data.teams.map((t) => t.id)} labels={Object.fromEntries(data.teams.map((t) => [t.id, t.name]))} value={f.team} onPick={(v) => set('team', v)} />}
           {options.brand.length > 1 && <FacetRow label="Brand" values={options.brand} value={f.brand} onPick={(v) => set('brand', v)} />}
         </div>
-      </div>
+      </div>}
 
       <AnimatePresence>
         {ai && (

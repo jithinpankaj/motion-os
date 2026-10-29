@@ -27,20 +27,22 @@ export const PERMISSIONS = {
   'integration.view': 'View integrations',
   'integration.manage': 'Connect and publish to integrations',
   'audit.view': 'Read the audit log',
+  'analytics.view': 'See the performance dashboard',
+  'analytics.manage': 'Connect analytics accounts and link posts',
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;
 const ALL = Object.keys(PERMISSIONS) as PermissionKey[];
-const CONSUMER: PermissionKey[] = ['workspace.view', 'brand.view', 'library.view', 'template.use', 'asset.view', 'export.create', 'campaign.view', 'integration.view'];
+const CONSUMER: PermissionKey[] = ['workspace.view', 'brand.view', 'library.view', 'template.use', 'asset.view', 'export.create', 'campaign.view', 'integration.view', 'analytics.view'];
 
 export const SYSTEM_ROLES: { key: string; name: string; description: string; permissions: PermissionKey[] }[] = [
   { key: 'owner', name: 'Owner', description: 'Full control, including billing.', permissions: ALL },
   { key: 'admin', name: 'Admin', description: 'Manages members, governance and integrations.', permissions: ALL.filter((p) => p !== 'billing.manage') },
   { key: 'designer', name: 'Designer', description: 'Creates motion, defines parameters, submits for review.', permissions: [...CONSUMER, 'scene.view', 'scene.create', 'scene.edit', 'scene.delete', 'template.submit', 'template.publish', 'template.code', 'brand.edit', 'asset.upload', 'campaign.edit'] },
-  { key: 'marketing', name: 'Marketing', description: 'Customises approved templates and runs campaigns.', permissions: [...CONSUMER, 'campaign.edit', 'asset.upload', 'integration.manage'] },
+  { key: 'marketing', name: 'Marketing', description: 'Brand team: animates designs, imports the brand kit, runs campaigns and tracks results.', permissions: [...CONSUMER, 'scene.view', 'scene.create', 'scene.edit', 'brand.edit', 'campaign.edit', 'asset.upload', 'integration.manage', 'analytics.manage'] },
   { key: 'engineer', name: 'Engineer', description: 'Integrates approved motion via configs and SDKs.', permissions: [...CONSUMER, 'template.code'] },
   { key: 'operations', name: 'Operations', description: 'Produces deliverables from approved templates.', permissions: [...CONSUMER, 'asset.upload'] },
-  { key: 'viewer', name: 'Viewer', description: 'Read-only access to the approved library.', permissions: ['workspace.view', 'brand.view', 'library.view', 'asset.view', 'campaign.view'] },
+  { key: 'viewer', name: 'Viewer', description: 'Read-only access to the approved library.', permissions: ['workspace.view', 'brand.view', 'library.view', 'asset.view', 'campaign.view', 'analytics.view'] },
 ];
 
 export const can = (perms: readonly string[] | Set<string> | undefined, key: PermissionKey) =>

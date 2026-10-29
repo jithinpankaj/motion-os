@@ -509,3 +509,44 @@ CREATE TABLE IF NOT EXISTS publication_jobs (
   created_by text REFERENCES users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Connections for design import (Figma) and analytics (GA4, Meta, LinkedIn) share integration_connections.
+ALTER TABLE integration_connections ADD COLUMN IF NOT EXISTS last_error text;
+ALTER TABLE integration_connections ADD COLUMN IF NOT EXISTS checked_at timestamptz;
+
+CREATE TABLE IF NOT EXISTS analytics_links (
+  id text PRIMARY KEY,
+  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  project_id text NOT NULL REFERENCES motion_projects(id) ON DELETE CASCADE,
+  connection_id text NOT NULL REFERENCES integration_connections(id) ON DELETE CASCADE,
+  kind text NOT NULL CHECK (kind IN ('ga4', 'instagram', 'facebook', 'linkedin')),
+  ref text NOT NULL,
+  label text NOT NULL DEFAULT '',
+  created_by text REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS analytics_links_ws ON analytics_links (workspace_id);
+
+CREATE TABLE IF NOT EXISTS analytics_snapshots (
+  id text PRIMARY KEY,
+  link_id text NOT NULL REFERENCES analytics_links(id) ON DELETE CASCADE,
+  fetched_at timestamptz NOT NULL DEFAULT now(),
+  ok boolean NOT NULL,
+  metrics jsonb NOT NULL DEFAULT '{}'::jsonb,
+  series jsonb NOT NULL DEFAULT '[]'::jsonb,
+  series_label text,
+  error text
+);
+CREATE INDEX IF NOT EXISTS analytics_snapshots_link ON analytics_snapshots (link_id, fetched_at DESC);
+
+-- Which permission keys have been rolled out to a workspace's system roles (see ensureGlobals).
+CREATE TABLE IF NOT EXISTS permission_rollouts (
+  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  key text NOT NULL,
+  PRIMARY KEY (workspace_id, key)
+);
+
+-- Settings from the simple Create flow, so a motion can be reopened there. recipe_revision is the
+-- scene revision the recipe produced; a newer scene revision means it was edited in the advanced editor.
+ALTER TABLE motion_projects ADD COLUMN IF NOT EXISTS recipe jsonb;
+ALTER TABLE motion_projects ADD COLUMN IF NOT EXISTS recipe_revision integer;

@@ -10,11 +10,31 @@ async function login(page: Page, email: string) {
   await expect(page.getByText(/Good (morning|afternoon|evening)/)).toBeVisible();
 }
 
-test('navigation adapts to permissions', async ({ page }) => {
+test('navigation is five simple places and adapts to permissions', async ({ page }) => {
   await login(page, 'mia@motion.os');
   const nav = page.getByRole('navigation', { name: 'Primary' });
-  await expect(nav.getByRole('link', { name: 'Explore' })).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Motion Studio' })).toHaveCount(0);
+  for (const name of ['Home', 'Create', 'Brand kit', 'Library', 'Analytics']) await expect(nav.getByRole('link', { name, exact: true })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Explore' })).toHaveCount(0);
+  await page.context().clearCookies();
+  await login(page, 'eli@motion.os');
+  await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Create', exact: true })).toHaveCount(0);
+});
+
+test('Create: a layered SVG becomes a brand motion in three steps', async ({ page }) => {
+  await login(page, 'mia@motion.os');
+  await page.goto('/create');
+  await page.getByLabel('Upload a design').setInputFiles('tests/e2e/fixtures/poster.svg');
+  await expect(page.getByText(/Found 5 parts in/)).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('radio', { name: /Gentle float/ }).click();
+  await expect(page.getByRole('heading', { name: 'Make it yours' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Headline' }).fill('Feel the season');
+  const name = `E2E spring float ${Date.now()}`;
+  await page.getByLabel('Motion name').fill(name);
+  await page.getByRole('button', { name: 'Save motion' }).click();
+  await expect(page.getByText('Saved to your library')).toBeVisible();
+  await expect(page).toHaveURL(/\/create\/prj_/);
+  await page.goto('/library');
+  await expect(page.getByText(name)).toBeVisible();
 });
 
 test('Journey B: marketing customises a template and exports a valid MP4', async ({ page }) => {
@@ -30,13 +50,18 @@ test('Journey B: marketing customises a template and exports a valid MP4', async
   const dur = page.getByRole('textbox', { name: 'Duration', exact: true });
   await dur.fill('2');
   await dur.press('Enter');
+  const started = new Date().toISOString();
   await page.getByRole('button', { name: /Export MP4/ }).click();
-  const tray = page.getByLabel('Export queue');
-  await expect(tray.getByText('completed')).toBeVisible({ timeout: 60_000 });
-  const info = await page.evaluate(async () => {
+  // Wait for this run's job (the shared dev database keeps earlier exports in the queue).
+  const latest = () => page.evaluate(async (since) => {
     const s = await fetch('/api/session').then((r) => r.json());
     const jobs = (await fetch('/api/exports', { headers: { 'x-workspace-id': s.workspaces[0].id } }).then((r) => r.json())).jobs;
-    const j = jobs.find((x: any) => x.format === 'mp4' && x.status === 'completed');
+    return jobs.find((x: any) => x.format === 'mp4' && x.createdAt >= since) ?? null;
+  }, started);
+  await expect.poll(async () => (await latest())?.status, { timeout: 60_000 }).toBe('completed');
+  await expect(page.getByLabel('Export queue').getByText('completed').first()).toBeVisible();
+  const job = await latest();
+  const info = await page.evaluate(async (j) => {
     const v = document.createElement('video');
     v.muted = true; v.src = j.result.url;
     await new Promise((r) => (v.onloadeddata = r));
@@ -45,7 +70,7 @@ test('Journey B: marketing customises a template and exports a valid MP4', async
     const px = x.getImageData(0, 0, 108, 192).data; let max = 0;
     for (let i = 0; i < px.length; i += 4) max = Math.max(max, Math.min(px[i], px[i + 1], px[i + 2]));
     return { w: v.videoWidth, h: v.videoHeight, d: v.duration, expected: j.settings.duration * j.settings.loops, brightest: max };
-  });
+  }, job);
   expect(info).toMatchObject({ w: 1080, h: 1920 });
   expect(info.d).toBeCloseTo(info.expected, 1);
   expect(info.brightest).toBeGreaterThan(200); // headline text present in the encoded frame

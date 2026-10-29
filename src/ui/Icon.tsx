@@ -73,6 +73,10 @@ const P: Record<string, string> = {
   orbit: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM20.5 12c0 2.5-3.8 4.5-8.5 4.5S3.5 14.5 3.5 12 7.3 7.5 12 7.5s8.5 2 8.5 4.5z',
   safe: 'M4 4h16v16H4zM7 7h10v10H7z',
   stack: 'M4 6h16M4 12h16M4 18h16',
+  chart: 'M4 20V11M10 20V5M16 20v-6M21 20H3',
+  library: 'M4 5h4v15H4zM10 5h4v15h-4zM16.5 5.5l3.6-1 3.4 14.6-3.6.9z',
+  shapes: 'M7 21a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM14 13h7v7h-7zM10.5 3 15 10H6z',
+  globe: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.5 3.6 5.6 3.6 9s-1.1 6.5-3.6 9c-2.5-2.5-3.6-5.6-3.6-9S9.5 5.5 12 3z',
 };
 
 export type IconName = keyof typeof P | string;

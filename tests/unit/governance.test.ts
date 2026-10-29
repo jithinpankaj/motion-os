@@ -60,8 +60,9 @@ describe('campaign inheritance', () => {
 
 describe('permissions', () => {
   const perms = (k: string) => SYSTEM_ROLES.find((r) => r.key === k)!.permissions as string[];
-  it('consumers cannot edit scenes or approve; viewers cannot export', () => {
-    expect(perms('marketing')).not.toContain('scene.edit');
+  it('brand team can make motion but not approve; engineers cannot edit scenes; viewers cannot export', () => {
+    expect(perms('marketing')).toContain('scene.create');
+    expect(perms('engineer')).not.toContain('scene.edit');
     expect(perms('marketing')).not.toContain('template.approve');
     expect(perms('viewer')).not.toContain('export.create');
     expect(perms('engineer')).toContain('template.code');

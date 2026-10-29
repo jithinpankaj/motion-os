@@ -3,13 +3,15 @@ import { api, errorMessage } from '../../lib/api';
 import { useCan, useSession } from '../../lib/session';
 import { Avatar, EmptyState, Field, Modal, Tabs, timeAgo, toast } from '../../ui/controls';
 import { Icon } from '../../ui/Icon';
+import { Link } from 'react-router-dom';
+import { FigmaConnect } from '../create/Create';
 
-type Tab = 'profile' | 'members' | 'roles' | 'audit';
+type Tab = 'profile' | 'members' | 'roles' | 'connections' | 'audit';
 
 export default function Settings() {
   const can = useCan();
   const [tab, setTab] = useState<Tab>('profile');
-  const tabs = [{ value: 'profile' as Tab, label: 'Profile & sessions' }, ...(can('workspace.view') ? [{ value: 'members' as Tab, label: 'Members & teams' }] : []), ...(can('roles.manage') ? [{ value: 'roles' as Tab, label: 'Roles & permissions' }] : []), ...(can('audit.view') ? [{ value: 'audit' as Tab, label: 'Audit log' }] : [])];
+  const tabs = [{ value: 'profile' as Tab, label: 'Profile & sessions' }, ...(can('workspace.view') ? [{ value: 'members' as Tab, label: 'Members & teams' }] : []), ...(can('roles.manage') ? [{ value: 'roles' as Tab, label: 'Roles & permissions' }] : []), ...(can('asset.view') ? [{ value: 'connections' as Tab, label: 'Connections' }] : []), ...(can('audit.view') ? [{ value: 'audit' as Tab, label: 'Audit log' }] : [])];
   return (
     <div className="page-inner">
       <h1 className="h1">Settings</h1>
@@ -18,6 +20,7 @@ export default function Settings() {
         {tab === 'profile' && <Profile />}
         {tab === 'members' && <Members />}
         {tab === 'roles' && <Roles />}
+        {tab === 'connections' && <Connections />}
         {tab === 'audit' && <Audit />}
       </div>
     </div>
@@ -151,6 +154,35 @@ function Audit() {
           <span className="grow faint ellipsis mono" style={{ fontSize: 11 }}>{e.subject_type}:{e.subject_id} {JSON.stringify(e.data)}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function Connections() {
+  const can = useCan();
+  const [figma, setFigma] = useState<any>(undefined);
+  const [editing, setEditing] = useState(false);
+  const load = () => api('/connections/figma').then((r) => setFigma(r.connection)).catch(() => setFigma(null));
+  useEffect(() => { load(); }, []);
+  return (
+    <div className="col" style={{ gap: 14, maxWidth: 720 }}>
+      <div className="panel" style={{ padding: 16 }}>
+        <div className="row" style={{ gap: 12 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: '#1e1e1e', display: 'grid', placeItems: 'center', fontWeight: 700 }}>F</div>
+          <div className="grow">
+            <div style={{ fontWeight: 580 }}>Figma</div>
+            <div className="faint" style={{ fontSize: 12 }}>{figma === undefined ? 'Checking…' : figma ? (figma.status === 'connected' ? `Connected as ${figma.account} · token ${figma.tokenHint}` : `Needs attention: ${figma.error ?? figma.status}`) : 'Not connected — used to import frames in Create'}</div>
+          </div>
+          {can('integration.manage') && figma && <button className="btn sm ghost" onClick={async () => { await api('/connections/figma', { method: 'DELETE' }); toast('ok', 'Figma disconnected'); load(); }}>Disconnect</button>}
+          {can('integration.manage') && <button className="btn sm" onClick={() => setEditing((v) => !v)}>{figma ? 'Replace token' : 'Connect'}</button>}
+        </div>
+        {editing && <FigmaConnect onConnected={() => { setEditing(false); load(); }} />}
+      </div>
+      <div className="panel" style={{ padding: 16 }}>
+        <div style={{ fontWeight: 580 }}>Analytics accounts</div>
+        <div className="faint" style={{ fontSize: 12, marginTop: 4 }}>Google Analytics 4, Meta and LinkedIn are connected from the Analytics page.</div>
+        <Link to="/analytics" className="btn sm" style={{ marginTop: 10 }}>Open Analytics</Link>
+      </div>
     </div>
   );
 }

@@ -14,6 +14,10 @@ const Playground = lazy(() => import('./features/playground/Playground'));
 const Campaigns = lazy(() => import('./features/campaigns/Campaigns'));
 const Campaign = lazy(() => import('./features/campaigns/Campaign'));
 const Brand = lazy(() => import('./features/brand/Brand'));
+const BrandKit = lazy(() => import('./features/brand/BrandKit'));
+const Create = lazy(() => import('./features/create/Create'));
+const Library = lazy(() => import('./features/library/Library'));
+const Analytics = lazy(() => import('./features/analytics/Analytics'));
 const Assets = lazy(() => import('./features/assets/Assets'));
 const Integrations = lazy(() => import('./features/integrations/Integrations'));
 const Settings = lazy(() => import('./features/settings/Settings'));
@@ -49,13 +53,18 @@ export function App() {
         <Suspense fallback={<Loading />}>
           <Routes key={wsId}>
             <Route path="/" element={<Home />} />
+            <Route path="/create" element={<Create />} />
+            <Route path="/create/:id" element={<Create />} />
+            <Route path="/library" element={<Library />} />
+            <Route path="/analytics" element={<Analytics />} />
             <Route path="/explore" element={<Explore />} />
             <Route path="/studio" element={<Projects />} />
             <Route path="/studio/:id" element={<Studio />} />
             <Route path="/play/:templateId" element={<Playground />} />
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/campaigns/:id" element={<Campaign />} />
-            <Route path="/brand" element={<Brand />} />
+            <Route path="/brand" element={<BrandKit />} />
+            <Route path="/brand/advanced" element={<Brand />} />
             <Route path="/assets" element={<Assets />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/settings" element={<Settings />} />

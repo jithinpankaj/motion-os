@@ -14,13 +14,49 @@ Everything listed as **Built** was exercised in the running app or by automated 
 | Continuous playback | Studio: edited text while playing; frame counter kept advancing (f51→f54→f57), autosave completed | Pass (also an e2e test) |
 | Determinism | Visual regression baselines re-rendered identically on a second run | Pass |
 
-Automated: `npm test` 44/44, `npm run e2e` 8/8, `tsc --noEmit` clean, `vite build` succeeds.
+Automated: `npm test` 66/66, `npm run e2e` 9/9, `tsc --noEmit` clean, `vite build` succeeds.
 
 Bugs found and fixed during verification: canvas context reuse under React StrictMode; Playground header
 grid-area collision; text-field remount mid-typing; modal initial focus; card grid sizing; missing HTTP
 Range support (exported videos could not be seeked); export frames now snapshot via
 `transferToImageBitmap` before encoding; invalid scene imports returned 500 instead of 400; Liquid Mesh
 silhouette artifacts; Particle Field attractor too weak to read.
+
+## Brand-team release — simplified product
+
+**Built and verified in the browser**
+- Navigation reduced to Home, Create, Brand kit, Library, Analytics; power tools moved to an Advanced menu.
+  Marketing (the brand team) can now create motion, edit the brand kit and manage analytics.
+- **Create** (3 steps): layered SVG → 5 parts; Photoshop → 3 positioned pixel layers; layered PDF/Illustrator
+  (PDF-compatible, optional content groups) → 4 named layers; raster images → one piece. Six motion styles
+  (build in, gentle float, brand backdrop, pop & sparkle, slow zoom, headline focus) × four personalities.
+  Headline and new elements are placed in the emptiest area of the design. A saved motion exported to MP4
+  (1536×1920, 8.000 s) with the uploaded parts and transparency intact.
+- **Brand kit import**: guidelines PDF → HEX/RGB codes, font names, “calm” tone; real website (stripe.com) →
+  palette, Söhne/Source Code Pro mapped to available fonts, inline SVG logo + touch icon, “energetic” tone.
+  Review before save; saves a new token version (previous versions restorable).
+- **Elements**: shape maker in brand colours and element upload, added to motions from Create.
+- **Analytics**: connect screens for GA4 (service account), Meta and LinkedIn; real calls with invalid
+  credentials to Figma, Meta, LinkedIn and Google were rejected with the provider’s reason and nothing was saved.
+
+**Bugs found and fixed while verifying**: image layers ignored PNG transparency (black boxes) — the shader now
+uses texture alpha with premultiplied upload; pdf.js layer API mismatch; PDF text lines merged (font names
+ran together); duplicate voice words; preview canvas had zero height; sticky preview covered controls on
+narrow screens; raw CSS font identifiers (`sohne-var`) shown to users.
+
+**Not verified / limitations**
+- GA4, Meta and LinkedIn metrics were verified against a fake network (request shapes, signed JWT, parsing,
+  failure handling), **not against live accounts** — that needs your credentials. LinkedIn also requires an
+  app with Community Management API approval; Meta needs `instagram_manage_insights` / `read_insights`.
+- Figma import was tested for token rejection and link parsing only; a live frame import needs a token.
+- Illustrator files must be saved with PDF compatibility; layers come through only when the PDF part has
+  optional content groups. Photoshop layer styles (shadows, strokes) and adjustment layers are not applied.
+- Brand fonts that aren’t bundled are mapped to the closest bundled font; uploading custom font files into
+  scenes from the simple flow is not built yet.
+- Elements are placed automatically; there is no drag-to-position in the simple flow (use the advanced editor).
+- Simple-flow motions aren’t grouped into campaigns yet; Advanced → Campaigns works from approved templates.
+- Website import reads the server-rendered HTML and up to six stylesheets; sites that render everything with
+  JavaScript return fewer findings. DNS is checked before each request but not pinned for the connection.
 
 ## M1 Foundation — Built
 App shell with permission-adaptive rail, workspace + brand switcher always visible, ⌘K palette. Email/password

@@ -336,9 +336,11 @@ void main(){
   if (uDisp > 0.0) t += uDisp * 0.03 * vec2(lnoise(t * 3.0, 0.0), lnoise(t * 3.0 + 4.0, 1.0));
   t = uCrop.xy + t * uCrop.zw;
   vec3 col;
-  if (uHasTex > 0.5) col = texture2D(uTex, t).rgb;
+  float texA = 1.0;
+  if (uHasTex > 0.5) { vec4 tx = texture2D(uTex, t); col = tx.a > 0.0 ? tx.rgb / tx.a : vec3(0.0); texA = tx.a; } // premultiplied upload; transparent PNG layers keep their alpha
   else { vec2 g = floor(uv * 12.0); col = mix(vec3(0.16), vec3(0.24), mod(g.x + g.y, 2.0)); }
-  float a = alpha * uOpacity * (uRevealMode == 1 || uRevealMode == 3 ? rv : 1.0);
+  float a = alpha * texA * uOpacity * (uRevealMode == 1 || uRevealMode == 3 ? rv : 1.0);
+  if (a <= 0.002) discard;
   gl_FragColor = vec4(col, a);
 }
 `;

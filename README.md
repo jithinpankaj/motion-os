@@ -3,9 +3,13 @@
 A unified motion design system, creative studio and distribution platform.
 **Create once. Adapt everywhere. Stay on brand.**
 
-- **Create** — Motion Studio: real-time WebGL 2 editor (gradients, meshes, GPU particles, typography, images), scene hierarchy, contextual inspector, keyframe timeline, undo/redo, versioning, publish & approval.
-- **Adapt** — Team Playground and Campaign Composer: brand-governed parameters, live channel previews (8 destinations), master → variation inheritance with local overrides.
-- **Deliver** — deterministic PNG / WebP / MP4 exports in a background worker, native scene JSON, version-pinned WebGL embed configs, integrations with confirmation-only publishing.
+Five places, no jargon:
+
+- **Create** — upload a finished design (PNG, JPG, WebP, layered SVG, PDF, Illustrator `.ai`, Photoshop `.psd`, or a Figma frame link). Layered files are split into parts so each part moves on its own. Pick a motion style, adjust the message, format and length, save, download MP4/PNG.
+- **Brand kit** — import colours, fonts, logo and tone from your website, a logo/image, a guidelines PDF or pasted codes; review before saving. Tone sets a *motion personality* (calm, balanced, energetic, playful) that every new motion uses. Create reusable elements (shapes in brand colours) or upload your own.
+- **Library** — your team's motions and the approved brand templates.
+- **Analytics** — connect Google Analytics 4, Meta (Instagram/Facebook) or a LinkedIn Page, link each motion to its post or tagged link, and see reach, engagement, clicks and sessions in one dashboard.
+- **Advanced** (rail menu) — the full Motion Studio editor (layers, timeline, shaders), campaigns with channel variations, the asset library, publishing integrations and raw brand tokens.
 
 ## Run it
 
@@ -29,7 +33,7 @@ Local demo accounts (development seed only; password `motion-os-demo`):
 |---|---|---|
 | alex@motion.os | Owner | approvals, roles & permissions, audit log |
 | dana@motion.os | Designer | Motion Studio, parameters, publishing |
-| mia@motion.os | Marketing | Explore → Playground → export, campaigns |
+| mia@motion.os | Marketing (brand team) | Create, Brand kit import, Analytics, campaigns |
 | eli@motion.os | Engineer | Playground → Developer tab → embed example |
 | omar@motion.os | Operations | templates and exports |
 | vic@motion.os | Viewer | read-only library |
@@ -42,13 +46,13 @@ To use a real PostgreSQL server instead of PGlite set `DATABASE_URL`. To reset, 
 npm test
 ```
 
-44 unit/integration tests: scene serialization & migration, timeline evaluation, parameter validation, campaign inheritance, permissions & status machine, compatibility/flash detection, plus an in-process API suite (permissions, workspace isolation, governed exports, template lifecycle, concurrency conflicts, upload validation, signed URLs, byte ranges).
+66 unit/integration tests: scene serialization & migration, timeline evaluation, parameter validation, campaign inheritance, permissions & status machine, compatibility/flash detection, brand-import parsing (colours, fonts, roles, tone), every motion style producing a valid scene, outbound-request safety, plus in-process API suites (permissions, workspace isolation, governed exports, template lifecycle, concurrency conflicts, upload validation, signed URLs, byte ranges, website import and GA4/Meta/LinkedIn connectors against a fake network, Create recipes).
 
 ```bash
 npm run e2e
 ```
 
-8 Playwright tests in your installed Chrome: permission-adaptive navigation, Journey B end-to-end (customise → export MP4 → decode the file and verify size, duration and that the headline is in the frame), Studio playback-through-edits + autosave + reload, and visual regression for all five launch presets.
+9 Playwright tests in your installed Chrome: the five-place navigation per role, the Create flow (layered SVG → style → save → Library), Journey B end-to-end (customise → export MP4 → decode the file and verify size, duration and that the headline is in the frame), Studio playback-through-edits + autosave + reload, and visual regression for all five launch presets.
 
 ## Layout
 

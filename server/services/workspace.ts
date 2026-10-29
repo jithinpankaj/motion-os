@@ -4,10 +4,35 @@ import { PERMISSIONS, SYSTEM_ROLES } from '../../shared/permissions';
 import { DEFAULT_BRAND_TOKENS } from '../../shared/brand';
 import { CHANNEL_FORMATS } from '../../shared/formats';
 
+/** Permission keys introduced after rollout tracking began; everything older counts as already applied. */
+const ROLLOUT_TRACKED_SINCE = ['analytics.view', 'analytics.manage'];
+
 export async function ensureGlobals(db: Db) {
   for (const [key, description] of Object.entries(PERMISSIONS)) {
     await db.query(`INSERT INTO permissions (key, description) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET description = EXCLUDED.description`, [key, description]);
   }
+  // Roll out permissions added after a workspace was created to its system roles, once per workspace,
+  // so later edits an admin makes to the role matrix are never overwritten.
+  // Workspaces created before rollouts were tracked already had every older key applied.
+  await db.query(
+    `INSERT INTO permission_rollouts (workspace_id, key)
+       SELECT w.id, p.key FROM workspaces w CROSS JOIN permissions p
+        WHERE NOT (p.key = ANY($1::text[])) AND NOT EXISTS (SELECT 1 FROM permission_rollouts r WHERE r.workspace_id = w.id)
+     ON CONFLICT DO NOTHING`,
+    [ROLLOUT_TRACKED_SINCE],
+  );
+  for (const r of SYSTEM_ROLES) {
+    for (const p of r.permissions) {
+      await db.query(
+        `INSERT INTO role_permissions (role_id, permission_key)
+           SELECT ro.id, $2 FROM roles ro WHERE ro.is_system AND ro.key = $1
+              AND NOT EXISTS (SELECT 1 FROM permission_rollouts pr WHERE pr.workspace_id = ro.workspace_id AND pr.key = $2)
+         ON CONFLICT DO NOTHING`,
+        [r.key, p],
+      );
+    }
+  }
+  await db.query(`INSERT INTO permission_rollouts (workspace_id, key) SELECT w.id, p.key FROM workspaces w CROSS JOIN permissions p ON CONFLICT DO NOTHING`);
   for (const f of CHANNEL_FORMATS) {
     await db.query(
       `INSERT INTO channel_presets (id, name, platform, width, height, safe_area) VALUES ($1, $2, $3, $4, $5, $6)
@@ -30,6 +55,7 @@ export async function provisionWorkspace(db: Db, ownerId: string, name: string) 
       await tx.query(`INSERT INTO roles (id, workspace_id, key, name, description, is_system) VALUES ($1, $2, $3, $4, $5, true)`, [roleId, wsId, r.key, r.name, r.description]);
       for (const p of r.permissions) await tx.query(`INSERT INTO role_permissions (role_id, permission_key) VALUES ($1, $2)`, [roleId, p]);
     }
+    await tx.query(`INSERT INTO permission_rollouts (workspace_id, key) SELECT $1, key FROM permissions ON CONFLICT DO NOTHING`, [wsId]);
     const teamIds: Record<string, string> = {};
     for (const t of TEAM_NAMES) {
       teamIds[t] = uid('team');

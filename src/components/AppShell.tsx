@@ -12,12 +12,10 @@ import type { AssistantAnswer } from '../../shared/assistant';
 
 const NAV: { to: string; label: string; icon: string; perm?: PermissionKey; kbd: string }[] = [
   { to: '/', label: 'Home', icon: 'home', kbd: 'G H' },
-  { to: '/explore', label: 'Explore', icon: 'explore', perm: 'library.view', kbd: 'G E' },
-  { to: '/studio', label: 'Motion Studio', icon: 'studio', perm: 'scene.view', kbd: 'G S' },
-  { to: '/campaigns', label: 'Campaigns', icon: 'campaigns', perm: 'campaign.view', kbd: 'G C' },
-  { to: '/brand', label: 'Brand System', icon: 'brand', perm: 'brand.view', kbd: 'G B' },
-  { to: '/assets', label: 'Assets', icon: 'assets', perm: 'asset.view', kbd: 'G A' },
-  { to: '/integrations', label: 'Integrations', icon: 'integrations', perm: 'integration.view', kbd: 'G I' },
+  { to: '/create', label: 'Create', icon: 'wand', perm: 'scene.create', kbd: 'G C' },
+  { to: '/brand', label: 'Brand kit', icon: 'brand', perm: 'brand.view', kbd: 'G B' },
+  { to: '/library', label: 'Library', icon: 'library', perm: 'library.view', kbd: 'G L' },
+  { to: '/analytics', label: 'Analytics', icon: 'chart', perm: 'analytics.view', kbd: 'G A' },
 ];
 
 export function AppShell({ children, bare }: { children: ReactNode; bare?: boolean }) {
@@ -59,6 +57,7 @@ export function AppShell({ children, bare }: { children: ReactNode; bare?: boole
           ))}
         </LayoutGroup>
         <div className="rail-spacer" />
+        <AdvancedMenu active={['/studio', '/campaigns', '/assets', '/integrations', '/explore', '/brand/advanced'].some((p) => loc.pathname.startsWith(p))} />
         <Tip label="Settings" side="right">
           <NavLink to="/settings" className="rail-item" aria-current={active('/settings') ? 'page' : undefined}>
             {active('/settings') && <motion.span layoutId="rail-ind" className="rail-ind" transition={spring} />}
@@ -256,5 +255,35 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+/** Power tools kept out of the main navigation: the full editor, campaigns, asset library and publishing. */
+function AdvancedMenu({ active }: { active: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLButtonElement>(null);
+  const can = useCan();
+  const nav = useNavigate();
+  const items = [
+    can('scene.view') && { label: 'Motion Studio (full editor)', icon: 'studio', onSelect: () => nav('/studio') },
+    can('campaign.view') && { label: 'Campaigns', icon: 'campaigns', onSelect: () => nav('/campaigns') },
+    can('asset.view') && { label: 'All assets', icon: 'assets', onSelect: () => nav('/assets') },
+    can('integration.view') && { label: 'Publishing & integrations', icon: 'integrations', onSelect: () => nav('/integrations') },
+    can('brand.view') && { label: 'Brand tokens', icon: 'brand', onSelect: () => nav('/brand/advanced') },
+  ].filter(Boolean) as { label: string; icon: string; onSelect: () => void }[];
+  if (!items.length) return null;
+  return (
+    <>
+      <Tip label="Advanced" side="right">
+        <button ref={ref} className="rail-item" aria-label="Advanced tools" aria-haspopup="menu" aria-expanded={open} aria-current={active ? 'page' : undefined} onClick={() => setOpen((v) => !v)}>
+          {active && <motion.span layoutId="rail-ind" className="rail-ind" transition={spring} />}
+          <Icon name="layers" />
+        </button>
+      </Tip>
+      <Popover anchor={ref} open={open} onClose={() => setOpen(false)} placement="top-start">
+        <div style={{ padding: '8px 10px 4px' }} className="eyebrow">Advanced</div>
+        <Menu items={items} onClose={() => setOpen(false)} />
+      </Popover>
+    </>
   );
 }
