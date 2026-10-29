@@ -11,6 +11,7 @@ import { bouncyHeadline } from './library/headline';
 import { likeBurst } from './library/like';
 import { morningCoffee } from './library/coffee';
 import { rewardBadge } from './library/badge';
+import { lessonStars } from './library/stars';
 import { inchwormLoader } from './library/inchworm';
 
 /**
@@ -92,5 +93,11 @@ export const MOTION_PRESETS: MotionPreset[] = [
     description: 'A progress bar with an inchworm riding its leading edge. Drive the Progress slider; at 100 it jumps for joy.',
     tip: 'Drag the Progress slider all the way to 100.',
     tags: [categoryTag('Loaders'), 'loader', 'progress', 'slider', 'character'], build: inchwormLoader,
+  },
+  {
+    key: 'lesson-stars', name: 'Lesson stars', category: 'Interactive UI',
+    description: 'A lesson-complete card driven by one number: the bar fills with the score, and every 20 points earns a star. 20 is one star, 100 is five.',
+    tip: 'Set Score to 20, then 60, then 100. Lower it again and the stars go back.',
+    tags: [categoryTag('Interactive UI'), 'progress', 'stars', 'score', 'gamification', 'input', 'number'], build: lessonStars,
   },
 ];

@@ -16,6 +16,8 @@ export async function addImageFile(doc: SceneDocument, file: File) {
 }
 
 type Row = { l: Layer; depth: number; hasKids: boolean };
+/** Layers can be dragged onto the Interact map to make them react. */
+export const LAYER_DRAG = 'application/x-mos-layer';
 
 /**
  * The layer navigator: the file's real hierarchy as a tree (top-most first). Groups collapse;
@@ -108,11 +110,12 @@ export function LayersPanel({ doc }: { doc: SceneDocument }) {
         {rows.map(({ l, depth, hasKids }) => (
           <div key={l.id} data-id={l.id} role="treeitem" aria-level={depth + 1} aria-expanded={hasKids ? open.has(l.id) || !!q : undefined} aria-selected={selection === l.id}
             className={`layer-row${l.visible ? '' : ' hidden'}${l.locked ? ' locked' : ''}`} style={{ paddingLeft: 4 + depth * 14 }} onClick={() => select(l.id)}
+            draggable={!renaming} onDragStart={(e) => { e.dataTransfer.setData(LAYER_DRAG, l.id); e.dataTransfer.setData('text/plain', l.name); e.dataTransfer.effectAllowed = 'link'; }}
             onContextMenu={(e) => { e.preventDefault(); select(l.id); menuAnchor.current = e.currentTarget; setMenu(l); }}>
             {hasKids
               ? <button className="lp-twist" aria-label={open.has(l.id) ? `Collapse ${l.name}` : `Expand ${l.name}`} onClick={(e) => { e.stopPropagation(); toggle(l.id); }}><Icon name={open.has(l.id) || q ? 'chevronDown' : 'chevronRight'} size={11} /></button>
               : <span className="lp-twist" />}
-            <Icon name={(ICON[l.type] ?? 'layers') as any} size={13} />
+            <Icon name={(ICON[l.type] ?? 'layers') as any} size={13} accent={false} />
             {renaming === l.id
               ? <input className="lp-rename" autoFocus defaultValue={l.name} aria-label="Layer name" onClick={(e) => e.stopPropagation()}
                   onBlur={(e) => { if (e.target.value.trim()) setProp(l.id, 'name', e.target.value.trim()); setRenaming(null); tree.current?.focus(); }}

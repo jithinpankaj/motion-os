@@ -6,7 +6,9 @@ import { Icon } from '../../ui/Icon';
 import { pathLabel } from './Animate';
 import { addBinding, addInput, addState, deleteBinding, deleteInput, deleteState, selectRule, setInitialState, updateBinding, updateInput, updateState, useEditor } from './store';
 import { ValueInput } from './interact/Actions';
-import { InteractionCard, NewInteraction } from './interact/Simple';
+import { InteractionCard, NewInteraction, type InteractionDraft } from './interact/Simple';
+import { InteractionMap } from './interact/InteractionMap';
+import type { MotionRuntime } from '../../../shared/motion/runtime';
 
 /**
  * Interact, right panel. Selecting a connection on the Interaction Canvas (or a rule here) opens its
@@ -15,17 +17,21 @@ import { InteractionCard, NewInteraction } from './interact/Simple';
  */
 const TYPE_ICON: Record<Input['type'], string> = { boolean: 'check', trigger: 'play', number: 'gauge', string: 'type', enum: 'layers', vector2: 'move', color: 'brand' };
 
-export function InteractPanel({ doc }: { doc: SceneDocument }) {
+export function InteractPanel({ doc, runtime }: { doc: SceneDocument; runtime: MotionRuntime | null }) {
   const m = doc.machine;
   canvasSize = { w: doc.canvas.width, h: doc.canvas.height };
   const open = useEditor((s) => s.selectedRule);
-  const [wizard, setWizard] = useState(false);
+  const [wizard, setWizard] = useState<InteractionDraft | null>(null);
   return (
     <div>
       <div className="sec">
+        <div className="sec-h">Map</div>
+        <InteractionMap doc={doc} runtime={runtime} onDraft={(d) => setWizard(d)} />
+      </div>
+      <div className="sec">
         <div className="sec-h">Interactions <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>{m.rules.length}</span></div>
         <div className="empty-hint">Each interaction is a sentence: <b>when</b> something happens, <b>do</b> something. Click any underlined word to change it.</div>
-        <button className="btn primary" onClick={() => setWizard(true)}><Icon name="plus" size={13} />New interaction</button>
+        <button className="btn primary" onClick={() => setWizard({})}><Icon name="plus" size={13} />New interaction</button>
         {!m.animations.length && <div className="empty-hint">Tip: make a move in <b>Animate</b> first. Then an interaction can play it.</div>}
         {m.rules.map((r, i) => <InteractionCard key={r.id} doc={doc} rule={r} n={i + 1} open={open === r.id} onToggle={() => selectRule(open === r.id ? null : r.id)} />)}
       </div>
@@ -67,7 +73,7 @@ export function InteractPanel({ doc }: { doc: SceneDocument }) {
           <Icon name="plus" size={12} />Link a slider
         </button>
       </div>
-      {wizard && <NewInteraction doc={doc} onClose={() => setWizard(false)} onCreated={(id) => selectRule(id)} />}
+      {wizard && <NewInteraction doc={doc} draft={wizard} onClose={() => setWizard(null)} onCreated={(id) => selectRule(id)} />}
     </div>
   );
 }

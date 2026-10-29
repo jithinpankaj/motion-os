@@ -158,7 +158,7 @@ export function Inspector({ doc, layer }: { doc: SceneDocument; layer: Layer }) 
       })}
       {layer.type === 'group' && (
         <Section title={`Contents · ${children.length}`}>
-          {children.map((c) => <button key={c.id} className="child-row" onClick={() => select(c.id)}><Icon name={c.type === 'group' ? 'folder' : c.type === 'text' ? 'type' : 'shapes'} size={12} />{c.name}</button>)}
+          {children.map((c) => <button key={c.id} className="child-row" onClick={() => select(c.id)}><Icon name={c.type === 'group' ? 'folder' : c.type === 'text' ? 'type' : 'shapes'} size={12} accent={false} />{c.name}</button>)}
         </Section>
       )}
     </div>

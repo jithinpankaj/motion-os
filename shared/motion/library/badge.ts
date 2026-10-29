@@ -1,93 +1,142 @@
-import type { SceneDocument } from '../../scene/schema';
-import { Rig, after, anim, fire, finish, input, onPointer, param, play, ring, rule, sound, tr } from './rig';
+import type { Layer, SceneDocument } from '../../scene/schema';
+import { Rig, after, anim, fire, finish, input, onPointer, param, play, ring, rule, sound, tr, type Key } from './rig';
 
 /**
- * Reward badge. A hexagonal achievement badge (white border, green face, gold banner, number and
- * stars) against slowly turning rays. Celebrate: it ducks and tilts
- * (anticipation), flips twice like a tossed coin (stretching its width to near zero fakes the turn in
- * 2D), pops, the rays flare, confetti arcs out and falls, and the title bounces in.
+ * Reward badge. A collectible medal in the spirit of game and fitness achievements: a scalloped gold
+ * seal with a thick 3D lip, a bevelled rim, a violet gem face with a holographic sheen, an embossed
+ * number, a crown of three chunky stars and a folded ribbon, on a dark stage with slow light rays.
+ *
+ * Idle: it floats, the rays turn, the stars bob out of step, sparkles twinkle and a glint sweeps
+ * across the face now and then. Celebrate: it ducks (anticipation), flips twice like a tossed coin
+ * (squeezing the width fakes the turn in 2D, and the face flashes as it goes edge-on), pops past full
+ * size, the stars pop in one after another, the ribbon unfurls, rays flare and confetti falls.
  */
 export function rewardBadge(): SceneDocument {
   const r = new Rig(1080, 1080);
-  // Achievement-badge language: a white-bordered hexagon, a two-tone green face, a gold banner,
-  // a big number and three stars, on warm paper with a soft drop shadow.
-  const BG = '#f3efe6', RAY1 = '#ece6d8', RAY2 = '#f0ebdf', GREEN_T = '#2fbf7a', GREEN_B = '#169a5c', GREEN_DEEP = '#0f7a48';
-  const GOLD = '#ffcd4a', GOLD_DARK = '#e9a826', STAR = '#ffe08a', TITLE = '#1d2b24';
-  const CONF = ['#ff6b81', '#ffcd4a', '#2fbf7a', '#6d8dff', '#1d2b24'];
-  const C = { x: 540, y: 450 };
+  const BG = '#16102f', GLOW = '#3a2a86', RAY1 = '#1f1744', RAY2 = '#231a4d';
+  const GOLD_HI = '#ffe796', GOLD = '#f6b52a', GOLD_DEEP = '#c9800f', LIP = '#8a4f06';
+  const FACE_HI = '#9b63ff', FACE_LO = '#4a22c9', EMBOSS = '#2a1078';
+  const RIB = '#ff4f78', RIB_LO = '#e02a55', RIB_DEEP = '#a3163a';
+  const STAR_HI = '#fff0a6', STAR = '#ffc21f', STAR_LIP = '#c27c00';
+  const INK = '#ffffff', SUB = '#b9aef0';
+  const CONF = ['#ff4f78', '#ffc21f', '#3fd0a3', '#7b8cff', '#ffffff'];
+  const C = { x: 540, y: 470 }, R = 200;
 
-  r.shape('Glow', 'ellipse', { x: C.x, y: C.y }, { w: 980, h: 980, color: '#fbf9f4', fill: 'radial' }).props.fill.color2 = BG;
+  // Stage: a soft violet glow and slow, low-contrast rays.
+  r.shape('Glow', 'ellipse', { x: C.x, y: C.y + 20 }, { w: 1100, h: 1100, color: GLOW, fill: 'radial' }).props.fill.color2 = BG;
   const raysOuter = r.group('Rays', C);
   const raysSpin = r.group('Ray spin', C, raysOuter);
-  ring(C.x, C.y, 330, 16).forEach(([x, y, a], i) => r.shape(`Ray ${i + 1}`, 'polygon', { x, y }, { w: 130, h: 420, sides: 3, color: i % 2 ? RAY1 : RAY2, rotation: a - 90, parent: raysSpin }));
+  ring(C.x, C.y, 360, 16).forEach(([x, y, a], i) => r.shape(`Ray ${i + 1}`, 'polygon', { x, y }, { w: 120, h: 480, sides: 3, color: i % 2 ? RAY1 : RAY2, rotation: a - 90, parent: raysSpin }));
+  r.shape('Floor shadow', 'ellipse', { x: C.x, y: C.y + R + 66 }, { w: 300, h: 34, color: '#0b0820', opacity: 0.7 });
 
-  const float = r.group('Float', C);
-  const medal = r.group('Medal', C, float);
-  // The shadow turns with the badge, so the coin flip never leaves it behind.
-  r.shape('Badge shadow', 'polygon', { x: C.x + 6, y: C.y + 26 }, { w: 420, h: 420, sides: 6, color: '#2a2418', opacity: 0.1, rotation: 30, parent: medal });
-  const outer = r.shape('Badge border', 'polygon', C, { w: 420, h: 420, sides: 6, color: '#ffffff', rotation: 30, parent: medal });
-  const face = r.shape('Badge face', 'polygon', C, { w: 366, h: 366, sides: 6, color: GREEN_T, fill: 'linear', rotation: 30, parent: medal });
-  face.props.fill.color2 = GREEN_B; face.props.fill.angle = 90;
-  r.shape('Inner line', 'polygon', C, { w: 326, h: 326, sides: 6, color: '#ffffff', fill: 'none', stroke: '#ffffff', strokeW: 3, opacity: 0.35, rotation: 30, parent: medal });
-  // Banner with folded tails tucked behind it.
-  [-1, 1].forEach((side) => r.shape(side < 0 ? 'Tail left' : 'Tail right', 'rect', { x: C.x + side * 160, y: C.y - 68 }, { w: 64, h: 58, radius: 6, color: GOLD_DARK, parent: medal }));
-  const banner = r.shape('Banner', 'rect', { x: C.x, y: C.y - 82 }, { w: 300, h: 70, radius: 10, color: GOLD, fill: 'linear', parent: medal });
-  banner.props.fill.color2 = GOLD_DARK; banner.props.fill.angle = 90;
-  const label = r.text('Banner label', 'LEVEL', { x: C.x, y: C.y - 82 }, { size: 40, color: GREEN_DEEP, weight: 700, font: 'Clash Display', tracking: 0.08, parent: medal });
-  const number = r.text('Number', '7', { x: C.x, y: C.y + 46 }, { size: 190, color: '#ffffff', weight: 700, font: 'Clash Display', parent: medal });
-  const star = r.shape('Star', 'star', { x: C.x, y: C.y + 150 }, { w: 44, h: 44, sides: 5, inner: 0.47, color: STAR, parent: medal });
-  [-1, 1].forEach((side) => r.shape(side < 0 ? 'Star left' : 'Star right', 'star', { x: C.x + side * 46, y: C.y + 142 }, { w: 30, h: 30, sides: 5, inner: 0.47, color: STAR, rotation: side * 12, parent: medal }));
-  r.shape('Shine', 'ellipse', { x: C.x - 92, y: C.y - 132 }, { w: 80, h: 24, color: '#ffffff', rotation: -32, opacity: 0.35, parent: medal });
-  const twinkles = [[C.x + 220, C.y - 170, 46], [C.x - 236, C.y + 30, 30], [C.x + 190, C.y + 190, 24]].map(([x, y, d], i) => r.shape(`Twinkle ${i + 1}`, 'star', { x, y }, { w: d, h: d, sides: 4, inner: 0.3, color: GOLD, parent: float }));
-
-  const title = r.text('Title', 'Level up!', { x: 540, y: 880 }, { size: 88, color: TITLE, weight: 700, font: 'Clash Display' });
-  const confetti = Array.from({ length: 18 }, (_, i) => {
-    const a = (-165 + (i * 150) / 17) * (Math.PI / 180);
-    const dist = 270 + (i % 4) * 50;
+  // Confetti is drawn behind the medal, so it bursts out from behind it.
+  const confetti = Array.from({ length: 22 }, (_, i) => {
+    const a = (-168 + (i * 156) / 21) * (Math.PI / 180), dist = 280 + (i % 4) * 52;
     const l = r.shape(`Confetti ${i + 1}`, i % 3 === 0 ? 'ellipse' : 'rect', C, { w: i % 3 === 0 ? 18 : 26, h: i % 3 === 0 ? 18 : 11, radius: 3, color: CONF[i % 5], opacity: 0, rotation: i * 23 });
     return { l, peak: { x: C.x + Math.cos(a) * dist, y: C.y + Math.sin(a) * dist }, land: { x: C.x + Math.cos(a) * dist * 1.15, y: C.y + Math.sin(a) * dist + 380 } };
   });
-  const touch = r.shape('Touch area', 'ellipse', C, { w: 460, h: 460, color: GOLD, fill: 'none', locked: true });
+  const float = r.group('Float', C);
+  const medal = r.group('Medal', C, float);
+  // Seal: a scalloped edge with a thick darker lip under it gives the chunky, dimensional look.
+  r.shape('Seal lip', 'star', { x: C.x, y: C.y + 22 }, { w: R * 2 + 44, h: R * 2 + 44, sides: 12, inner: 0.88, color: LIP, parent: medal });
+  const seal = r.shape('Seal', 'star', C, { w: R * 2 + 44, h: R * 2 + 44, sides: 12, inner: 0.88, color: GOLD_HI, fill: 'linear', parent: medal });
+  seal.props.fill.color2 = GOLD_DEEP; seal.props.fill.angle = 90;
+  const rim = r.shape('Rim', 'ellipse', C, { w: R * 2, h: R * 2, color: GOLD_HI, fill: 'radial', parent: medal });
+  rim.props.fill.color2 = GOLD;
+  // The bevel runs dark to light (the opposite of the rim) so the face reads as set into the medal.
+  const bevel = r.shape('Bevel', 'ellipse', C, { w: R * 2 - 46, h: R * 2 - 46, color: GOLD_DEEP, fill: 'linear', parent: medal });
+  bevel.props.fill.color2 = GOLD_HI; bevel.props.fill.angle = 90;
+  const face = r.shape('Face', 'ellipse', { x: C.x, y: C.y + 2 }, { w: R * 2 - 72, h: R * 2 - 72, color: FACE_HI, fill: 'linear', parent: medal });
+  face.props.fill.color2 = FACE_LO; face.props.fill.angle = 70;
+  r.shape('Inner ring', 'ellipse', C, { w: R * 2 - 104, h: R * 2 - 104, color: '#ffffff', fill: 'none', stroke: '#ffffff', strokeW: 3, opacity: 0.28, parent: medal });
+  r.shape('Sheen', 'ellipse', { x: C.x - 46, y: C.y - 82 }, { w: 230, h: 92, color: '#ffffff', rotation: -28, opacity: 0.13, parent: medal });
+  const glint = r.shape('Glint', 'rect', { x: C.x - 150, y: C.y }, { w: 26, h: 250, radius: 13, color: '#ffffff', rotation: 28, opacity: 0, parent: medal });
+  r.text('Level label', 'LEVEL', { x: C.x, y: C.y - 92 }, { size: 34, color: '#e9ddff', weight: 700, font: 'Cabinet Grotesk', tracking: 0.16, parent: medal });
+  r.text('Number depth', '7', { x: C.x, y: C.y + 22 }, { size: 210, color: EMBOSS, weight: 800, font: 'Cabinet Grotesk', parent: medal });
+  const number = r.text('Number', '7', { x: C.x, y: C.y + 12 }, { size: 210, color: INK, weight: 800, font: 'Cabinet Grotesk', parent: medal });
 
+  // Crown of stars: each with its own lip, the middle one bigger.
+  const crown = [{ dx: -104, dy: -206, d: 82, rot: -14 }, { dx: 0, dy: -236, d: 112, rot: 0 }, { dx: 104, dy: -206, d: 82, rot: 14 }].map(({ dx, dy, d, rot }, i) => {
+    const at = { x: C.x + dx, y: C.y + dy };
+    const g = r.group(`Crown star ${i + 1}`, at, float);
+    r.shape('Star lip', 'star', { x: at.x, y: at.y + 9 }, { w: d, h: d, sides: 5, inner: 0.5, color: STAR_LIP, rotation: rot, parent: g });
+    const s = r.shape('Star', 'star', at, { w: d, h: d, sides: 5, inner: 0.5, color: STAR_HI, fill: 'radial', rotation: rot, parent: g });
+    s.props.fill.color2 = STAR;
+    return { g, s };
+  });
+
+  // Ribbon: tails tucked behind, a darker lip, then the banner with its label.
+  const ribbon = r.group('Ribbon', { x: C.x, y: C.y + 178 }, float);
+  [-1, 1].forEach((side) => r.shape(side < 0 ? 'Tail left' : 'Tail right', 'rect', { x: C.x + side * 196, y: C.y + 198 }, { w: 96, h: 70, radius: 10, color: RIB_DEEP, rotation: side * -8, parent: ribbon }));
+  r.shape('Banner lip', 'rect', { x: C.x, y: C.y + 190 }, { w: 380, h: 80, radius: 16, color: RIB_DEEP, parent: ribbon });
+  const banner = r.shape('Banner', 'rect', { x: C.x, y: C.y + 178 }, { w: 380, h: 80, radius: 16, color: RIB, fill: 'linear', parent: ribbon });
+  banner.props.fill.color2 = RIB_LO; banner.props.fill.angle = 90;
+  r.shape('Banner shine', 'rect', { x: C.x, y: C.y + 152 }, { w: 330, h: 10, radius: 5, color: '#ffffff', opacity: 0.3, parent: ribbon });
+  const label = r.text('Banner label', 'LEVEL UP', { x: C.x, y: C.y + 178 }, { size: 40, color: '#ffffff', weight: 800, font: 'Cabinet Grotesk', tracking: 0.08, parent: ribbon });
+
+  const twinkles = [[C.x + 262, C.y - 150, 52], [C.x - 270, C.y - 40, 34], [C.x + 236, C.y + 124, 26], [C.x - 210, C.y + 170, 22]].map(([x, y, d], i) => r.shape(`Twinkle ${i + 1}`, 'star', { x, y }, { w: d, h: d, sides: 4, inner: 0.28, color: i % 2 ? '#ffffff' : STAR_HI }));
+
+  const title = r.text('Title', 'Level up!', { x: 540, y: 850 }, { size: 96, color: INK, weight: 800, font: 'Cabinet Grotesk' });
+  r.text('Subtitle', 'You reached level 7', { x: 540, y: 930 }, { size: 36, color: SUB, weight: 500, font: 'Cabinet Grotesk' });
+  const touch = r.shape('Touch area', 'ellipse', C, { w: 520, h: 560, color: GOLD, fill: 'none', locked: true });
+
+  // The glint crosses the face along its tilt; its length follows the face's chord so it never
+  // spills past the edge (sampled into keys).
+  const FR = R - 36;
+  const sweep = (t0: number, dur: number): { x: Key[]; h: Key[]; o: Key[] } => {
+    const n = 8, x: Key[] = [], h: Key[] = [], o: Key[] = [];
+    for (let k = 0; k <= n; k++) {
+      const u = k / n, off = -FR * 0.85 + u * FR * 1.7, chord = 2 * Math.sqrt(Math.max(0, FR * FR - off * off)) * 0.92;
+      const t = +(t0 + u * dur).toFixed(3);
+      x.push([t, r.dx(glint, off + 150), 'linear']); h.push([t, Math.max(0.05, chord / 250), 'linear']); o.push([t, Math.sin(u * Math.PI) * 0.34, 'linear']);
+    }
+    return { x, h, o };
+  };
+  const idleGlint = sweep(1.4, 0.9);
   const fy = float.transform.y;
-  const idle = anim('Idle', 4, 'loop', 'The rays turn exactly one ray-width per loop (22.5° for 16 rays), so the loop is seamless. The medal floats and the twinkles flash at different times.', [
+  const idle = anim('Idle', 4, 'loop', 'Rays turn exactly one ray-width per loop (22.5° for 16 rays), so the loop is seamless. The medal floats, the crown stars bob out of step, sparkles flash at different times, and a glint sweeps the face once per loop, its length following the face so it never spills over.', [
     tr(raysSpin, 'transform.rotation', [[0, 0, 'linear'], [4, 22.5]]),
     tr(float, 'transform.y', [[0, fy], [2, r.dy(float, -12)], [4, fy]]),
-    ...twinkles.map((t, i) => tr(t, 'transform.scale', [[0, 1], [0.6 + i * 1.1, 1, 'easeInOut'], [0.9 + i * 1.1, 0.3, 'easeInOut'], [1.2 + i * 1.1, 1], [4, 1]])),
+    ...crown.map(({ g }, i) => tr(g, 'transform.y', [[0, g.transform.y], [0.6 + i * 0.5, g.transform.y], [1.4 + i * 0.5, r.dy(g, -8)], [2.2 + i * 0.5, g.transform.y], [4, g.transform.y]])),
+    ...twinkles.map((t, i) => tr(t, 'transform.scale', [[0, 1], [0.4 + i * 0.85, 1, 'easeInOut'], [0.7 + i * 0.85, 0.25, 'easeInOut'], [1.0 + i * 0.85, 1], [4, 1]])),
+    tr(glint, 'transform.x', [[0, idleGlint.x[0][1]], ...idleGlint.x, [4, idleGlint.x[0][1]]]),
+    tr(glint, 'transform.scaleY', [[0, 0.05], ...idleGlint.h, [4, 0.05]]),
+    tr(glint, 'opacity', [[0, 0], ...idleGlint.o, [4, 0]]),
   ]);
-  const celebrate = anim('Celebrate', 2, 'once', 'Anticipation (it ducks and tilts back), then the coin-flip: squeezing the width to almost nothing and back reads as a turn in 2D. It pops past full size and settles. The rays flare a beat later, the confetti arcs up and falls with gravity (fast out, slowing at the top, speeding up as it drops), and the title bounces in last.', [
-    tr(medal, 'transform.scale', [[0, 1, 'easeOut'], [0.15, 0.86, 'easeIn'], [0.3, 1, 'easeOut'], [0.75, 1.18, 'easeInOut'], [1.0, 0.96, 'easeInOut'], [1.2, 1]]),
-    tr(medal, 'transform.rotation', [[0, 0, 'easeOut'], [0.15, -10, 'easeInOut'], [0.35, 0]]),
+  const fast = sweep(0.75, 0.45);
+  const celebrate = anim('Celebrate', 2.2, 'once', 'Anticipation (it ducks and tilts back), then the coin flip: squeezing the width to almost nothing and back reads as a turn in 2D, and the face flashes as it goes edge-on. It pops past full size and settles. The crown stars pop in one after another, the ribbon unfurls with overshoot, the rays flare, a fast glint crosses the face, confetti arcs up and falls with gravity, and the title bounces in last.', [
+    tr(medal, 'transform.scale', [[0, 1, 'easeOut'], [0.15, 0.88, 'easeIn'], [0.3, 1, 'easeOut'], [0.76, 1.16, 'easeInOut'], [1.0, 0.97, 'easeInOut'], [1.2, 1]]),
+    tr(medal, 'transform.rotation', [[0, 0, 'easeOut'], [0.15, -9, 'easeInOut'], [0.35, 0]]),
     tr(medal, 'transform.scaleX', [[0.2, 1, 'easeIn'], [0.32, 0.04, 'easeOut'], [0.44, 1, 'easeIn'], [0.56, 0.04, 'easeOut'], [0.7, 1]]),
-    tr(face, 'props.fill.color', [[0.2, GREEN_T, 'step'], [0.32, '#5fd99c', 'step'], [0.44, GREEN_T, 'step'], [0.56, '#5fd99c', 'step'], [0.7, GREEN_T]]),
-    tr(number, 'transform.scale', [[0.7, 1, 'easeIn'], [0.78, 0.8, 'backOut'], [1.05, 1.1, 'easeInOut'], [1.3, 1]]),
-    tr(banner, 'transform.scaleX', [[0.75, 1, 'easeOut'], [0.85, 1.08, 'easeInOut'], [1.05, 1]]),
-    tr(star, 'transform.rotation', [[0.6, 0, 'backOut'], [1.1, 72]]),
-    tr(raysOuter, 'transform.scale', [[0.65, 1, 'expoOut'], [0.95, 1.22, 'easeInOut'], [1.8, 1]]),
+    tr(face, 'props.fill.color', [[0.2, FACE_HI, 'step'], [0.32, '#d6bfff', 'step'], [0.44, FACE_HI, 'step'], [0.56, '#d6bfff', 'step'], [0.7, FACE_HI]]),
+    ...crown.flatMap(({ g }, i) => [tr(g, 'transform.scale', [[0.55, 1, 'easeIn'], [0.62, 0.01, 'step'], [0.7 + i * 0.1, 0.01, 'backOut'], [0.98 + i * 0.1, 1.25, 'easeInOut'], [1.18 + i * 0.1, 1]])]),
+    tr(ribbon, 'transform.scaleX', [[0.6, 1, 'easeIn'], [0.7, 0.5, 'backOut'], [1.05, 1.08, 'easeInOut'], [1.3, 1]]),
+    tr(raysOuter, 'transform.scale', [[0.68, 1, 'expoOut'], [0.98, 1.24, 'easeInOut'], [1.9, 1]]),
+    tr(glint, 'transform.x', fast.x), tr(glint, 'transform.scaleY', fast.h), tr(glint, 'opacity', fast.o),
     ...confetti.flatMap(({ l, peak, land }, i) => {
-      const t0 = 0.7 + (i % 5) * 0.03;
+      const t0 = 0.72 + (i % 5) * 0.03;
       return [
-        tr(l, 'opacity', after(t0, [[0, 0], [0.03, 1], [0.9, 1], [1.2, 0]])),
-        tr(l, 'transform.x', after(t0, [[0, l.transform.x, 'easeOut'], [0.45, peak.x / r.W, 'linear'], [1.2, land.x / r.W]])),
-        tr(l, 'transform.y', after(t0, [[0, l.transform.y, 'easeOut'], [0.45, peak.y / r.H, 'easeIn'], [1.2, land.y / r.H]])),
-        tr(l, 'transform.rotation', after(t0, [[0, l.transform.rotation, 'linear'], [1.2, l.transform.rotation + (i % 2 ? 420 : -380)]])),
+        tr(l, 'opacity', after(t0, [[0, 0], [0.03, 1], [0.95, 1], [1.25, 0]])),
+        tr(l, 'transform.x', after(t0, [[0, l.transform.x, 'easeOut'], [0.45, peak.x / r.W, 'linear'], [1.25, land.x / r.W]])),
+        tr(l, 'transform.y', after(t0, [[0, l.transform.y, 'easeOut'], [0.45, peak.y / r.H, 'easeIn'], [1.25, land.y / r.H]])),
+        tr(l, 'transform.rotation', after(t0, [[0, l.transform.rotation, 'linear'], [1.25, l.transform.rotation + (i % 2 ? 420 : -380)]])),
       ];
     }),
-    tr(title, 'transform.scale', [[0.85, 1, 'easeIn'], [0.95, 0.7, 'backOut'], [1.25, 1.12, 'easeInOut'], [1.5, 1]]),
+    tr(title, 'transform.scale', [[0.9, 1, 'easeIn'], [1.0, 0.72, 'backOut'], [1.3, 1.1, 'easeInOut'], [1.55, 1]]),
   ]);
 
   const go = input('Celebrate', 'trigger', false);
   return finish(r, {
     name: 'Reward badge', category: 'Celebrations', background: BG, duration: 4,
-    description: 'An achievement badge that ducks, flips like a tossed coin, pops and showers confetti when you earn it.',
-    tags: ['reward', 'badge', 'confetti', 'trigger', 'gamification'],
+    description: 'A collectible gold-and-violet medal that ducks, flips like a tossed coin, pops its stars in one by one and showers confetti when you earn it.',
+    tags: ['reward', 'badge', 'medal', 'confetti', 'trigger', 'gamification'],
     exposed: [
+      param('number', 'Number', 'The big number on the medal.', 'text', [[number, 'props.text'], [r.layers.find((l) => l.name === 'Number depth')!, 'props.text']], '7', 'Content'),
       param('title', 'Title', 'The words under the medal.', 'text', [[title, 'props.text']], 'Level up!', 'Content'),
-      param('number', 'Number', 'The big number on the badge.', 'text', [[number, 'props.text']], '7', 'Content'),
-      param('label', 'Banner', 'The word on the banner.', 'text', [[label, 'props.text']], 'LEVEL', 'Content'),
-      param('face', 'Badge colour', 'The top of the badge face.', 'color', [[face, 'props.fill.color']], GREEN_T),
-      param('banner', 'Banner colour', 'The gold banner.', 'color', [[banner, 'props.fill.color']], GOLD),
-      param('border', 'Border colour', 'The badge’s outline.', 'color', [[outer, 'props.fill.color']], '#ffffff'),
+      param('ribbonText', 'Ribbon', 'The words on the ribbon.', 'text', [[label, 'props.text']], 'LEVEL UP', 'Content'),
+      param('face', 'Face colour', 'The gem in the middle of the medal.', 'color', [[face, 'props.fill.color']], FACE_HI),
+      param('ribbon', 'Ribbon colour', 'The banner across the bottom.', 'color', [[banner, 'props.fill.color']], RIB),
+      param('stars', 'Star colour', 'The crown of stars.', 'color', crown.map(({ s }) => [s, 'props.fill.color2'] as [Layer, string]), STAR),
     ],
     machine: {
       inputs: [go], animations: [idle, celebrate], bindings: [],

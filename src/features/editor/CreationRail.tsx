@@ -12,19 +12,19 @@ import { addLayer } from './store';
  * flyouts (click the small corner arrow, press and hold, or right-click); the group's button adds
  * whichever one you used last. Anything in a flyout can be pinned to sit directly on the rail.
  */
-const Glyph = ({ d }: { d: string }) => <svg className="i" viewBox="0 0 24 24"><path d={d} /></svg>;
 type Tool = { key: string; label: string; glyph: string; kbd?: string; run: () => void };
+const Glyph = ({ d }: { d: string }) => <Icon name={d} />;
 const SHAPES: Tool[] = [
-  { key: 'rect', label: 'Rectangle', glyph: 'M4 6h16v12H4z', kbd: 'R', run: () => addLayer('shape', {}, 'rect') },
-  { key: 'ellipse', label: 'Ellipse', glyph: 'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z', kbd: 'O', run: () => addLayer('shape', {}, 'ellipse') },
-  { key: 'polygon', label: 'Polygon', glyph: 'M12 3l8 5v8l-8 5-8-5V8z', run: () => addLayer('shape', {}, 'polygon') },
-  { key: 'star', label: 'Star', glyph: 'M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6-4.5-4.2 6.1-.7z', run: () => addLayer('shape', {}, 'star') },
+  { key: 'rect', label: 'Rectangle', glyph: 'rect', kbd: 'R', run: () => addLayer('shape', {}, 'rect') },
+  { key: 'ellipse', label: 'Ellipse', glyph: 'ellipse', kbd: 'O', run: () => addLayer('shape', {}, 'ellipse') },
+  { key: 'polygon', label: 'Polygon', glyph: 'polygon', run: () => addLayer('shape', {}, 'polygon') },
+  { key: 'star', label: 'Star', glyph: 'star', run: () => addLayer('shape', {}, 'star') },
 ];
 const EFFECTS: Tool[] = [
-  { key: 'gradient', label: 'Gradient', glyph: 'M4 4h16v16H4zM4 14c5-6 11 2 16-4', run: () => addLayer('gradient', { name: 'Gradient background' }) },
-  { key: 'particles', label: 'Particles', glyph: 'M6 7h.01M12 5h.01M18 8h.01M8 13h.01M15 12h.01M6 18h.01M12 17h.01M18 16h.01', run: () => addLayer('particles', { name: 'Particles' }) },
+  { key: 'gradient', label: 'Gradient', glyph: 'gradient', run: () => addLayer('gradient', { name: 'Gradient background' }) },
+  { key: 'particles', label: 'Particles', glyph: 'particles', run: () => addLayer('particles', { name: 'Particles' }) },
 ];
-const TEXT: Tool = { key: 'text', label: 'Text', glyph: 'M5 6h14M12 6v13M9 19h6', kbd: 'T', run: () => addLayer('text', { name: 'Text' }) };
+const TEXT: Tool = { key: 'text', label: 'Text', glyph: 'text', kbd: 'T', run: () => addLayer('text', { name: 'Text' }) };
 const ALL = [...SHAPES, ...EFFECTS];
 
 export function CreationRail({ doc }: { doc: SceneDocument }) {
@@ -80,7 +80,7 @@ export function CreationRail({ doc }: { doc: SceneDocument }) {
             <div key={t.key} className="rail-fly-row">
               <button role="menuitem" className="rail-fly-item" onClick={() => use(t)}><Glyph d={t.glyph} /><span>{t.label}</span>{t.kbd && <span className="kbd">{t.kbd}</span>}</button>
               <button className="rail-pin" aria-pressed={pins.includes(t.key)} aria-label={pins.includes(t.key) ? `Unpin ${t.label}` : `Pin ${t.label} to the rail`} title={pins.includes(t.key) ? 'Unpin' : 'Pin to the rail'} onClick={() => pin(t.key)}>
-                <svg className="i" viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7" /></svg>
+                <Icon name="pin" size={14} accent={false} />
               </button>
             </div>
           ))}

@@ -47,7 +47,7 @@ export default function Editor() {
   const [community, setCommunity] = useState<{ id: string } | null>(null);
   const [sharing, setSharing] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const { assistant: asking, focus, left, right } = useLayout();
+  const { assistant: asking, focus, left, right, interactSplit } = useLayout();
   const setAsking = (v: boolean) => setLayout({ assistant: v, askPrompt: null });
   // Preview remembers which workspace you came from, so stopping it takes you straight back.
   const before = useRef<Mode>('design');
@@ -117,7 +117,11 @@ export default function Editor() {
   const showRail = !focus && (mode === 'design' || mode === 'animate');
   const showLeft = !focus && !previewing;
   const showRight = !focus;
-  const cols = `${showRail ? '52px' : '0px'} ${showLeft ? `${left}px` : '0px'} minmax(0, 1fr) ${showRight ? `${right}px` : '0px'}`;
+  // Interact puts the logic first: a wide panel for the map and conditions, the artwork as a live preview beside it.
+  const interact = mode === 'interact' && !focus;
+  const cols = interact
+    ? `0px ${left}px minmax(240px, ${(1 - interactSplit).toFixed(3)}fr) minmax(380px, ${interactSplit.toFixed(3)}fr)`
+    : `${showRail ? '52px' : '0px'} ${showLeft ? `${left}px` : '0px'} minmax(0, 1fr) ${showRight ? `${right}px` : '0px'}`;
   return (
     <div className={`ed${focus ? ' focus' : ''}${previewing ? ' previewing' : ''}`} style={{ gridTemplateColumns: cols, gridTemplateRows: mode === 'animate' ? '56px minmax(0, 1fr) auto' : '56px minmax(0, 1fr)' }}>
       <header className="ed-top">
@@ -150,10 +154,10 @@ export default function Editor() {
       {showLeft ? <div className="ed-col"><LayersPanel doc={doc} /><Resizer side="left" /></div> : <div />}
       <Stage doc={doc} assets={resolver} playerRef={player} onRuntimeChange={onRuntimeChange} />
       {showRight ? (
-        <div className="ed-col"><Resizer side="right" /><aside className="ed-right" aria-label={previewing ? 'Preview controls' : 'Properties'}>
+        <div className="ed-col">{interact ? <SplitResizer left={left} /> : <Resizer side="right" />}<aside className="ed-right" aria-label={previewing ? 'Preview controls' : 'Properties'}>
           {mode === 'design' && (layer ? <Inspector doc={doc} layer={layer} /> : <CanvasSettings doc={doc} />)}
           {mode === 'animate' && <><QuickMoves layer={layer} />{layer && <Inspector doc={doc} layer={layer} />}</>}
-          {mode === 'interact' && <InteractPanel doc={doc} />}
+          {mode === 'interact' && <InteractPanel doc={doc} runtime={player.current?.runtime ?? null} />}
           {previewing && <div className="insp-empty">Previewing: this is exactly how it behaves for people. Hover, click and press keys on the canvas.</div>}
           {previewing && <Customise doc={doc} />}
           {previewing && <div className="sec"><div className="sec-h">Controls</div><ControlWidgets doc={doc} runtime={player.current?.runtime ?? null} onReset={() => player.current?.reset()} showLog={false} /></div>}
@@ -274,8 +278,29 @@ function Resizer({ side }: { side: 'left' | 'right' }) {
         e.preventDefault();
         const x0 = e.clientX, w0 = width;
         const move = (ev: PointerEvent) => setLayout({ [side]: clamp(w0 + (side === 'left' ? 1 : -1) * (ev.clientX - x0), min, max) });
-        const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); document.body.style.cursor = ''; };
-        document.body.style.cursor = 'col-resize';
+        const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); document.body.style.cursor = ''; document.body.classList.remove('resizing'); };
+        document.body.style.cursor = 'col-resize'; document.body.classList.add('resizing');
+        window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+      }} />
+  );
+}
+
+/** Interact: drag the line between the preview and the logic panel to give either more room. */
+function SplitResizer({ left }: { left: number }) {
+  const split = useLayout((s) => s.interactSplit);
+  const set = (v: number) => setLayout({ interactSplit: clamp(+v.toFixed(3), 0.35, 0.85) });
+  return (
+    <div className="col-resize right" role="separator" aria-orientation="vertical" aria-label="Resize the preview and the interaction panel" aria-valuemin={35} aria-valuemax={85} aria-valuenow={Math.round(split * 100)} tabIndex={0}
+      title="Drag to resize · double-click to reset"
+      onDoubleClick={() => set(0.6)}
+      onKeyDown={(e) => { if (e.key === 'ArrowLeft') { e.preventDefault(); set(split + 0.03); } if (e.key === 'ArrowRight') { e.preventDefault(); set(split - 0.03); } }}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        const ed = (e.currentTarget as HTMLElement).closest('.ed')!.getBoundingClientRect();
+        const start = ed.left + left, room = ed.width - left;
+        const move = (ev: PointerEvent) => set(1 - (ev.clientX - start) / room);
+        const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); document.body.style.cursor = ''; document.body.classList.remove('resizing'); };
+        document.body.style.cursor = 'col-resize'; document.body.classList.add('resizing');
         window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
       }} />
   );

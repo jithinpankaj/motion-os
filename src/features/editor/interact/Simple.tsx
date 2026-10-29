@@ -208,13 +208,16 @@ const DO_OPTIONS: { key: DoKind; icon: string; label: string; hint: string }[] =
 ];
 
 /** Three plain questions: what do people do, on what, and what should happen. */
-export function NewInteraction({ doc, onClose, onCreated }: { doc: SceneDocument; onClose: () => void; onCreated: (id: string) => void }) {
+/** What a drag-and-drop on the map already answered: the layer people touch, and maybe the move. */
+export type InteractionDraft = { target?: string; play?: string };
+
+export function NewInteraction({ doc, onClose, onCreated, draft }: { doc: SceneDocument; onClose: () => void; onCreated: (id: string) => void; draft?: InteractionDraft }) {
   const m = doc.machine;
   const [step, setStep] = useState(0);
   const [whenK, setWhenK] = useState<string | null>(null);
-  const [target, setTarget] = useState<string | undefined>(defaultTarget(doc));
-  const [doK, setDoK] = useState<DoKind | null>(null);
-  const [what, setWhat] = useState<string>('');
+  const [target, setTarget] = useState<string | undefined>(draft?.target ?? defaultTarget(doc));
+  const [doK, setDoK] = useState<DoKind | null>(draft?.play ? 'play' : null);
+  const [what, setWhat] = useState<string>(draft?.play ?? '');
   const [pair, setPair] = useState(true);
   const opt = WHEN_OPTIONS.find((o) => o.key === whenK);
   const pointer = whenK === 'enter' || whenK === 'leave' || whenK === 'click' || whenK === 'down' || whenK === 'up';

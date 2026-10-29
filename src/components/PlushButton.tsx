@@ -11,10 +11,25 @@ import { useReducedMotion } from '../lib/prefs';
  */
 const N = 56, PAD = 28, SIGMA = 46;
 
+/**
+ * A tile of fine, soft grain, drawn once and shared by every plush button: every pixel is a grey
+ * close to the middle, so blended over the gradient it reads as texture rather than speckles.
+ */
+let grainTile: string | null = null;
+function grain() {
+  if (grainTile || typeof document === 'undefined') return grainTile;
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const ctx = c.getContext('2d'); if (!ctx) return null;
+  const img = ctx.createImageData(128, 128);
+  for (let i = 0; i < img.data.length; i += 4) { const v = 128 + (Math.random() - 0.5) * 110; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+  ctx.putImageData(img, 0, 0);
+  return (grainTile = c.toDataURL('image/png'));
+}
+
 export function PlushButton({ label, icon, onClick, width = 196, height = 62 }: { label: ReactNode; icon?: ReactNode; onClick: () => void; width?: number; height?: number }) {
   const id = useId().replace(/:/g, '');
   const reduced = useReducedMotion();
-  const path = useRef<SVGPathElement>(null), shadow = useRef<SVGPathElement>(null);
+  const path = useRef<SVGPathElement>(null), shadow = useRef<SVGPathElement>(null), clip = useRef<SVGPathElement>(null);
   const lights = useRef<SVGFEPointLightElement[]>([]);
   const rim = useRef<SVGPathElement>(null), rimGrad = useRef<SVGLinearGradientElement>(null);
   const wake = useRef<() => void>(() => {});
@@ -61,6 +76,7 @@ export function PlushButton({ label, icon, onClick, width = 196, height = 62 }: 
       path.current?.setAttribute('d', d + 'Z');
       shadow.current?.setAttribute('d', d + 'Z');
       rim.current?.setAttribute('d', d + 'Z');
+      clip.current?.setAttribute('d', d + 'Z');
       if (rim.current) rim.current.style.opacity = String(Math.max(0, Math.min(1, s.glow)));
       rimGrad.current?.setAttribute('gradientTransform', `rotate(${(t * 40) % 360} 0.5 0.5)`);
       for (const l of lights.current) { l?.setAttribute('x', s.lx.toFixed(1)); l?.setAttribute('y', s.ly.toFixed(1)); }
@@ -120,8 +136,9 @@ export function PlushButton({ label, icon, onClick, width = 196, height = 62 }: 
       onFocus={() => wake.current()} onBlur={() => wake.current()}>
       <svg className="plush-svg" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden style={{ left: -PAD, top: -PAD }}>
         <defs>
-          <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0.35" y2="1">
+          <linearGradient id={`${id}-fill`} x1="0.2" y1="0" x2="0.45" y2="1">
             <stop offset="0" style={{ stopColor: 'var(--plush-hi)' }} />
+            <stop offset="0.55" style={{ stopColor: 'var(--plush-mid)' }} />
             <stop offset="1" style={{ stopColor: 'var(--plush-lo)' }} />
           </linearGradient>
           <linearGradient ref={rimGrad} id={`${id}-rim`} x1="0" y1="0" x2="1" y2="1">
@@ -148,6 +165,28 @@ export function PlushButton({ label, icon, onClick, width = 196, height = 62 }: 
         <path ref={shadow} className="plush-shadow" transform="translate(0 11)" filter={`url(#${id}-shadow)`} />
         <path ref={path} fill={`url(#${id}-fill)`} filter={`url(#${id}-satin)`} />
         <path ref={rim} fill="none" stroke={`url(#${id}-rim)`} strokeWidth="1.6" style={{ opacity: 0 }} />
+      </svg>
+      {/* Grain lives in its own layer, so its flicker never re-runs the satin lighting underneath. */}
+      <svg className="plush-svg plush-grain-svg" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden style={{ left: -PAD, top: -PAD }}>
+        <defs>
+          <clipPath id={`${id}-clip`}><path ref={clip} /></clipPath>
+          <linearGradient id={`${id}-fade`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#fff" stopOpacity="0.35" /><stop offset="0.6" stopColor="#fff" stopOpacity="0.7" /><stop offset="1" stopColor="#fff" stopOpacity="1" />
+          </linearGradient>
+          {/* The colour glow: the studio's metallic palette, rising softly from the bottom edge. */}
+          <linearGradient id={`${id}-glow`} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#1f4e86" /><stop offset="0.5" stopColor="#4a8f86" /><stop offset="1" stopColor="#d9be86" />
+          </linearGradient>
+          <linearGradient id={`${id}-glow-fade`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0.45" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#fff" stopOpacity="1" />
+          </linearGradient>
+          <mask id={`${id}-glow-mask`} maskUnits="userSpaceOnUse" x="0" y="0" width={W} height={H}><rect x={0} y={PAD} width={W} height={height} fill={`url(#${id}-glow-fade)`} /></mask>
+          <mask id={`${id}-mask`} maskUnits="userSpaceOnUse" x="0" y="0" width={W} height={H}><rect x={0} y={PAD} width={W} height={height} fill={`url(#${id}-fade)`} /></mask>
+          <pattern id={`${id}-grain`} patternUnits="userSpaceOnUse" width="64" height="64"><image href={grain() ?? ''} width="64" height="64" /></pattern>
+        </defs>
+        <g clipPath={`url(#${id}-clip)`} mask={`url(#${id}-glow-mask)`} className="plush-glow"><rect x={0} y={PAD} width={W} height={height} fill={`url(#${id}-glow)`} /></g>
+        {/* Fine grain over the whole body, a little stronger toward the bottom, drifting slowly. It follows the soft body's outline. */}
+        <g clipPath={`url(#${id}-clip)`} mask={`url(#${id}-mask)`} className="plush-grain"><rect className="plush-grain-r" x={-48} y={-48} width={W + 96} height={H + 96} fill={`url(#${id}-grain)`} /></g>
       </svg>
       <span ref={content} className="plush-content">{icon}<span>{label}</span></span>
     </button>

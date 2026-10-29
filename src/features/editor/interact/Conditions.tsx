@@ -67,9 +67,9 @@ function GroupBox({ doc, root, path, onChange, treeId, live }: { doc: SceneDocum
         </div>
       ))}
       {!g.items.length && <div className="empty-hint" style={{ padding: '2px 4px' }}>{path.length ? 'Empty group. Add a condition or drag one here.' : 'No conditions: it always runs.'}</div>}
-      <div className="row" style={{ gap: 6 }}>
+      <div className="cond-foot">
         <button className="btn sm ghost" onClick={() => onChange(insertCond(root, path, g.items.length, newLeaf(doc)))}><Icon name="plus" size={11} />Add condition</button>
-        <button className="btn sm ghost" onClick={() => onChange(insertCond(root, path, g.items.length, { type: 'group', op: g.op === 'all' ? 'any' : 'all', items: [newLeaf(doc)] }))}><Icon name="group" size={11} />Add condition group</button>
+        <button className="btn sm ghost" onClick={() => onChange(insertCond(root, path, g.items.length, { type: 'group', op: g.op === 'all' ? 'any' : 'all', items: [newLeaf(doc)] }))}><Icon name="group" size={11} />Add group</button>
       </div>
     </div>
   );

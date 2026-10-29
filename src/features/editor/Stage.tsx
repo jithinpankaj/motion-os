@@ -7,6 +7,7 @@ import type { AssetResolver } from '../../engine/assets';
 import type { Bounds } from '../../engine/layers/base';
 import { Icon } from '../../ui/Icon';
 import { Tip } from '../../ui/controls';
+import { useTourImage, type TourImage } from './tourImages';
 import { markTipSeen, openAssistant, setLayout, tipSeen, toggleFocus, useLayout, zoomBy } from './layout';
 import { activeAnimation, deleteLayer, duplicateLayer, endCoalesce, layersAt, moveLayer, select, setMode, setPlayhead, setPlaying, setProp, useEditor } from './store';
 
@@ -71,19 +72,25 @@ export function Stage({ doc, assets, playerRef, onRuntimeChange }: { doc: SceneD
         <span className="cb-sep" />
         <Tip label={focus ? 'Exit focus mode' : 'Focus mode'} kbd={'⌘\\'} side="top"><button className="cb-btn" aria-label="Focus mode" aria-pressed={focus} onClick={toggleFocus}><Icon name="maximize" size={14} /></button></Tip>
       </div>
-      {mode === 'design' && <FirstTip id="select" when={!!useEditor.getState().selection}>Drag to move. Pull a corner to resize; the dot on top rotates. Shift snaps.</FirstTip>}
-      {mode === 'animate' && <FirstTip id="animate" when>Pick a move, put the playhead where you want, then change anything on the canvas. Each change becomes a keyframe.</FirstTip>}
-      {mode === 'interact' && <FirstTip id="interact" when>Interactions read like sentences: when someone does something, do these steps. Start with New interaction on the right.</FirstTip>}
+      {mode === 'design' && <FirstTip id="select" img="tip-select" when={!!useEditor.getState().selection}>Drag to move. Pull a corner to resize; the dot on top rotates. Shift snaps.</FirstTip>}
+      {mode === 'animate' && <FirstTip id="animate" img="tip-animate" when>Pick a move, put the playhead where you want, then change anything on the canvas. Each change becomes a keyframe.</FirstTip>}
+      {mode === 'interact' && <FirstTip id="interact" img="tip-interact" when>Interactions read like sentences: when someone does something, do these steps. Start with New interaction on the right.</FirstTip>}
     </div>
   );
 }
 
 /** A one-time hint at the top of the canvas. Dismissed for good with "Got it". */
-function FirstTip({ id, when, children }: { id: string; when: boolean; children: ReactNode }) {
+function FirstTip({ id, img, when, children }: { id: string; img: TourImage; when: boolean; children: ReactNode }) {
   const [seen, setSeen] = useState(() => tipSeen(id));
+  const src = useTourImage(img);
   useEditor((s) => s.selection); // re-check "when" as the selection changes
   if (seen || !when) return null;
-  return <div className="stage-tip" role="status"><Icon name="info" size={13} /><span>{children}</span><button className="btn sm ghost" onClick={() => { markTipSeen(id); setSeen(true); }}>Got it</button></div>;
+  return (
+    <div className="stage-tip" role="status">
+      {src && <img src={src} alt="" width={168} height={84} />}
+      <div className="stage-tip-b"><span>{children}</span><button className="btn sm" onClick={() => { markTipSeen(id); setSeen(true); }}>Got it</button></div>
+    </div>
+  );
 }
 
 type Drag = { kind: 'move' | 'resize' | 'rotate'; layer: Layer; startX: number; startY: number; bounds: Bounds; corner?: string };

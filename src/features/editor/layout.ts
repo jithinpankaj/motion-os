@@ -6,14 +6,16 @@ import { create } from 'zustand';
  */
 type Saved = Omit<Layout, 'zoom' | 'assistant' | 'askPrompt'>;
 type Layout = {
-  left: number; right: number; timeline: number; timelineOpen: boolean; timelineSelectedOnly: boolean;
+  left: number; right: number; timeline: number;
+  /** Interact: the share of the space (after Layers) that the logic panel takes; the preview gets the rest. */
+  interactSplit: number; timelineOpen: boolean; timelineSelectedOnly: boolean;
   focus: boolean; grid: boolean; pins: string[]; lastShape: string; lastEffect: string;
   zoom: 'fit' | number;
   /** Ask Claude open, and an optional prompt to start it with. Not remembered between visits. */
   assistant: boolean; askPrompt: string | null;
 };
 const KEY = 'mos.editor.layout';
-const DEFAULTS: Saved = { left: 248, right: 304, timeline: 236, timelineOpen: true, timelineSelectedOnly: false, focus: false, grid: false, pins: [], lastShape: 'rect', lastEffect: 'gradient' };
+const DEFAULTS: Saved = { left: 248, right: 304, interactSplit: 0.6, timeline: 236, timelineOpen: true, timelineSelectedOnly: false, focus: false, grid: false, pins: [], lastShape: 'rect', lastEffect: 'gradient' };
 const load = (): Saved => { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') }; } catch { return DEFAULTS; } };
 
 export const useLayout = create<Layout>(() => ({ ...load(), zoom: 'fit', assistant: false, askPrompt: null }));

@@ -135,3 +135,17 @@ Each move carries a note explaining the motion principle it uses (shown in Anima
 - **Panels** resize by dragging their edges (double-click resets); the Animate timeline resizes, collapses and can show only the selected layer's tracks. All of this is remembered.
 - **Ask Claude** suggests ideas for what you're working on: the selected layer (blinking for anything with eyes), the selected interaction (explain, simplify, find conflicts), or the whole file.
 - **Not built yet:** multi-select, align/distribute, group/ungroup, drag-to-reorder layers, pen/pencil and hand tools, guides. Interact keeps the plain-sentence builder rather than a node/connector map (an earlier product decision).
+
+## Interact map, Lesson stars, tutorial pictures
+
+- **Interact layout:** the logic gets the room (wide right panel, the artwork as a live preview beside it). The panel never scrolls sideways; nested condition editors wrap.
+- **Interaction map** (top of the Interact panel): drawn like a state machine. Moves (and states) are boxes; interactions are numbered, labelled arrows from Entry or Any state; states sit in a row with forward transitions above and back below; boxes playing in the preview light up. Drag a layer from Layers onto a move to open the helper with the layer and move filled in; the + on a move starts it with just the move.
+- **Lesson stars** (Interactive UI): one Score number (0–100) drives a progress bar through a slider link and earns a star every 20 points (number interactions fire when the value crosses the line, and play back when it drops). 100 plays a "Perfect" celebration.
+- **Tutorial pictures:** tour cards and the first-time canvas tips show real crops of the editor, one set per theme (`src/assets/tour/`).
+- **New file button:** drifting film grain gathered along the bottom edge (its own layer; paused with reduced motion).
+
+## Hand-drawn icons
+
+- Every interface icon comes from `src/ui/icons.ts`: Phosphor icons (MIT, see THIRD_PARTY_NOTICES.md) redrawn by `scripts/icons.mjs` with a gentle, deterministic wobble and a small per-icon tilt. Run `node scripts/icons.mjs` to regenerate (add names to its MAP to add icons).
+- Expressive icons (navigation, heart, star, sparkle, sun, moon, play, image, film, shapes, folders, pin) carry a warm accent printed off-register behind the line (`--icon-accent`); dense lists like Layers use plain line icons (`accent={false}`). The Like button uses a filled heart when liked, with a small pop.
+- The tour and tip pictures in `src/assets/tour/` show the hand-drawn icons and the Interact map.

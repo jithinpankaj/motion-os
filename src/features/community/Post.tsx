@@ -69,7 +69,7 @@ export default function Post() {
           </div>
           <div className="row" style={{ gap: 8 }}>
             {can('scene.create') && <button className="btn primary lg grow" disabled={busy} onClick={remix}>{busy ? <span className="spinner" /> : <><Icon name="branch" />Remix into my files</>}</button>}
-            <button className="btn lg" aria-pressed={post.liked} onClick={like}><Icon name="sparkles" />{post.liked ? 'Liked' : 'Like'} · {post.likeCount}</button>
+            <button className="btn lg like-btn" aria-pressed={post.liked} onClick={like}><Icon name={post.liked ? 'heartFill' : 'heart'} />{post.liked ? 'Liked' : 'Like'} · {post.likeCount}</button>
           </div>
           <div className="faint" style={{ fontSize: 12 }}>{post.remixCount} remix{post.remixCount === 1 ? '' : 'es'} so far</div>
           {post.mine && <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={unpublish}>Unpublish</button>}
