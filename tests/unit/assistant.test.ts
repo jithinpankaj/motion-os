@@ -35,9 +35,9 @@ describe('Ask Claude: applying operations', () => {
       op({ kind: 'delete_interaction', interaction: 42 }),
     ]);
     expect(r.problems).toEqual([
-      'Step 1 skipped — there’s no layer called “Rocket”.',
-      'Step 2 skipped — I couldn’t use the condition “Gold > 2”: There’s no variable called “Gold”.',
-      'Step 4 skipped — there’s no interaction 42.',
+      'Step 1 skipped: there’s no layer called “Rocket”.',
+      'Step 2 skipped: I couldn’t use the condition “Gold > 2”: There’s no variable called “Gold”.',
+      'Step 4 skipped: there’s no interaction 42.',
     ]);
     expect(r.changes).toEqual(['Set Underline’s colour to #ff0000']);
     expect(r.doc.layers.find((l) => l.name === 'Underline' && l.type === 'shape')!.type).toBe('shape');

@@ -53,7 +53,7 @@ export function LeftPanel({ doc }: { doc: SceneDocument }) {
         </div>
       )}
       <div className="sec" style={{ borderBottom: 0 }}>
-        <div className="sec-h">Layers <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 450 }}>{doc.layers.length}</span></div>
+        <div className="sec-h">Layers <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>{doc.layers.length}</span></div>
         {!doc.layers.length && <div className="empty-hint">Nothing here yet. Add a shape or text above.</div>}
         <div className="layers" role="listbox" aria-label="Layers">
           {ordered.map((l) => (

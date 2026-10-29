@@ -16,7 +16,7 @@ export function ConditionTree({ doc, group, onChange, treeId, live, allowText = 
     <div className="cond-tree">
       {allowText && (
         <div className="row between" style={{ gap: 6 }}>
-          <span className="faint" style={{ fontSize: 11.5 }}>{text ? 'Write it as text — names in [brackets] if they have spaces' : 'Drag conditions to reorder them or move them into groups'}</span>
+          <span className="faint" style={{ fontSize: 11.5 }}>{text ? 'Write it as text. Names in [brackets] if they have spaces' : 'Drag conditions to reorder them or move them into groups'}</span>
           <button className="btn sm ghost" onClick={() => setText(!text)} aria-pressed={text} title="Switch between the visual editor and a text expression"><Icon name="code" size={11} />{text ? 'Visual' : 'Text'}</button>
         </div>
       )}
@@ -66,7 +66,7 @@ function GroupBox({ doc, root, path, onChange, treeId, live }: { doc: SceneDocum
           {zone(i + 1)}
         </div>
       ))}
-      {!g.items.length && <div className="empty-hint" style={{ padding: '2px 4px' }}>{path.length ? 'Empty group — add a condition or drag one here.' : 'No conditions: it always runs.'}</div>}
+      {!g.items.length && <div className="empty-hint" style={{ padding: '2px 4px' }}>{path.length ? 'Empty group. Add a condition or drag one here.' : 'No conditions: it always runs.'}</div>}
       <div className="row" style={{ gap: 6 }}>
         <button className="btn sm ghost" onClick={() => onChange(insertCond(root, path, g.items.length, newLeaf(doc)))}><Icon name="plus" size={11} />Add condition</button>
         <button className="btn sm ghost" onClick={() => onChange(insertCond(root, path, g.items.length, { type: 'group', op: g.op === 'all' ? 'any' : 'all', items: [newLeaf(doc)] }))}><Icon name="group" size={11} />Add condition group</button>
@@ -175,7 +175,7 @@ function ExpressionEditor({ doc, group, onChange }: { doc: SceneDocument; group:
         aria-label="Conditions as an expression" placeholder='Coins >= 1 and not IsSpinning and (Mode is "hard" or event.key = "Enter")' />
       {sugg.length > 0 && <div className="row wrap" style={{ gap: 4 }}>{sugg.map((s) => <button key={s} className="chip" onMouseDown={(e) => { e.preventDefault(); accept(s); }}>{s}</button>)}<span className="faint" style={{ fontSize: 11 }}>Tab to accept</span></div>}
       {parsed.ok
-        ? <div className="ok-line"><Icon name="check" size={11} />Valid — {parsed.group.items.length ? `${countLeaves(parsed.group)} condition${countLeaves(parsed.group) === 1 ? '' : 's'}` : 'no conditions, always runs'}</div>
+        ? <div className="ok-line"><Icon name="check" size={11} />Valid: {parsed.group.items.length ? `${countLeaves(parsed.group)} condition${countLeaves(parsed.group) === 1 ? '' : 's'}` : 'no conditions, always runs'}</div>
         : <div className="err-line"><Icon name="alert" size={11} />{parsed.error}{src ? <span className="mono faint"> · at “{src.slice(parsed.at, parsed.at + 12) || 'the end'}”</span> : null}</div>}
       <div className="empty-hint">Use <b>and</b>, <b>or</b>, <b>not</b> and brackets. Compare with = ≠ &gt; &lt; ≥ ≤, <b>is</b>, <b>contains</b>, <b>starts with</b>, <b>in</b> 1..5. Also <b>state is</b> Hover, <b>[Move] is playing</b>, <b>event.key</b> = "Enter".</div>
     </div>

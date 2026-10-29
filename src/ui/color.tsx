@@ -95,7 +95,7 @@ export function GradientEditor({ stops, onChange, onCommit, swatches, disabled }
   const update = (idx: number, patch: Partial<GradientProps['stops'][number]>) => onChange(stops.map((s, k) => (k === idx ? { ...s, ...patch } : s)));
   return (
     <div className="col" style={{ gap: 4 }}>
-      <div ref={bar} className="gbar" style={{ background: gradientCss(stops) }} aria-label="Gradient stops — click to add" onPointerDown={(e) => {
+      <div ref={bar} className="gbar" style={{ background: gradientCss(stops) }} aria-label="Gradient stops. Click to add" onPointerDown={(e) => {
         if (disabled || e.target !== e.currentTarget || stops.length >= 6) return;
         const pos = posFrom(e.clientX);
         const sorted = stops.slice().sort((a, b) => a.pos - b.pos);

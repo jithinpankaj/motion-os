@@ -5,24 +5,61 @@ import { Avatar, EmptyState, Field, Modal, Tabs, timeAgo, toast } from '../../ui
 import { Icon } from '../../ui/Icon';
 import { Link } from 'react-router-dom';
 import { FigmaConnect } from '../../components/FigmaConnect';
+import { useTheme, type ThemePref } from '../../lib/theme';
+import { usePrefs } from '../../lib/prefs';
 
-type Tab = 'profile' | 'members' | 'roles' | 'connections' | 'audit';
+type Tab = 'appearance' | 'profile' | 'members' | 'roles' | 'connections' | 'audit';
 
 export default function Settings() {
   const can = useCan();
   const [tab, setTab] = useState<Tab>('profile');
-  const tabs = [{ value: 'profile' as Tab, label: 'Profile & sessions' }, ...(can('workspace.view') ? [{ value: 'members' as Tab, label: 'Members & teams' }] : []), ...(can('roles.manage') ? [{ value: 'roles' as Tab, label: 'Roles & permissions' }] : []), ...(can('asset.view') ? [{ value: 'connections' as Tab, label: 'Connections' }] : []), ...(can('audit.view') ? [{ value: 'audit' as Tab, label: 'Audit log' }] : [])];
+  const tabs = [{ value: 'profile' as Tab, label: 'Profile & sessions' }, { value: 'appearance' as Tab, label: 'Appearance' }, ...(can('workspace.view') ? [{ value: 'members' as Tab, label: 'Members & teams' }] : []), ...(can('roles.manage') ? [{ value: 'roles' as Tab, label: 'Roles & permissions' }] : []), ...(can('asset.view') ? [{ value: 'connections' as Tab, label: 'Connections' }] : []), ...(can('audit.view') ? [{ value: 'audit' as Tab, label: 'Audit log' }] : [])];
   return (
     <div className="page-inner">
       <h1 className="h1">Settings</h1>
       <div style={{ marginTop: 18 }}><Tabs label="Settings sections" value={tab} onChange={setTab} tabs={tabs} /></div>
       <div style={{ marginTop: 24 }}>
         {tab === 'profile' && <Profile />}
+        {tab === 'appearance' && <Appearance />}
         {tab === 'members' && <Members />}
         {tab === 'roles' && <Roles />}
         {tab === 'connections' && <Connections />}
         {tab === 'audit' && <Audit />}
       </div>
+    </div>
+  );
+}
+
+const THEME_CARDS: { value: ThemePref; label: string; hint: string }[] = [
+  { value: 'light', label: 'Light', hint: 'Warm white surfaces.' },
+  { value: 'dark', label: 'Dark', hint: 'Graphite surfaces, easier at night.' },
+  { value: 'system', label: 'Match system', hint: 'Follows your device setting.' },
+];
+
+/** Interface theme and motion. Neither changes your artwork: files always render their own colours. */
+function Appearance() {
+  const { pref, set } = useTheme();
+  const { motion, set: setMotion } = usePrefs();
+  return (
+    <div className="col" style={{ gap: 28, maxWidth: 760 }}>
+      <section className="col" style={{ gap: 12 }}>
+        <div><div className="h3">Theme</div><div className="faint" style={{ fontSize: 12.5, marginTop: 2 }}>Changes the interface only. Your files look exactly the same in every theme.</div></div>
+        <div className="theme-cards" role="radiogroup" aria-label="Interface theme">
+          {THEME_CARDS.map((t) => (
+            <button key={t.value} role="radio" aria-checked={pref === t.value} className="theme-card" onClick={() => set(t.value)}>
+              <span className={`theme-thumb ${t.value}`} aria-hidden><span /><span /><span /></span>
+              <span className="row" style={{ gap: 8 }}><span className="theme-radio" />{t.label}</span>
+              <span className="faint" style={{ fontSize: 12 }}>{t.hint}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+      <section className="col" style={{ gap: 10 }}>
+        <div><div className="h3">Motion</div><div className="faint" style={{ fontSize: 12.5, marginTop: 2 }}>How much the interface and previews move.</div></div>
+        <div className="seg" role="radiogroup" aria-label="Motion preference" style={{ alignSelf: 'flex-start' }}>
+          {(['system', 'reduce', 'full'] as const).map((m) => <button key={m} role="radio" aria-checked={motion === m} aria-pressed={motion === m} style={motion === m ? { background: 'var(--bg-1)', boxShadow: 'var(--shadow-sm)' } : undefined} onClick={() => setMotion(m)}>{m === 'system' ? 'Follow system' : m === 'reduce' ? 'Reduce motion' : 'Full motion'}</button>)}
+        </div>
+      </section>
     </div>
   );
 }
@@ -75,7 +112,7 @@ function Members() {
         {d.members.map((m: any) => (
           <div key={m.id} className="row wrap" style={{ padding: '10px 12px', gap: 12, borderBottom: '1px solid var(--line)' }}>
             <Avatar name={m.name} />
-            <div style={{ width: 200 }}><div style={{ fontWeight: 540 }}>{m.name}{m.id === me?.id && <span className="faint"> (you)</span>}</div><div className="faint" style={{ fontSize: 11.5 }}>{m.email}</div></div>
+            <div style={{ width: 200 }}><div style={{ fontWeight: 500 }}>{m.name}{m.id === me?.id && <span className="faint"> (you)</span>}</div><div className="faint" style={{ fontSize: 11.5 }}>{m.email}</div></div>
             <div className="row wrap grow" style={{ gap: 4 }} aria-label={`Roles for ${m.name}`}>
               {d.roles.map((r: any) => <button key={r.id} className="chip" style={{ height: 22, fontSize: 11 }} aria-pressed={m.roles.includes(r.key)} disabled={!manage} onClick={() => setRoles(m.id, m.roles.includes(r.key) ? m.roles.filter((x: string) => x !== r.key) : [...m.roles, r.key])}>{r.name}</button>)}
             </div>
@@ -125,7 +162,7 @@ function Roles() {
   return (
     <div className="scroll panel" style={{ padding: 0 }}>
       <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
-        <thead><tr><th style={{ textAlign: 'left', padding: '10px 12px', position: 'sticky', left: 0, background: 'var(--bg-1)' }}>Permission</th>{d.roles.map((r: any) => <th key={r.id} style={{ padding: '10px 8px', fontWeight: 560 }} title={r.description}>{r.name}</th>)}</tr></thead>
+        <thead><tr><th style={{ textAlign: 'left', padding: '10px 12px', position: 'sticky', left: 0, background: 'var(--bg-1)' }}>Permission</th>{d.roles.map((r: any) => <th key={r.id} style={{ padding: '10px 8px', fontWeight: 500 }} title={r.description}>{r.name}</th>)}</tr></thead>
         <tbody>
           {perms.map(([k, desc]) => (
             <tr key={k} style={{ borderTop: '1px solid var(--line)' }}>
@@ -168,10 +205,10 @@ function Connections() {
     <div className="col" style={{ gap: 14, maxWidth: 720 }}>
       <div className="panel" style={{ padding: 16 }}>
         <div className="row" style={{ gap: 12 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: '#1e1e1e', display: 'grid', placeItems: 'center', fontWeight: 700 }}>F</div>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--surface-inverse)', color: 'var(--text-inverse)', display: 'grid', placeItems: 'center', fontWeight: 700 }}>F</div>
           <div className="grow">
-            <div style={{ fontWeight: 580 }}>Figma</div>
-            <div className="faint" style={{ fontSize: 12 }}>{figma === undefined ? 'Checking…' : figma ? (figma.status === 'connected' ? `Connected as ${figma.account} · token ${figma.tokenHint}` : `Needs attention: ${figma.error ?? figma.status}`) : 'Not connected — used to import frames in Create'}</div>
+            <div style={{ fontWeight: 500 }}>Figma</div>
+            <div className="faint" style={{ fontSize: 12 }}>{figma === undefined ? 'Checking…' : figma ? (figma.status === 'connected' ? `Connected as ${figma.account} · token ${figma.tokenHint}` : `Needs attention: ${figma.error ?? figma.status}`) : 'Not connected. Used to import frames in Create'}</div>
           </div>
           {can('integration.manage') && figma && <button className="btn sm ghost" onClick={async () => { await api('/connections/figma', { method: 'DELETE' }); toast('ok', 'Figma disconnected'); load(); }}>Disconnect</button>}
           {can('integration.manage') && <button className="btn sm" onClick={() => setEditing((v) => !v)}>{figma ? 'Replace token' : 'Connect'}</button>}
@@ -179,7 +216,7 @@ function Connections() {
         {editing && <FigmaConnect onConnected={() => { setEditing(false); load(); }} />}
       </div>
       <div className="panel" style={{ padding: 16 }}>
-        <div style={{ fontWeight: 580 }}>Analytics accounts</div>
+        <div style={{ fontWeight: 500 }}>Analytics accounts</div>
         <div className="faint" style={{ fontSize: 12, marginTop: 4 }}>Google Analytics 4, Meta and LinkedIn are connected from the Analytics page.</div>
         <Link to="/analytics" className="btn sm" style={{ marginTop: 10 }}>Open Analytics</Link>
       </div>

@@ -6,6 +6,7 @@ import { Avatar, Menu, Popover, spring, StatusBadge, Tip, toast } from '../ui/co
 import { useCan, useSession, useWorkspace } from '../lib/session';
 import { useExports, download } from '../lib/exports';
 import { usePrefs } from '../lib/prefs';
+import { useTheme, type ThemePref } from '../lib/theme';
 import { api, errorMessage } from '../lib/api';
 import type { PermissionKey } from '../../shared/permissions';
 
@@ -85,7 +86,7 @@ function Header({ onSearch }: { onSearch: () => void }) {
     <header className="header">
       <button ref={wsRef} className="ws-switch" onClick={() => setWsOpen(true)} aria-label={`Workspace: ${ws?.name}. Switch workspace`}>
         <span className="ws-mark">{ws?.name?.[0]}</span>
-        <span style={{ fontWeight: 560 }}>{ws?.name}</span>
+        <span style={{ fontWeight: 500 }}>{ws?.name}</span>
         <Icon name="chevronDown" size={12} />
       </button>
       <span className="faint mono" style={{ fontSize: 10.5 }}>{ws?.roles.join(' · ')}</span>
@@ -93,6 +94,7 @@ function Header({ onSearch }: { onSearch: () => void }) {
       <button className="search-trigger" onClick={onSearch} aria-label="Search files (Command K)">
         <Icon name="search" size={14} /><span className="st-label grow" style={{ textAlign: 'left' }}>Search your files…</span><span className="kbd">⌘K</span>
       </button>
+      <ThemeSwitch />
       <ExportTrayButton />
       <button ref={userRef} className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setUserOpen(true)} aria-label="Account menu"><Avatar name={user?.name} /></button>
       <Popover anchor={wsRef} open={wsOpen} onClose={() => setWsOpen(false)}>
@@ -108,7 +110,7 @@ function Header({ onSearch }: { onSearch: () => void }) {
       </Popover>
       <Popover anchor={userRef} open={userOpen} onClose={() => setUserOpen(false)} placement="bottom-end">
         <div className="menu" style={{ minWidth: 240 }}>
-          <div style={{ padding: '8px 9px' }}><div style={{ fontWeight: 560 }}>{user?.name}</div><div className="faint">{user?.email}</div></div>
+          <div style={{ padding: '8px 9px' }}><div style={{ fontWeight: 500 }}>{user?.name}</div><div className="faint">{user?.email}</div></div>
           <div className="menu-sep" />
           <div className="eyebrow" style={{ padding: '8px 9px 6px' }}>Motion preference</div>
           {(['system', 'reduce', 'full'] as const).map((m) => (
@@ -120,6 +122,26 @@ function Header({ onSearch }: { onSearch: () => void }) {
         </div>
       </Popover>
     </header>
+  );
+}
+
+const THEMES: { value: ThemePref; label: string; icon: string }[] = [
+  { value: 'light', label: 'Light', icon: 'sun' },
+  { value: 'dark', label: 'Dark', icon: 'moon' },
+  { value: 'system', label: 'Match system', icon: 'monitor' },
+];
+
+/** Light / Dark / System. Changes the interface only — never the artwork. */
+export function ThemeSwitch() {
+  const { pref, set } = useTheme();
+  return (
+    <div className="theme-switch" role="radiogroup" aria-label="Interface theme">
+      {THEMES.map((t) => (
+        <Tip key={t.value} label={t.label}>
+          <button role="radio" aria-checked={pref === t.value} aria-label={`${t.label} theme`} onClick={() => set(t.value)}><Icon name={t.icon} /></button>
+        </Tip>
+      ))}
+    </div>
   );
 }
 
@@ -147,9 +169,9 @@ export function ExportTray() {
   return (
     <AnimatePresence>
       {trayOpen && (
-        <motion.aside aria-label="Export queue" className="panel" style={{ position: 'fixed', right: 16, top: 60, width: 380, maxHeight: '70vh', zIndex: 50, display: 'flex', flexDirection: 'column', boxShadow: '0 30px 80px rgba(0,0,0,.55)' }} initial={{ opacity: 0, y: -8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }} transition={spring}>
+        <motion.aside aria-label="Export queue" className="panel" style={{ position: 'fixed', right: 16, top: 64, width: 380, maxHeight: '70vh', zIndex: 50, display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-xl)' }} initial={{ opacity: 0, y: -8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }} transition={spring}>
           <div className="row between" style={{ padding: '12px 14px', borderBottom: '1px solid var(--line)' }}>
-            <div><div className="h3">Exports</div><div className="faint" style={{ fontSize: 11.5 }}>Rendered frame-by-frame in the background — keep working.</div></div>
+            <div><div className="h3">Exports</div><div className="faint" style={{ fontSize: 11.5 }}>Rendered frame-by-frame in the background. Keep working.</div></div>
             <button className="icon-btn" onClick={() => setTray(false)} aria-label="Close export queue"><Icon name="x" /></button>
           </div>
           <div className="scroll" style={{ padding: 6 }}>
@@ -158,7 +180,7 @@ export function ExportTray() {
               <div key={j.id} style={{ padding: '10px 10px', borderRadius: 8 }} className="col">
                 <div className="row">
                   <span className="badge solid mono">{j.format}</span>
-                  <span className="grow ellipsis" style={{ fontWeight: 520 }}>{j.source?.name ?? 'Motion'}</span>
+                  <span className="grow ellipsis" style={{ fontWeight: 500 }}>{j.source?.name ?? 'Motion'}</span>
                   <StatusBadge status={j.status} />
                 </div>
                 <div className="row faint mono" style={{ fontSize: 10.5 }}>

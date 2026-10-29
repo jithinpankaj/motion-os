@@ -118,3 +118,9 @@ Each move carries a note explaining the motion principle it uses (shown in Anima
 - Figma import is tested for token rejection and link parsing only; a live import needs a token.
 - Community has no comments, reporting or moderation tools yet; anyone signed in on the server can see posts.
 - Rate limiting is in-memory (single instance).
+
+## Interface redesign (Aeonik, light/dark, metallic accents)
+
+- **Type:** the interface uses Aeonik (Regular 400, Medium 500, Bold 700 only) from `src/assets/fonts/aeonik/`. Aeonik is a commercial typeface; the project owner holds a licence for it. Artwork fonts are separate (`src/engine/fonts.ts`) and never change with the interface.
+- **Themes:** Light, Dark or Match system (header switch, or Settings → Appearance). Stored as `mos.theme`; `index.html` applies it before first paint. All colours are semantic tokens in `src/ui/theme.css` (`[data-theme='dark']` overrides). Themes never touch artwork; canvases render each file's own colours.
+- **Metallic:** used sparingly. Ask Claude is a graphite (dark) or brushed-silver (light) shell with an iridescent rim and a highlight that travels round it while Claude works; the Home "New file" button is a soft-bodied satin pill (`src/components/PlushButton.tsx`) whose simulation sleeps at rest. Both respect reduced motion.

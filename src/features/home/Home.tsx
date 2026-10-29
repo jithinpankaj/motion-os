@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
+import { PlushButton } from '../../components/PlushButton';
 import { api, errorMessage } from '../../lib/api';
 import { apiResolver } from '../../lib/assets';
 import { useCan, useSession } from '../../lib/session';
@@ -53,60 +54,70 @@ export default function Home() {
   };
 
   const [learnHidden, setLearnHidden] = useState(() => { try { return localStorage.getItem('mos.learn.hidden') === '1'; } catch { return false; } });
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   return (
-    <div className="page-inner">
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.2, 0, 0, 1] }} className="row between wrap" style={{ alignItems: 'flex-end', gap: 16 }}>
+    <div className="page-inner home">
+      <motion.header initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.2, 0, 0, 1] }} className="home-hero">
         <div>
-          <h1 className="display" style={{ fontSize: 'clamp(30px, 3.4vw, 44px)' }}>Hi {user?.name.split(' ')[0]}, what are we animating?</h1>
+          <div className="eyebrow">{greeting}, {user?.name.split(' ')[0]}</div>
+          <h1 className="display">What are we<br />animating today?</h1>
           <p className="lead">Draw something, give it moves, and make it react to clicks, toggles and sliders.</p>
         </div>
-        {can('scene.create') && <button className="btn primary lg" onClick={() => setBlank(true)}><Icon name="plus" />New file</button>}
-      </motion.div>
+        {can('scene.create') && <PlushButton label="New file" icon={<Icon name="plus" size={17} />} onClick={() => setBlank(true)} />}
+      </motion.header>
       {!learnHidden && (
         <div className="learn-banner">
           <Icon name="library" size={16} />
-          <span><b>New here?</b> A five-minute guide shows the four steps — Design, Animate, Interact, Try it — and how to ask Claude for help.</span>
+          <span><b>New here?</b> A five minute guide walks you through Design, Animate, Interact and Try it.</span>
           <Link to="/learn" className="btn sm primary">Show me how</Link>
           <button className="icon-btn sm" aria-label="Hide this tip" onClick={() => { try { localStorage.setItem('mos.learn.hidden', '1'); } catch { /* private mode */ } setLearnHidden(true); }}><Icon name="x" size={12} /></button>
         </div>
       )}
 
       {can('scene.create') && presets.length > 0 && (
-        <section className="section" style={{ marginTop: 30 }}>
-          <div className="section-h"><h2 className="h2">Start from a preset</h2><Link to="/community?sort=presets" className="muted">All presets →</Link></div>
-          <div className="mgrid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
-            {presets.slice(0, 6).map((p) => <PostCard key={p.id} p={p} onOpen={() => remix(p)} />)}
+        <section className="home-section">
+          <div className="home-section-h">
+            <div><h2 className="h2">Start from a preset</h2><p className="home-note">Clicking one makes your own copy to edit.</p></div>
+            <Link to="/community?sort=presets" className="ed-more">All presets<Icon name="chevronRight" size={13} /></Link>
           </div>
-          <div className="faint" style={{ fontSize: 12, marginTop: 10 }}>Clicking a preset makes your own copy to edit. Want to try it first? Open it in the <Link to="/community?sort=presets">Community</Link>.</div>
+          <div className="home-grid">
+            {presets.slice(0, 4).map((p) => <PostCard key={p.id} p={p} onOpen={() => remix(p)} />)}
+          </div>
         </section>
       )}
 
-      <section className="section">
-        <div className="section-h"><h2 className="h2">Your files</h2>{files && files.length > 6 && <input className="input" style={{ width: 220 }} placeholder="Search files" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search files" />}</div>
+      <section className="home-section">
+        <div className="home-section-h">
+          <div><h2 className="h2">Your files</h2>{files && files.length > 0 && <p className="home-note">{files.length} {files.length === 1 ? 'file' : 'files'}</p>}</div>
+          {files && files.length > 6 && <input className="input" style={{ width: 240 }} placeholder="Search files" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search files" />}
+        </div>
         {error && <EmptyState icon="alert" title="Couldn’t load your files">{error}</EmptyState>}
-        {!files && !error && <div className="mgrid">{[0, 1, 2, 3].map((i) => <div key={i} className="skel" style={{ aspectRatio: '1' }} />)}</div>}
+        {!files && !error && <div className="home-grid">{[0, 1, 2, 3].map((i) => <div key={i} className="skel" style={{ aspectRatio: '1' }} />)}</div>}
         {files && !files.length && <EmptyState icon="sparkles" title="No files yet" action={can('scene.create') && <button className="btn primary" onClick={() => setBlank(true)}>Start from scratch</button>}>Start from scratch or pick a preset above.</EmptyState>}
-        <div className="mgrid">
+        <div className="home-grid">
           {shown.map((f) => (
-            <div key={f.id} style={{ position: 'relative' }}>
-              <MotionTile id={f.id} doc={previewDoc(f.doc)} assets={resolver} aspect={`${f.doc.canvas.width} / ${f.doc.canvas.height}`} title={f.name}
-                subtitle={`${f.owner ?? ''} · ${timeAgo(f.updated_at)}`}
-                badges={<>{f.community_id ? <span className="badge info">shared</span> : <span />}{f.doc.machine.rules.length ? <span className="badge">interactive</span> : <span />}</>}
+            <div key={f.id} className="home-file">
+              <MotionTile id={f.id} doc={previewDoc(f.doc)} assets={resolver} aspect="1 / 1" title={f.name}
+                subtitle={`Edited ${timeAgo(f.updated_at)}`}
                 onHover={preload.editor} onOpen={(from) => heroNavigate(nav, `/edit/${f.id}`, from)} />
-              {can('scene.delete') && <button className="icon-btn sm" style={{ position: 'absolute', right: 4, bottom: 4 }} aria-label={`Delete ${f.name}`} onClick={() => del(f.id, f.name)}><Icon name="trash" size={12} /></button>}
+              {can('scene.delete') && <button className="icon-btn sm home-del" aria-label={`Delete ${f.name}`} onClick={() => del(f.id, f.name)}><Icon name="trash" size={12} /></button>}
             </div>
           ))}
         </div>
       </section>
 
       {recent.length > 0 && (
-        <section className="section">
-          <div className="section-h"><h2 className="h2">New in the community</h2><Link to="/community" className="muted">Community →</Link></div>
-          <div className="mgrid">{recent.map((p) => <PostCard key={p.id} p={p} onOpen={(from) => heroNavigate(nav, `/community/${p.id}`, from)} />)}</div>
+        <section className="home-section">
+          <div className="home-section-h">
+            <div><h2 className="h2">New in the community</h2><p className="home-note">Fresh work from everyone on this server.</p></div>
+            <Link to="/community" className="ed-more">Community<Icon name="chevronRight" size={13} /></Link>
+          </div>
+          <div className="home-grid">{recent.map((p) => <PostCard key={p.id} p={p} onOpen={(from) => heroNavigate(nav, `/community/${p.id}`, from)} />)}</div>
         </section>
       )}
 
-      <Modal open={blank} onClose={() => setBlank(false)} title="New file" subtitle="Pick a size — you can change it later.">
+      <Modal open={blank} onClose={() => setBlank(false)} title="New file" subtitle="Pick a size. You can change it later.">
         <div className="col" style={{ gap: 8 }}>
           {SIZES.map((s) => (
             <button key={s.label} className="move" style={{ padding: 12 }} onClick={() => { setBlank(false); create(s.w, s.h, s.label); }}>
@@ -119,3 +130,4 @@ export default function Home() {
     </div>
   );
 }
+

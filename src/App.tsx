@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useSession } from './lib/session';
 import { useExports } from './lib/exports';
+import { useThemeSync } from './lib/theme';
 import { AppShell } from './components/AppShell';
 import { Toaster } from './ui/controls';
 import { AuthPage, InvitePage, ResetPage } from './features/auth/Auth';
@@ -20,6 +21,7 @@ function Loading() {
 export function App() {
   const { status, user, wsId, load } = useSession();
   const loc = useLocation();
+  useThemeSync();
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (user && wsId) useExports.getState().refresh(); }, [user, wsId]);
 

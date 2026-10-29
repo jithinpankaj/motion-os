@@ -20,7 +20,7 @@ export function MotionTile({ id, doc, assets, title, subtitle, badges, onOpen, o
         <span className="mcard-play" aria-hidden><Icon name="play" size={13} /></span>
       </div>
       <div className="mcard-meta">
-        <div style={{ fontWeight: 560, letterSpacing: '-0.01em' }} className="ellipsis">{title}</div>
+        <div style={{ fontWeight: 500, letterSpacing: '-0.01em' }} className="ellipsis">{title}</div>
         {subtitle && <div className="faint ellipsis" style={{ fontSize: 12 }}>{subtitle}</div>}
       </div>
     </button>

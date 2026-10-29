@@ -4,7 +4,7 @@ import { api, errorMessage } from '../../lib/api';
 import { apiResolver } from '../../lib/assets';
 import { useExports } from '../../lib/exports';
 import { useCan } from '../../lib/session';
-import { Modal, Segmented, toast } from '../../ui/controls';
+import { Modal, Segmented, Tip, toast } from '../../ui/controls';
 import { Icon } from '../../ui/Icon';
 import { deserializeScene } from '../../../shared/scene/serialize';
 import type { MotionPlayerHandle } from '../../components/MotionPlayer';
@@ -102,22 +102,24 @@ export default function Editor() {
   const layer = doc.layers.find((l) => l.id === selection) ?? null;
 
   return (
-    <div className="ed" style={mode === 'animate' ? undefined : { gridTemplateRows: '54px minmax(0, 1fr)' }}>
+    <div className="ed" style={mode === 'animate' ? undefined : { gridTemplateRows: '56px minmax(0, 1fr)' }}>
       <header className="ed-top">
-        <button className="icon-btn" aria-label="Back to files" onClick={() => nav('/')}><Icon name="chevronLeft" /></button>
-        <div className="col" style={{ gap: 0, minWidth: 0, maxWidth: 220 }}>
-          <span className="ellipsis" style={{ fontWeight: 600, fontSize: 13.5 }}>{doc.meta.name}</span>
-          <span className="faint" style={{ fontSize: 11 }}>{saveLabel(saveState)}{readOnly ? ' · view only' : ''}</span>
+        <Tip label="Back to files"><button className="icon-btn" aria-label="Back to files" onClick={() => nav('/')}><Icon name="chevronLeft" /></button></Tip>
+        <span className="vsep" />
+        <div className="ed-title">
+          <b className="ellipsis">{doc.meta.name}</b>
+          <span className="ellipsis"><i className={`dot ${saveState === 'saved' ? '' : saveState === 'error' || saveState === 'conflict' ? 'bad' : 'busy'}`} />{saveLabel(saveState)}{readOnly ? ' · view only' : ''}</span>
         </div>
         <div className="grow" />
         <nav className="modes" aria-label="Editor mode">
           {MODES.map((m) => <button key={m.key} aria-pressed={mode === m.key} title={m.hint} onClick={() => setMode(m.key)}><Icon name={m.icon as any} size={13} />{m.label}</button>)}
         </nav>
         <div className="grow" />
-        <button className="icon-btn" aria-label="Undo" disabled={!canUndo} onClick={undo}><Icon name="undo" /></button>
-        <button className="icon-btn" aria-label="Redo" disabled={!canRedo} onClick={redo}><Icon name="redo" /></button>
-        <button className="icon-btn" aria-label="Show the tour" title="How does this work? (tour)" onClick={() => setTour(true)}><Icon name="info" /></button>
-        {can('scene.edit') && <button className="btn" data-tour="ask" aria-pressed={asking} onClick={() => setAsking(!asking)}><Icon name="sparkles" size={14} />Ask Claude</button>}
+        <Tip label="Undo" kbd="⌘Z"><button className="icon-btn" aria-label="Undo" disabled={!canUndo} onClick={undo}><Icon name="undo" /></button></Tip>
+        <Tip label="Redo" kbd="⇧⌘Z"><button className="icon-btn" aria-label="Redo" disabled={!canRedo} onClick={redo}><Icon name="redo" /></button></Tip>
+        <Tip label="How does this work? (tour)"><button className="icon-btn" aria-label="Show the tour" onClick={() => setTour(true)}><Icon name="info" /></button></Tip>
+        <span className="vsep" />
+        {can('scene.edit') && <button className="btn ai-trigger" data-tour="ask" aria-pressed={asking} onClick={() => setAsking(!asking)}><span className="ai-orb sm" aria-hidden />Ask Claude</button>}
         {can('export.create') && <button className="btn" onClick={() => setExporting(true)}><Icon name="download" size={14} />Export</button>}
         {can('community.publish') && <button className="btn primary" data-tour="share" onClick={() => setSharing(true)}><Icon name="globe" size={14} />{community ? 'Update Community post' : 'Add to Community'}</button>}
       </header>
@@ -139,7 +141,7 @@ export default function Editor() {
         footer={<><button className="btn ghost" onClick={() => { if (id) clearDraft(id); setDraft(null); }}>Discard</button><button className="btn primary" onClick={() => { const d = deserializeScene(draft!.doc); useEditor.setState({ doc: d, saveState: 'dirty' }); save(true); setDraft(null); }}>Recover</button></>}><div /></Modal>
       <Modal open={!!conflict} onClose={() => {}} title="Someone else saved this file" subtitle={`${conflict?.updatedBy ?? 'Another person'} saved a newer version while you were editing.`}
         footer={<><button className="btn" onClick={() => resolveConflict('theirs')}>Use their version</button><button className="btn primary" onClick={() => resolveConflict('mine')}>Keep mine</button></>}><div className="empty-hint">“Keep mine” saves your version over theirs (theirs stays in the history).</div></Modal>
-      {asking && <AssistantPanel doc={doc} onClose={() => setAsking(false)} />}
+      {asking && <AssistantPanel doc={doc} assets={resolver} onClose={() => setAsking(false)} />}
       {tour && <Tour onDone={() => setTour(false)} />}
       {sharing && id && <ShareDialog projectId={id} name={doc.meta.name} category={doc.meta.category} existing={community} onClose={() => setSharing(false)} onDone={(c) => { setCommunity(c); setSharing(false); }} />}
       {exporting && id && <ExportDialog projectId={id} doc={doc} onClose={() => setExporting(false)} />}
@@ -147,7 +149,7 @@ export default function Editor() {
   );
 }
 
-const saveLabel = (s: string) => ({ saved: 'All changes saved', dirty: 'Saving soon…', saving: 'Saving…', offline: 'Offline — kept on this device', conflict: 'Needs your attention', error: 'Couldn’t save' } as Record<string, string>)[s] ?? s;
+const saveLabel = (s: string) => ({ saved: 'All changes saved', dirty: 'Saving soon…', saving: 'Saving…', offline: 'Offline. Kept on this device', conflict: 'Needs your attention', error: 'Couldn’t save' } as Record<string, string>)[s] ?? s;
 
 function ShareDialog({ projectId, name, category: initial, existing, onClose, onDone }: { projectId: string; name: string; category?: string; existing: { id: string } | null; onClose: () => void; onDone: (c: { id: string }) => void }) {
   const [title, setTitle] = useState(name);
@@ -165,7 +167,7 @@ function ShareDialog({ projectId, name, category: initial, existing, onClose, on
     } catch (e) { toast('danger', 'Couldn’t share', errorMessage(e)); } finally { setBusy(false); }
   };
   return (
-    <Modal open onClose={onClose} title={existing ? 'Update your Community post' : 'Add to the Community'} subtitle="Everyone on this server can find it by category, try it and remix their own copy. Your file stays yours — they get a copy."
+    <Modal open onClose={onClose} title={existing ? 'Update your Community post' : 'Add to the Community'} subtitle="Everyone on this server can find it by category, try it and remix their own copy. Your file stays yours. They get a copy."
       footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || title.trim().length < 2} onClick={go}>{busy ? <span className="spinner" /> : existing ? 'Update post' : 'Share'}</button></>}>
       <div className="col" style={{ gap: 12 }}>
         <label className="col" style={{ gap: 4 }}><span className="label">Title</span><input className="input" value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} /></label>
@@ -197,7 +199,7 @@ function ExportDialog({ projectId, doc, onClose }: { projectId: string; doc: any
       const settings = what === 'mp4' ? { width: W, height: H, fps: 30, duration: Math.max(0.5, Math.min(120, (a?.duration ?? doc.canvas.duration) * (a && a.loop !== 'once' ? 2 : 1))), startTime: 0, loops: 1, quality: 'high', background: null }
         : what === 'png' ? { width: W, height: H, time: a ? a.duration : 0, background: 'scene' } : {};
       await create({ source, format: what, settings, name: a && what !== 'scene-json' ? `${doc.meta.name} – ${a.name}` : doc.meta.name });
-      toast('info', 'Export started', 'It renders in the background — find it under the download icon.');
+      toast('info', 'Export started', 'It renders in the background. Find it under the download icon.');
       onClose();
     } catch (e) { toast('danger', 'Export didn’t start', errorMessage(e)); } finally { setBusy(false); }
   };
@@ -211,7 +213,7 @@ function ExportDialog({ projectId, doc, onClose }: { projectId: string; doc: any
             <select className="input" value={anim} onChange={(e) => setAnim(e.target.value)}>{doc.machine.animations.map((x: any) => <option key={x.id} value={x.id}>{x.name} · {x.duration}s{x.loop !== 'once' ? ' (repeats)' : ''}</option>)}</select>
           </label>
         )}
-        <div className="empty-hint">{what === 'mp4' ? `${doc.canvas.width}×${doc.canvas.height}, 30 fps. Repeating moves are rendered twice so the loop is visible.` : what === 'png' ? 'The last frame of the move.' : 'Everything — layers, moves, controls and rules — to back up or import later.'}</div>
+        <div className="empty-hint">{what === 'mp4' ? `${doc.canvas.width}×${doc.canvas.height}, 30 fps. Repeating moves are rendered twice so the loop is visible.` : what === 'png' ? 'The last frame of the move.' : 'Everything. Layers, moves, controls and rules. To back up or import later.'}</div>
       </div>
     </Modal>
   );

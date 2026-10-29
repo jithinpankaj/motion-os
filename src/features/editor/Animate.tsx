@@ -118,7 +118,7 @@ export function Timeline({ doc }: { doc: SceneDocument }) {
         </div>
       )}
       {!anim ? (
-        <div style={{ padding: 16 }} className="empty-hint">A <b>move</b> is a short animation, like “Turn on” or “Bounce”. Create one, then change things on the canvas — each change becomes a keyframe at the red playhead. Or select a layer and use a one-click move.</div>
+        <div style={{ padding: 16 }} className="empty-hint">A <b>move</b> is a short animation, like “Turn on” or “Bounce”. Create one, then change things on the canvas. Each change becomes a keyframe at the red playhead. Or select a layer and use a one-click move.</div>
       ) : (
         <div className="tl">
           <div className="tl-names">

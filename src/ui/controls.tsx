@@ -178,7 +178,7 @@ export function Toaster() {
           <motion.div layout key={t.id} className={`toast ${t.tone}`} initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, x: 24, transition: { duration: 0.16 } }} transition={spring}>
             <span className="t-ic"><Icon name={t.tone === 'ok' ? 'check' : t.tone === 'info' ? 'info' : 'alert'} /></span>
             <div className="grow">
-              <div style={{ fontWeight: 550 }}>{t.title}</div>
+              <div style={{ fontWeight: 500 }}>{t.title}</div>
               {t.message && <div className="muted" style={{ marginTop: 2 }}>{t.message}</div>}
               {t.action && <button className="btn sm" style={{ marginTop: 8 }} onClick={() => { t.action!.run(); dismiss(t.id); }}>{t.action.label}</button>}
             </div>

@@ -61,14 +61,14 @@ export const MotionCanvas = forwardRef<MotionCanvasHandle, {
           <div className="col" style={{ alignItems: 'center' }}>
             {state.lost ? <div className="spinner" /> : <Icon name="alert" />}
             <div className="h3">{state.lost ? 'Restoring graphics…' : 'Preview unavailable'}</div>
-            <div className="muted" style={{ maxWidth: 300 }}>{state.lost ? 'The GPU context was reset. Your scene and timeline position are safe.' : `${state.failed}. Your document is safe — try again or use a browser with WebGL 2.`}</div>
+            <div className="muted" style={{ maxWidth: 300 }}>{state.lost ? 'The GPU context was reset. Your scene and timeline position are safe.' : `${state.failed}. Your document is safe. Try again or use a browser with WebGL 2.`}</div>
             {state.failed && <button className="btn sm" onClick={() => setAttempt((a) => a + 1)}>Retry</button>}
           </div>
         </div>
       )}
       {state.overloaded && !state.lost && (
         <div role="status" className="badge warn solid" style={{ position: 'absolute', left: 10, bottom: 10 }}>
-          <Icon name="gauge" size={12} /> Device is struggling — preview quality reduced
+          <Icon name="gauge" size={12} /> Device is struggling. Preview quality reduced
         </div>
       )}
     </div>

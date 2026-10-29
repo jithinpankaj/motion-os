@@ -23,10 +23,10 @@ export function InteractPanel({ doc }: { doc: SceneDocument }) {
   return (
     <div>
       <div className="sec">
-        <div className="sec-h">Interactions <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 450 }}>{m.rules.length}</span></div>
+        <div className="sec-h">Interactions <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>{m.rules.length}</span></div>
         <div className="empty-hint">Each interaction is a sentence: <b>when</b> something happens, <b>do</b> something. Click any underlined word to change it.</div>
         <button className="btn primary" onClick={() => setWizard(true)}><Icon name="plus" size={13} />New interaction</button>
-        {!m.animations.length && <div className="empty-hint">Tip: make a move in <b>Animate</b> first — then an interaction can play it.</div>}
+        {!m.animations.length && <div className="empty-hint">Tip: make a move in <b>Animate</b> first. Then an interaction can play it.</div>}
         {m.rules.map((r, i) => <InteractionCard key={r.id} doc={doc} rule={r} n={i + 1} open={open === r.id} onToggle={() => selectRule(open === r.id ? null : r.id)} />)}
       </div>
 
@@ -35,7 +35,7 @@ export function InteractPanel({ doc }: { doc: SceneDocument }) {
 
       <div className="sec">
         <div className="sec-h">Slider links</div>
-        <div className="empty-hint">Let a slider drive a property directly — e.g. a progress bar’s width.</div>
+        <div className="empty-hint">Let a slider drive a property directly, like a progress bar’s width.</div>
         {m.bindings.map((b) => {
           const l = doc.layers.find((x) => x.id === b.layerId);
           return (
@@ -82,7 +82,7 @@ function States({ doc }: { doc: SceneDocument }) {
   return (
     <div className="sec">
       <div className="sec-h">States</div>
-      <div className="empty-hint">Optional. A state is a named pose like <b>Rest</b>, <b>Hover</b> or <b>Pressed</b>. An interaction can <b>switch to</b> a state, which plays its move — handy when there are several poses.</div>
+      <div className="empty-hint">Optional. A state is a named pose like <b>Rest</b>, <b>Hover</b> or <b>Pressed</b>. An interaction can <b>switch to</b> a state, which plays its move. Handy when there are several poses.</div>
       {states.map((st) => (
         <div key={st.id} className="ctrl">
           <span className="ic"><Icon name="layers" size={13} /></span>
@@ -106,7 +106,7 @@ function Variables({ doc }: { doc: SceneDocument }) {
   return (
     <div className="sec">
       <div className="sec-h">Switches & values</div>
-      <div className="empty-hint">Things your interactions can remember and change — an on/off switch, a button, a number. People can also change them from the page.</div>
+      <div className="empty-hint">Things your interactions can remember and change. An on/off switch, a button, a number. People can also change them from the page.</div>
       {doc.machine.inputs.map((i) => <ControlRow key={i.id} input={i} doc={doc} />)}
       <div className="row wrap" style={{ gap: 6 }}>
         {(['boolean', 'trigger', 'number'] as const).map((t) => <button key={t} className="btn sm grow" onClick={() => addInput(t)}><Icon name="plus" size={12} />{t === 'boolean' ? 'Switch' : t === 'number' ? 'Number' : 'Button'}</button>)}

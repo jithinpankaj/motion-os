@@ -26,7 +26,10 @@ export function taskCheckbox(): SceneDocument {
   const stroke = (name: string, from: { x: number; y: number }, to: { x: number; y: number }) => {
     const len = Math.hypot(to.x - from.x, to.y - from.y), ang = (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
     const g = r.group(name, from, box);
-    r.shape('Stroke', 'rect', { x: from.x + len / 2 - 7, y: from.y }, { w: len + 14, h: 15, radius: 7.5, color: TICK, parent: g });
+    // A capsule whose round caps are centred exactly on the two end points, so the short and long
+    // strokes share one round corner instead of overshooting each other.
+    const T = 15;
+    r.shape('Stroke', 'rect', { x: from.x + len / 2, y: from.y }, { w: len + T, h: T, radius: T / 2, color: TICK, parent: g });
     g.transform.rotation = ang;
     g.transform.scaleX = 0.01;
     return g;

@@ -35,7 +35,7 @@ export default function Post() {
   const tip = post.isPreset ? MOTION_PRESETS.find((p) => p.key === post.presetKey)?.tip : null;
   const remix = async () => {
     setBusy(true);
-    try { const r = await api(`/community/${post.id}/remix`, { method: 'POST' }); toast('ok', 'Remixed into your files', 'It’s your own copy — change anything.'); nav(`/edit/${r.id}`); }
+    try { const r = await api(`/community/${post.id}/remix`, { method: 'POST' }); toast('ok', 'Remixed into your files', 'It’s your own copy. Change anything.'); nav(`/edit/${r.id}`); }
     catch (e) { toast('danger', 'Couldn’t remix', errorMessage(e)); } finally { setBusy(false); }
   };
   const like = async () => {
@@ -51,15 +51,15 @@ export default function Post() {
       <Link to="/community" className="faint" style={{ fontSize: 12.5 }}>← Community</Link>
       <div className="create-layout" style={{ marginTop: 14 }}>
         <div className="stage" style={{ position: 'relative' }}>
-          <div className="stage-frame" style={{ aspectRatio: String(ratio), width: ratio >= 1 ? '100%' : undefined, height: ratio < 1 ? 'min(calc(100vh - 220px), 760px)' : undefined }}>
-            <MotionPlayer ref={player} doc={doc} assets={assets} label={`${post.title} — interactive preview`} style={{ position: 'absolute', inset: 0 }} onChange={onChange} />
+          <div className="stage-frame" style={{ aspectRatio: String(ratio), width: `min(100%, calc(min(100vh - 260px, 760px) * ${ratio}))` }}>
+            <MotionPlayer ref={player} doc={doc} assets={assets} label={`${post.title}, interactive preview`} style={{ position: 'absolute', inset: 0 }} onChange={onChange} />
           </div>
         </div>
         <div className="tune">
           <div>
-            <div className="row" style={{ gap: 8 }}>{post.isPreset && <span className="badge info">Starter preset</span>}{post.tags.map((t: string) => <Link key={t} to={`/community?tag=${encodeURIComponent(t)}`} className="badge">#{t}</Link>)}</div>
-            <h1 className="h1" style={{ marginTop: 10 }}>{post.title}</h1>
-            <div className="faint" style={{ fontSize: 12.5, marginTop: 6 }}>by {post.author} · {timeAgo(post.publishedAt)}{post.remixOf && <> · remix of <Link to={`/community/${post.remixOf.id}`}>{post.remixOf.title}</Link></>}</div>
+            <div className="row wrap" style={{ gap: 6 }}>{post.isPreset && <span className="badge info">Starter preset</span>}{post.tags.slice(0, 3).map((t: string) => <Link key={t} to={`/community?tag=${encodeURIComponent(t)}`} className="badge">#{t}</Link>)}</div>
+            <h1 className="h1" style={{ marginTop: 16 }}>{post.title}</h1>
+            <div className="faint" style={{ fontSize: 12.5, marginTop: 6 }}>by {post.author}, {timeAgo(post.publishedAt)}{post.remixOf && <>, remix of <Link to={`/community/${post.remixOf.id}`}>{post.remixOf.title}</Link></>}</div>
             {(post.description || tip) && <p className="muted" style={{ fontSize: 13.5, lineHeight: 1.5, marginTop: 10 }}>{post.description}</p>}
           </div>
           {tip && <div className="callout"><Icon name="info" /><div className="grow" style={{ fontSize: 13 }}>{tip}</div></div>}
@@ -71,7 +71,7 @@ export default function Post() {
             {can('scene.create') && <button className="btn primary lg grow" disabled={busy} onClick={remix}>{busy ? <span className="spinner" /> : <><Icon name="branch" />Remix into my files</>}</button>}
             <button className="btn lg" aria-pressed={post.liked} onClick={like}><Icon name="sparkles" />{post.liked ? 'Liked' : 'Like'} · {post.likeCount}</button>
           </div>
-          <div className="faint" style={{ fontSize: 12 }}>{post.remixCount} remix{post.remixCount === 1 ? '' : 'es'} · {doc.machine.inputs.length} control{doc.machine.inputs.length === 1 ? '' : 's'} · {doc.machine.rules.length} rule{doc.machine.rules.length === 1 ? '' : 's'} · {doc.machine.animations.length} move{doc.machine.animations.length === 1 ? '' : 's'}</div>
+          <div className="faint" style={{ fontSize: 12 }}>{post.remixCount} remix{post.remixCount === 1 ? '' : 'es'} so far</div>
           {post.mine && <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={unpublish}>Unpublish</button>}
         </div>
       </div>

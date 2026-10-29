@@ -319,7 +319,7 @@ export function parseExpression(src: string, doc: SceneDocument): ParseResult {
     // A bare boolean variable means "is on".
     const t2 = peek();
     if (t2.k === 'end' || (t2.k === 'name' && ['and', 'or'].includes(t2.v.toLowerCase())) || (t2.k === 'punct' && t2.v === ')')) {
-      if (v.type !== 'boolean') throw new Fail(`${v.name} isn’t on/off — compare it with a value`, t2.at);
+      if (v.type !== 'boolean') throw new Fail(`${v.name} isn’t on/off, so compare it with a value`, t2.at);
       return { type: 'boolean', inputId: v.id, value: true };
     }
     const o = op(); const val = value();
@@ -328,14 +328,14 @@ export function parseExpression(src: string, doc: SceneDocument): ParseResult {
       return { type: 'compare', inputId: v.id, op: o as any, otherId: val.v.id };
     }
     if (v.type === 'boolean') {
-      if (val.kind !== 'bool') throw new Fail(`${v.name} is on/off — compare it with on or off`, val.at);
+      if (val.kind !== 'bool') throw new Fail(`${v.name} is on/off, so compare it with on or off`, val.at);
       return { type: 'boolean', inputId: v.id, value: o === '!=' || o === 'isNot' ? !val.v : val.v };
     }
     if (v.type === 'number' || v.type === 'trigger') {
-      if (val.kind !== 'num') throw new Fail(`${v.name} is a number — compare it with a number`, val.at);
+      if (val.kind !== 'num') throw new Fail(`${v.name} is a number, so compare it with a number`, val.at);
       return { type: 'number', inputId: v.id, op: (o === 'is' ? '=' : o === 'isNot' ? '!=' : o) as any, value: val.v };
     }
-    if (val.kind !== 'str') throw new Fail(`${v.name} holds text — compare it with “text in quotes”`, val.at);
+    if (val.kind !== 'str') throw new Fail(`${v.name} holds text, so compare it with “text in quotes”`, val.at);
     if (v.type === 'enum' && v.options && (o === 'is' || o === 'isNot' || o === '=' || o === '!=') && !v.options.includes(val.v)) throw new Fail(`${v.name} can only be ${v.options.map((x) => `“${x}”`).join(', ')}`, val.at);
     return { type: 'text', inputId: v.id, op: (o === '=' ? 'is' : o === '!=' ? 'isNot' : o) as any, value: val.v };
   };

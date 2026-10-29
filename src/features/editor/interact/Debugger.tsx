@@ -14,7 +14,7 @@ import { ValueInput } from './Actions';
 const OUTCOME: Record<RuleTrace['outcome'], { label: string; tone: 'ok' | 'bad' | 'wait' | 'mute' }> = {
   ran: { label: 'Ran', tone: 'ok' }, conditions: { label: 'Didn’t run', tone: 'bad' }, wrongState: { label: 'Not from this state', tone: 'mute' },
   disabled: { label: 'Switched off', tone: 'mute' }, outranked: { label: 'Outranked', tone: 'mute' }, blocked: { label: 'Held back by a more important one', tone: 'bad' },
-  waiting: { label: 'Waiting for its turn', tone: 'wait' }, queued: { label: 'Waiting in line', tone: 'wait' }, ignored: { label: 'Ignored — it was still running', tone: 'mute' },
+  waiting: { label: 'Waiting for its turn', tone: 'wait' }, queued: { label: 'Waiting in line', tone: 'wait' }, ignored: { label: 'Ignored. It was still running', tone: 'mute' },
 };
 
 export function Debugger({ doc, runtime }: { doc: SceneDocument; runtime: MotionRuntime }) {
@@ -36,7 +36,7 @@ export function Debugger({ doc, runtime }: { doc: SceneDocument; runtime: Motion
             {tr && tr.progress < 1 && <span className="dbg-tr"><span className="faint">{tr.from} → {tr.to}</span><span className="bar"><span style={{ width: `${tr.progress * 100}%` }} /></span></span>}
           </div>
         ) : null}
-        {!entries.length && <div className="empty-hint">Hover, click or press keys on the canvas — each thing you do shows up here with what it set off.</div>}
+        {!entries.length && <div className="empty-hint">Hover, click or press keys on the canvas. Each thing you do shows up here with what it set off.</div>}
         {entries.map((e) => {
           const shown = e.rules.filter((r) => r.outcome === 'ran' || r.outcome === 'conditions' || r.outcome === 'blocked' || r.outcome === 'queued' || r.outcome === 'waiting' || r.outcome === 'ignored');
           const skipped = e.rules.length - shown.length;
@@ -48,7 +48,7 @@ export function Debugger({ doc, runtime }: { doc: SceneDocument; runtime: Motion
                   <span className="dbg-mark">{r.outcome === 'ran' ? '✓' : OUTCOME[r.outcome].tone === 'wait' ? '…' : '✗'}</span>
                   <span>
                     <button className="link-btn" onClick={() => { setMode('interact'); selectRule(r.ruleId); }} title="Open this interaction">{r.label}</button>
-                    {r.outcome === 'ran' ? ' ran.' : r.outcome === 'conditions' ? ' didn’t run — ' : ` — ${OUTCOME[r.outcome].label.toLowerCase()}.`}
+                    {r.outcome === 'ran' ? ' ran.' : r.outcome === 'conditions' ? ' didn’t run: ' : `: ${OUTCOME[r.outcome].label.toLowerCase()}.`}
                     {r.outcome !== 'ran' && r.why?.length ? <span className="dbg-why"> {r.why.join(' ')}</span> : null}
                     {r.conditions && r.conditions.cond.type === 'group' && r.conditions.cond.items.length > 0 && (
                       <details className="dbg-checks"><summary>Show the checks</summary><TraceTree t={r.conditions} doc={doc} /></details>
@@ -80,7 +80,7 @@ export function Debugger({ doc, runtime }: { doc: SceneDocument; runtime: Motion
       </div>
 
       <div className="sec">
-        <div className="sec-h">Switches & values <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 450 }}>try changing them</span></div>
+        <div className="sec-h">Switches & values <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>try changing them</span></div>
         {!doc.machine.inputs.length && <div className="empty-hint">This file has no switches or values.</div>}
         {doc.machine.inputs.map((i) => (
           <div key={i.id} className="dbg-var rule">
@@ -90,7 +90,7 @@ export function Debugger({ doc, runtime }: { doc: SceneDocument; runtime: Motion
               : <><span className="mono faint" style={{ minWidth: 48, textAlign: 'right' }}>{fmtValue(runtime.values[i.id], i)}</span><ValueInput type={i.type} options={i.options} min={i.min} max={i.max} value={runtime.values[i.id] ?? i.default} onChange={(v) => runtime.setVar(i.id, v)} /></>}
           </div>
         ))}
-        <div className="empty-hint">Changes here are just for testing — <b>Start over</b> puts everything back.</div>
+        <div className="empty-hint">Changes here are just for testing. <b>Start over</b> puts everything back.</div>
       </div>
     </div>
   );

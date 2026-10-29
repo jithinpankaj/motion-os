@@ -9,7 +9,7 @@ async function login(page: Page, email: string, opts: { tour?: boolean } = {}) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText(/what are we animating\?/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /animating today/ })).toBeVisible();
 }
 
 test('navigation is simple and adapts to permissions', async ({ page }) => {
@@ -121,7 +121,7 @@ test('New users: the Learn page, the editor tour, and Ask Claude', async ({ page
   await login(page, 'mia@motion.os', { tour: true });
   await expect(page.locator('.learn-banner')).toContainText('New here?');
   await page.getByRole('link', { name: 'Show me how' }).click();
-  await expect(page.getByRole('heading', { name: 'Make things move — and react' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Make things move/ })).toBeVisible();
   await expect(page.locator('.learn-steps .learn-step')).toHaveCount(4);
   // The starter opens with the tour: a spotlight walks through the editor step by step.
   await page.getByRole('button', { name: 'Open a starter and take the tour' }).click();

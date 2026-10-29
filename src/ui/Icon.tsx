@@ -1,4 +1,6 @@
 const P: Record<string, string> = {
+  sun: 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
+  moon: 'M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z',
   home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z',
   explore: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM15.5 8.5l-2 5-5 2 2-5z',
   studio: 'M4 20l9.5-9.5M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 11l.6 1.4L21 13l-1.4.6L19 15l-.6-1.4L17 13l1.4-.6z',
@@ -92,16 +94,11 @@ export function Icon({ name, size, className = '', label }: { name: IconName; si
 }
 
 export function Logo({ size = 22 }: { size?: number }) {
+  // Drawn in currentColor so the mark follows the interface theme.
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-label="Motion OS" role="img">
-      <defs>
-        <linearGradient id="lg-mos" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#f2f2ee" />
-          <stop offset="1" stopColor="#8a8a85" />
-        </linearGradient>
-      </defs>
-      <circle cx="16" cy="16" r="12.5" fill="none" stroke="url(#lg-mos)" strokeWidth="2.5" />
-      <path d="M9.5 18.5c2.2-5 4.4-5 6.5 0s4.3 5 6.5 0" fill="none" stroke="#f2f2ee" strokeWidth="2.2" strokeLinecap="round" />
+      <circle cx="16" cy="16" r="12.5" fill="none" stroke="currentColor" strokeOpacity="0.55" strokeWidth="2.5" />
+      <path d="M9.5 18.5c2.2-5 4.4-5 6.5 0s4.3 5 6.5 0" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   );
 }

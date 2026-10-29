@@ -258,7 +258,7 @@ export function applyOperations(doc0: SceneDocument, ops: AssistantOperation[]):
       }
     } catch (e) {
       doc = before;
-      if (e instanceof Problem) problems.push(`Step ${n + 1} skipped — ${e.message}.`);
+      if (e instanceof Problem) problems.push(`Step ${n + 1} skipped: ${e.message}.`);
       else throw e;
     }
   });
@@ -289,7 +289,7 @@ function propertyEdit(l: Layer, prop: (typeof PROPERTY_WORDS)[number], raw: stri
     case 'y': return { path: 'transform.y', value: toLocal(l, doc, 'y', num() / doc.canvas.height) };
     case 'rotation': return { path: 'transform.rotation', value: num() };
     case 'scale': return { path: 'transform.scale', value: Math.max(0.01, num() > 10 ? num() / 100 : num()) };
-    case 'width': case 'height': if (l.type !== 'shape') throw new Problem(`“${l.name}” isn’t a shape, so its ${prop} can’t be set directly — try scale`); return { path: `props.${prop}`, value: Math.max(1, num()) };
+    case 'width': case 'height': if (l.type !== 'shape') throw new Problem(`“${l.name}” isn’t a shape, so its ${prop} can’t be set directly. Try scale`); return { path: `props.${prop}`, value: Math.max(1, num()) };
     case 'corner_radius': if (l.type !== 'shape') throw new Problem(`“${l.name}” has no corners`); return { path: 'props.radius', value: Math.max(0, num()) };
     case 'text': if (l.type !== 'text') throw new Problem(`“${l.name}” isn’t a text layer`); return { path: 'props.text', value: raw.slice(0, 2000) };
     case 'text_size': if (l.type !== 'text') throw new Problem(`“${l.name}” isn’t a text layer`); return { path: 'props.size', value: Math.max(0.005, num() / Math.min(doc.canvas.width, doc.canvas.height)) };

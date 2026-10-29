@@ -214,7 +214,7 @@ describe('expressions', () => {
   });
   it('explains mistakes instead of running anything', () => {
     expect(parseExpression('Gold > 1', doc)).toMatchObject({ ok: false, error: 'There’s no variable called “Gold”' });
-    expect(parseExpression('Coins > "lots"', doc)).toMatchObject({ ok: false, error: 'Coins is a number — compare it with a number' });
+    expect(parseExpression('Coins > "lots"', doc)).toMatchObject({ ok: false, error: 'Coins is a number, so compare it with a number' });
     expect(parseExpression('Mode is "medium"', doc)).toMatchObject({ ok: false });
     expect(parseExpression('alert(1)', doc).ok).toBe(false);
     expect(parseExpression('Coins > 1; process.exit()', doc).ok).toBe(false);

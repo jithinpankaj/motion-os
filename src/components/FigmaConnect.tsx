@@ -17,7 +17,7 @@ export function FigmaConnect({ onConnected }: { onConnected: () => void }) {
   };
   return (
     <div className="col" style={{ gap: 10, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
-      <div style={{ fontWeight: 560 }}>Connect Figma once for your workspace</div>
+      <div style={{ fontWeight: 500 }}>Connect Figma once for your workspace</div>
       <ol className="howto">
         <li>In Figma, open <b>Settings → Security → Personal access tokens</b>.</li>
         <li>Generate a token with <code>File content: Read-only</code>.</li>

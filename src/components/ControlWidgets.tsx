@@ -18,7 +18,7 @@ export function ControlWidgets({ doc, runtime, onReset, showLog = true }: { doc:
   const hasSound = doc.machine.rules.some((r) => r.do.some((a) => a.type === 'sound'));
   return (
     <div className="widgets">
-      {!inputs.length && <div className="empty-hint">{pointerRules.length ? 'This motion has no controls — interact with it directly on the canvas.' : 'No controls yet. Add toggles, buttons or sliders in Interact.'}</div>}
+      {!inputs.length && <div className="empty-hint">{pointerRules.length ? 'This motion has no controls. Interact with it directly on the canvas.' : 'No controls yet. Add toggles, buttons or sliders in Interact.'}</div>}
       {inputs.map((i) => (
         <div key={i.id} className="widget">
           <span className="wn">{i.name}<span className="wt">{i.type === 'boolean' ? 'Toggle' : i.type === 'trigger' ? 'Button' : i.type !== 'number' ? VAR_LABEL[i.type] : i.follow ? `${i.dragLayer ? 'Follows while you drag' : 'Follows the pointer'} ${i.follow === 'pointerX' ? 'left ↔ right' : 'up ↕ down'}` : `Slider · ${i.min ?? 0}–${i.max ?? 100}`}</span></span>

@@ -169,7 +169,7 @@ export function InteractionCard({ doc, rule, open, onToggle, n }: { doc: SceneDo
               <div className="icard-grid">
                 <span className="lbl">Easing</span><EasingField value={t.easing} onChange={(easing) => setT({ easing })} />
                 <span className="lbl">Priority</span>
-                <select className="input sm" value={t.priority} onChange={(e) => setT({ priority: e.target.value as any })} aria-label="Priority"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High — wins over normal ones</option><option value="critical">Critical — always wins</option></select>
+                <select className="input sm" value={t.priority} onChange={(e) => setT({ priority: e.target.value as any })} aria-label="Priority"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High, wins over normal ones</option><option value="critical">Critical, always wins</option></select>
                 <span className="lbl">Mixing</span>
                 <select className="input sm" value={t.blend} onChange={(e) => setT({ blend: e.target.value as any })} aria-label="Mixing"><option value="crossfade">Blend smoothly</option><option value="replace">Replace what’s playing</option><option value="additive">Add on top</option></select>
                 {rule.to && <>
@@ -292,7 +292,7 @@ export function NewInteraction({ doc, onClose, onCreated }: { doc: SceneDocument
           <div className="pick wide" role="listbox">
             {[{ id: '', name: 'Anywhere on the canvas', type: 'canvas' }, ...layers].map((l: any) => (
               <button key={l.id} role="option" aria-selected={(target ?? '') === l.id} className={`pick-item ${(target ?? '') === l.id ? 'on' : ''}`} onClick={() => setTarget(l.id || undefined)}>
-                <Icon name={l.type === 'canvas' ? 'maximize' : l.type === 'text' ? 'type' : l.type === 'image' ? 'image' : 'shapes'} size={13} /><span>{l.name}{l.name === 'Touch area' && <small>The invisible area around the main thing — usually the best choice</small>}</span>
+                <Icon name={l.type === 'canvas' ? 'maximize' : l.type === 'text' ? 'type' : l.type === 'image' ? 'image' : 'shapes'} size={13} /><span>{l.name}{l.name === 'Touch area' && <small>The invisible area around the main thing. Usually the best choice</small>}</span>
               </button>
             ))}
           </div>
