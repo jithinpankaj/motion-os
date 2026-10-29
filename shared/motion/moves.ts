@@ -70,7 +70,10 @@ export function buildMove(key: MoveKey, layer: Layer, doc: SceneDocument, opts: 
       if (layer.type === 'shape') {
         const { width: w, height: h } = layer.props;
         t.push(track(id, 'props.width', [kf(0, w), kf(d * 0.4, w * 1.25, 'backOut'), kf(d, w)]), track(id, 'props.height', [kf(0, h), kf(d * 0.4, h * 0.75, 'backOut'), kf(d, h)]));
-      } else t.push(track(id, 'transform.scale', [kf(0, scale), kf(d * 0.4, scale * 0.85, 'backOut'), kf(d, scale)]));
+      } else {
+        const { scaleX: sx, scaleY: sy } = layer.transform;
+        t.push(track(id, 'transform.scaleX', [kf(0, sx), kf(d * 0.4, sx * 1.2, 'backOut'), kf(d, sx)]), track(id, 'transform.scaleY', [kf(0, sy), kf(d * 0.4, sy * 0.8, 'backOut'), kf(d, sy)]));
+      }
       break;
     case 'colorTo': {
       const path = colorPath(layer);

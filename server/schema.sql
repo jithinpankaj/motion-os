@@ -378,3 +378,7 @@ CREATE TABLE IF NOT EXISTS community_likes (
 );
 
 ALTER TABLE motion_projects ADD COLUMN IF NOT EXISTS remix_of text;
+
+-- Sounds can be uploaded as assets (rules play them).
+ALTER TABLE media_assets DROP CONSTRAINT IF EXISTS media_assets_kind_check;
+ALTER TABLE media_assets ADD CONSTRAINT media_assets_kind_check CHECK (kind IN ('image', 'video', 'svg', 'logo', 'font', 'motion', 'export', 'audio'));

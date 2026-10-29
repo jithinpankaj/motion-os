@@ -23,6 +23,8 @@ function specsFor(l: Layer, doc: SceneDocument): { title: string; items: Spec[] 
     { path: 'transform.y', label: 'Y', kind: 'number', unit: 'px', scale: H, anim: true },
     { path: 'transform.rotation', label: 'Rotation', kind: 'number', unit: '°', anim: true },
     { path: 'transform.scale', label: 'Scale', kind: 'number', unit: '%', scale: 100, anim: true, min: 1 },
+    { path: 'transform.scaleX', label: 'Stretch ↔', kind: 'number', unit: '%', scale: 100, anim: true, min: 1 },
+    { path: 'transform.scaleY', label: 'Stretch ↕', kind: 'number', unit: '%', scale: 100, anim: true, min: 1 },
     { path: 'opacity', label: 'Opacity', kind: 'slider', min: 0, max: 1, step: 0.01, unit: '%', scale: 100, anim: true },
   ] };
   if (l.type === 'shape') {
@@ -49,7 +51,7 @@ function specsFor(l: Layer, doc: SceneDocument): { title: string; items: Spec[] 
   }
   if (l.type === 'text') return [
     { title: 'Text', items: [
-      { path: 'props.fontFamily', label: 'Font', kind: 'select', options: SCENE_FONTS.map((f) => ({ value: f.family, label: f.family })) },
+      { path: 'props.fontFamily', label: 'Font', kind: 'select', options: SCENE_FONTS.map((f) => ({ value: f.family, label: `${f.family} · ${f.source}` })) },
       { path: 'props.size', label: 'Size', kind: 'number', unit: 'px', scale: m, anim: true, min: 4 },
       { path: 'props.weight', label: 'Weight', kind: 'select', options: [300, 400, 500, 600, 700, 800].map((w) => ({ value: w, label: String(w) })) },
       { path: 'props.color', label: 'Colour', kind: 'color', anim: true },
@@ -75,7 +77,7 @@ function specsFor(l: Layer, doc: SceneDocument): { title: string; items: Spec[] 
     { path: 'props.noiseAmp', label: 'Movement', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true },
     { path: 'props.distortion', label: 'Swirl', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true },
     { path: 'props.grain', label: 'Grain', kind: 'slider', min: 0, max: 1, step: 0.01, anim: true },
-  ] }, { title: 'Layer', items: [base.items[4]] }];
+  ] }, { title: 'Layer', items: [base.items[6]] }];
   if (l.type === 'particles') return [{ title: 'Particles', items: [
     { path: 'props.count', label: 'Amount', kind: 'slider', min: 100, max: 30000, step: 100 },
     { path: 'props.size', label: 'Size', kind: 'slider', min: 0.5, max: 16, step: 0.1, anim: true },
@@ -83,7 +85,7 @@ function specsFor(l: Layer, doc: SceneDocument): { title: string; items: Spec[] 
     { path: 'props.colorB', label: 'Colour 2', kind: 'color', anim: true },
     { path: 'props.velocity', label: 'Speed', kind: 'slider', min: 0, max: 1, step: 0.01, anim: true },
     { path: 'props.noise', label: 'Wander', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true },
-  ] }, { title: 'Layer', items: [base.items[4]] }];
+  ] }, { title: 'Layer', items: [base.items[6]] }];
   return [base];
 }
 
@@ -188,6 +190,7 @@ export function CanvasSettings({ doc }: { doc: SceneDocument }) {
   const sizes = [[1080, 1080, 'Square'], [1080, 1350, 'Portrait'], [1080, 1920, 'Story'], [1920, 1080, 'Wide'], [800, 600, 'Card'], [512, 512, 'Icon']] as const;
   return (
     <div>
+      <Customise doc={doc} />
       <div className="sec">
         <div className="sec-h">Canvas</div>
         <input className="input" value={doc.meta.name} onChange={(e) => commit((d) => ({ ...d, meta: { ...d.meta, name: e.target.value || 'Untitled' } }), 'meta-name')} aria-label="File name" />
@@ -196,6 +199,40 @@ export function CanvasSettings({ doc }: { doc: SceneDocument }) {
         <div className="row wrap" style={{ gap: 5 }}>{sizes.map(([w, h, n]) => <button key={n} className="chip" aria-pressed={doc.canvas.width === w && doc.canvas.height === h} onClick={() => set({ width: w, height: h }, 'size')}>{n}</button>)}</div>
       </div>
       <div className="sec"><div className="empty-hint">Select a layer to edit it, or add one from the left. Tip: drag on the canvas to move things; corners resize; the dot on top rotates.</div></div>
+    </div>
+  );
+}
+
+/**
+ * The file's "Customise" settings: friendly knobs (a colour, a label, an amount) that each change
+ * one or more properties at once, so a beginner can restyle a component without finding every layer.
+ */
+export function Customise({ doc }: { doc: SceneDocument }) {
+  const params = doc.exposed.filter((p) => (p.type === 'color' || p.type === 'text' || p.type === 'number') && p.targets.length);
+  if (!params.length) return null;
+  const current = (p: (typeof params)[number]) => {
+    const t = p.targets[0];
+    const l = doc.layers.find((x) => x.id === t.layerId);
+    return l ? getIn(l, t.path) : p.default;
+  };
+  const set = (p: (typeof params)[number], v: unknown) =>
+    commit((d) => ({ ...d, layers: d.layers.map((l) => p.targets.filter((t) => t.layerId === l.id).reduce((acc, t) => setIn(acc, t.path, v), l)) }), `param:${p.key}`);
+  return (
+    <div className="sec">
+      <div className="sec-h">Customise</div>
+      {params.map((p) => {
+        const v = current(p);
+        return (
+          <div key={p.key} className="prop" title={p.description}>
+            <span className="lbl">{p.label}</span>
+            {p.type === 'color' && <ColorField label={p.label} value={String(v)} onChange={(c) => set(p, c)} />}
+            {p.type === 'text' && <input className="input" value={String(v ?? '')} maxLength={p.maxLength ?? 60} onChange={(e) => set(p, e.target.value)} aria-label={p.label} />}
+            {p.type === 'number' && <Slider value={Number(v)} min={p.min ?? 0} max={p.max ?? 1} step={p.step ?? 0.01} onChange={(n) => set(p, n)} label={p.label} />}
+            <span />
+          </div>
+        );
+      })}
+      {params.some((p) => p.description) && <div className="empty-hint">Each setting changes every part that uses it. Hover a setting to see what it changes.</div>}
     </div>
   );
 }

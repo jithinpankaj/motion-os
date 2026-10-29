@@ -1,6 +1,10 @@
-import { useState } from 'react';
-import type { Action, Condition, Input, Rule, SceneDocument, When } from '../../../shared/scene/schema';
-import { Modal, Switch } from '../../ui/controls';
+import { useEffect, useMemo, useState } from 'react';
+import type { Action, BuiltinSound, Condition, Input, Rule, SceneDocument, When } from '../../../shared/scene/schema';
+import { BUILTIN_SOUNDS } from '../../../shared/scene/schema';
+import { Modal, Switch, toast } from '../../ui/controls';
+import { api } from '../../lib/api';
+import { apiResolver } from '../../lib/assets';
+import { SOUND_LABELS, playSound } from '../../lib/sound';
 import { Icon } from '../../ui/Icon';
 import { pathLabel } from './Animate';
 import { addBinding, addInput, addRule, commit, deleteBinding, deleteInput, deleteRule, updateBinding, updateInput, updateRule } from './store';
@@ -25,7 +29,7 @@ export function InteractPanel({ doc }: { doc: SceneDocument }) {
       <div className="sec">
         <div className="sec-h">Controls</div>
         <div className="empty-hint">Things people can change: switches, buttons and sliders. A slider can also follow the pointer — link it to eyes or a head to make a character look at the cursor.</div>
-        {m.inputs.map((i) => <ControlRow key={i.id} input={i} />)}
+        {m.inputs.map((i) => <ControlRow key={i.id} input={i} doc={doc} />)}
         <div className="row" style={{ gap: 6 }}>
           {(['boolean', 'trigger', 'number'] as const).map((t) => <button key={t} className="btn sm grow" onClick={() => addInput(t)}><Icon name="plus" size={12} />{TYPE_INFO[t].label}</button>)}
         </div>
@@ -110,7 +114,7 @@ function defaultAction(doc: SceneDocument): Action {
   return { type: 'setNumber', inputId: i.id, mode: 'add', value: 1 };
 }
 
-function ControlRow({ input }: { input: Input }) {
+function ControlRow({ input, doc }: { input: Input; doc: SceneDocument }) {
   const info = TYPE_INFO[input.type];
   return (
     <div className="col" style={{ gap: 4 }}>
@@ -130,7 +134,14 @@ function ControlRow({ input }: { input: Input }) {
         <select className="input" style={{ height: 26, fontSize: 11.5, width: 'auto' }} value={input.follow ?? ''} onChange={(e) => updateInput(input.id, { follow: (e.target.value || undefined) as any })} aria-label={`${input.name} follows the pointer`}>
           <option value="">no</option><option value="pointerX">left ↔ right</option><option value="pointerY">up ↕ down</option>
         </select>
-        {input.follow && <><span className="faint">lag</span><input type="range" min={0} max={0.95} step={0.05} value={input.smoothing ?? 0.6} onChange={(e) => updateInput(input.id, { smoothing: Number(e.target.value) }, `in-sm:${input.id}`)} aria-label="How lazily it follows" style={{ width: 60 }} /></>}
+        {input.follow && <>
+          <select className="input" style={{ height: 26, fontSize: 11.5, width: 'auto' }} value={input.dragLayer ?? ''} onChange={(e) => updateInput(input.id, { dragLayer: e.target.value || undefined })} aria-label="When it follows">
+            <option value="">all the time</option>
+            {doc.layers.filter((l) => l.type !== 'group').map((l) => <option key={l.id} value={l.id}>while dragging {l.name}</option>)}
+          </select>
+          <span className="faint">lag</span><input type="range" min={0} max={0.95} step={0.05} value={input.smoothing ?? 0.6} onChange={(e) => updateInput(input.id, { smoothing: Number(e.target.value) }, `in-sm:${input.id}`)} aria-label="How lazily it follows" style={{ width: 60 }} />
+          <span className="faint">bounce</span><input type="range" min={0} max={0.9} step={0.05} value={input.bounce ?? 0} onChange={(e) => updateInput(input.id, { bounce: Number(e.target.value) || undefined }, `in-b:${input.id}`)} aria-label="How much it bounces" style={{ width: 60 }} />
+        </>}
       </div>
     )}
     </div>
@@ -219,11 +230,11 @@ function ConditionEditor({ doc, c, onChange }: { doc: SceneDocument; c: Conditio
   </>;
 }
 
-type ActKind = 'play' | 'reverse' | 'stop' | 'toggle' | 'press' | 'number';
+type ActKind = 'play' | 'reverse' | 'stop' | 'toggle' | 'press' | 'number' | 'sound';
 function ActionEditor({ doc, a, onChange }: { doc: SceneDocument; a: Action; onChange: (a: Action) => void }) {
   const m = doc.machine;
   const bools = m.inputs.filter((i) => i.type === 'boolean'), triggers = m.inputs.filter((i) => i.type === 'trigger'), numbers = m.inputs.filter((i) => i.type === 'number');
-  const kind: ActKind = a.type === 'play' ? (a.direction === 'reverse' ? 'reverse' : 'play') : a.type === 'stop' ? 'stop' : a.type === 'setBoolean' ? 'toggle' : a.type === 'fire' ? 'press' : 'number';
+  const kind: ActKind = a.type === 'play' ? (a.direction === 'reverse' ? 'reverse' : 'play') : a.type === 'stop' ? 'stop' : a.type === 'setBoolean' ? 'toggle' : a.type === 'fire' ? 'press' : a.type === 'sound' ? 'sound' : 'number';
   const anim0 = m.animations[0]?.id ?? '';
   const change = (k: ActKind) => {
     const animationId = 'animationId' in a ? a.animationId : anim0;
@@ -233,6 +244,7 @@ function ActionEditor({ doc, a, onChange }: { doc: SceneDocument; a: Action; onC
     else if (k === 'toggle' && bools[0]) onChange({ type: 'setBoolean', inputId: bools[0].id, value: 'toggle' });
     else if (k === 'press' && triggers[0]) onChange({ type: 'fire', inputId: triggers[0].id });
     else if (k === 'number' && numbers[0]) onChange({ type: 'setNumber', inputId: numbers[0].id, mode: 'set', value: 0 });
+    else if (k === 'sound') onChange({ type: 'sound', sound: 'pop', assetId: null, volume: 0.8 });
   };
   return <>
     <select value={kind} onChange={(e) => change(e.target.value as ActKind)} aria-label="Do">
@@ -242,7 +254,9 @@ function ActionEditor({ doc, a, onChange }: { doc: SceneDocument; a: Action; onC
       <option value="toggle" disabled={!bools.length}>change toggle</option>
       <option value="press" disabled={!triggers.length}>press button</option>
       <option value="number" disabled={!numbers.length}>change slider</option>
+      <option value="sound">play a sound</option>
     </select>
+    {a.type === 'sound' && <SoundPicker a={a} onChange={onChange} />}
     {(a.type === 'play' || a.type === 'stop') && <AnimSelect doc={doc} value={a.animationId} onChange={(animationId) => onChange({ ...a, animationId })} />}
     {a.type === 'play' && <select value={a.from} onChange={(e) => onChange({ ...a, from: e.target.value as any })} aria-label="From"><option value="start">from the {a.direction === 'reverse' ? 'end' : 'start'}</option><option value="current">from where it is</option></select>}
     {a.type === 'setBoolean' && <><InputSelect inputs={bools} value={a.inputId} onChange={(inputId) => onChange({ ...a, inputId })} /><select value={a.value} onChange={(e) => onChange({ ...a, value: e.target.value as any })} aria-label="To"><option value="toggle">flip it</option><option value="on">to on</option><option value="off">to off</option></select></>}
@@ -304,4 +318,36 @@ function RecipeDialog({ kind, doc, onClose }: { kind: 'toggle' | 'hover' | 'pres
       )}
     </Modal>
   );
+}
+
+/** Choose a built-in sound or one of your uploaded sounds, hear it, and set how loud it is. */
+function SoundPicker({ a, onChange }: { a: Extract<Action, { type: 'sound' }>; onChange: (a: Action) => void }) {
+  const [mine, setMine] = useState<{ id: string; name: string }[]>([]);
+  const [busy, setBusy] = useState(false);
+  const resolver = useMemo(() => apiResolver(), []);
+  const load = () => api('/assets', { query: { kind: 'audio' } }).then((r) => setMine(r.assets.map((x: any) => ({ id: x.id, name: x.name })))).catch(() => {});
+  useEffect(() => { void load(); }, []);
+  const upload = async (f: File) => {
+    setBusy(true);
+    try {
+      const r = await api<{ id: string }>('/assets', { raw: f, query: { name: f.name.replace(/\.[^.]+$/, '').slice(0, 160) || 'Sound', kind: 'audio', category: 'sound' } });
+      await load();
+      onChange({ ...a, sound: null, assetId: r.id });
+    } catch (e) { toast('danger', 'Couldn’t add that sound', e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  };
+  const value = a.assetId ? `asset:${a.assetId}` : a.sound ?? '';
+  return <>
+    <select value={value} onChange={(e) => { const v = e.target.value; if (v === 'upload') return; onChange(v.startsWith('asset:') ? { ...a, sound: null, assetId: v.slice(6) } : { ...a, sound: v as BuiltinSound, assetId: null }); }} aria-label="Sound">
+      <optgroup label="Built-in">{BUILTIN_SOUNDS.map((k) => <option key={k} value={k}>{SOUND_LABELS[k]}</option>)}</optgroup>
+      {(mine.length > 0 || a.assetId) && <optgroup label="Your sounds">{mine.map((m) => <option key={m.id} value={`asset:${m.id}`}>{m.name}</option>)}{a.assetId && !mine.some((m) => m.id === a.assetId) && <option value={`asset:${a.assetId}`}>Uploaded sound</option>}</optgroup>}
+    </select>
+    <button className="icon-btn sm" title="Hear it" aria-label="Hear this sound" onClick={() => playSound({ builtin: a.sound, assetId: a.assetId, volume: a.volume }, resolver, { force: true })}><Icon name="sound" size={12} /></button>
+    <label className="row faint" style={{ gap: 4, fontSize: 11.5 }} title="Volume">
+      <input type="range" min={0} max={1} step={0.05} value={a.volume} onChange={(e) => onChange({ ...a, volume: Number(e.target.value) })} aria-label="Volume" style={{ width: 64 }} />
+    </label>
+    <label className="btn sm ghost" style={{ cursor: busy ? 'wait' : 'pointer' }} title="Upload an MP3, WAV or OGG file">
+      <Icon name="upload" size={11} />{busy ? 'Adding…' : 'Upload'}
+      <input type="file" accept="audio/mpeg,audio/wav,audio/x-wav,audio/ogg,.mp3,.wav,.ogg" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
+    </label>
+  </>;
 }

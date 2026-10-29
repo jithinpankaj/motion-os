@@ -26,21 +26,60 @@ export function resolveHierarchy(layers: Layer[]): Layer[] {
     if (!cur) return l;
     let { x, y, rotation, scale } = l.transform;
     let opacity = l.opacity, visible = l.visible;
+    // The 2×2 linear part (rotation and stretch without the uniform scale), applied child-first.
+    let m = linear(rotation, l.transform.scaleX, l.transform.scaleY);
+    let stretched = l.transform.scaleX !== 1 || l.transform.scaleY !== 1;
     let hops = 0;
     while (cur && hops++ < 32) {
       const g = cur.transform;
       const r = (g.rotation * Math.PI) / 180;
-      const dx = (x - 0.5) * g.scale, dy = (y - 0.5) * g.scale;
+      // A group's squash/stretch moves its children apart along the group's own axes.
+      const dx = (x - 0.5) * g.scale * g.scaleX, dy = (y - 0.5) * g.scale * g.scaleY;
       x = g.x + dx * Math.cos(r) - dy * Math.sin(r);
       y = g.y + dx * Math.sin(r) + dy * Math.cos(r);
       rotation += g.rotation;
       scale *= g.scale;
+      m = mul(linear(g.rotation, g.scaleX, g.scaleY), m);
+      stretched ||= g.scaleX !== 1 || g.scaleY !== 1;
       opacity *= cur.opacity;
       visible = visible && cur.visible;
       cur = cur.parentId ? byId.get(cur.parentId) : undefined;
     }
-    return { ...l, transform: { x, y, rotation, scale }, opacity, visible };
+    if (!stretched) return { ...l, transform: { x, y, rotation, scale, scaleX: 1, scaleY: 1 }, opacity, visible };
+    const circle = l.type === 'shape' && l.props.kind === 'ellipse' && Math.abs(l.props.width - l.props.height) < 1e-6;
+    return { ...l, transform: { x, y, scale, ...decompose(m, rotation, circle) }, opacity, visible };
   });
+}
+
+type M2 = [number, number, number, number]; // [a, b, c, d] = [[a, b], [c, d]], columns are the images of the x and y axes
+const linear = (deg: number, sx: number, sy: number): M2 => {
+  const r = (deg * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
+  return [c * sx, -s * sy, s * sx, c * sy];
+};
+const mul = (p: M2, q: M2): M2 => [p[0] * q[0] + p[1] * q[2], p[0] * q[1] + p[1] * q[3], p[2] * q[0] + p[3] * q[2], p[2] * q[1] + p[3] * q[3]];
+
+/**
+ * Rotation + stretch for a composed transform. A layer turned inside a stretched group would really
+ * be skewed, which a layer can't show. Circles get the exact ellipse (singular value decomposition);
+ * everything else keeps its own x-axis exactly — direction and length — and only loses the skew, so
+ * lines keep pointing the right way and text stays upright.
+ */
+function decompose([a, b, c, d]: M2, hint: number, circle: boolean) {
+  let rot: number, sx: number, sy: number;
+  if (circle) {
+    const E = (a + d) / 2, F = (a - d) / 2, G = (c + b) / 2, H = (c - b) / 2;
+    const Q = Math.hypot(E, H), R = Math.hypot(F, G);
+    rot = (Math.atan2(H, E) + Math.atan2(G, F)) / 2;
+    sx = Q + R; sy = Math.abs(Q - R);
+  } else {
+    sx = Math.hypot(a, c);
+    rot = sx > 1e-9 ? Math.atan2(c, a) : (hint * Math.PI) / 180;
+    sy = Math.abs(a * d - b * c) / Math.max(sx, 1e-9);
+  }
+  // Keep the rotation in the same turn as the plain sum, so animated spins stay continuous.
+  let deg = (rot * 180) / Math.PI;
+  deg += Math.round((hint - deg) / 360) * 360;
+  return { rotation: deg, scaleX: Math.max(1e-4, sx), scaleY: Math.max(1e-4, sy) };
 }
 
 /**

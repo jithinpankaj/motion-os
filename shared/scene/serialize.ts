@@ -112,8 +112,10 @@ export function validateScene(input: unknown): { ok: true; scene: SceneDocument 
     if (o.animationId && !animIds.has(o.animationId)) issues.push({ path, message: 'refers to a missing move' });
     if (o.layerId && !ids.has(o.layerId)) issues.push({ path, message: 'refers to a missing layer' });
   };
+  m.rules.forEach((r, i) => r.do.forEach((a, j) => { if (a.type === 'sound' && !a.sound === !a.assetId) issues.push({ path: `machine.rules.${i}.do.${j}`, message: 'a sound needs either a built-in sound or an uploaded file' }); }));
   m.rules.forEach((r, i) => { refs(r.when, `machine.rules.${i}.when`); r.only.forEach((c, j) => refs(c, `machine.rules.${i}.only.${j}`)); r.do.forEach((a, j) => refs(a, `machine.rules.${i}.do.${j}`)); });
   m.bindings.forEach((b, i) => refs(b, `machine.bindings.${i}`));
+  m.inputs.forEach((x, i) => { if (x.dragLayer && !ids.has(x.dragLayer)) issues.push({ path: `machine.inputs.${i}.dragLayer`, message: 'refers to a missing layer' }); });
   if (issues.length) return { ok: false, issues };
   return { ok: true, scene };
 }

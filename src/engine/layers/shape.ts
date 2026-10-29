@@ -52,7 +52,7 @@ export class ShapeView implements LayerView {
     setRgb(u.uStroke.value, p.stroke.color);
     u.uOpacity.value = layer.opacity;
     placeQuad(this.mesh, layer, ctx, w + pad * 2, h + pad * 2);
-    this.lastBounds = { cx: layer.transform.x * ctx.width, cy: layer.transform.y * ctx.height, w: w * layer.transform.scale, h: h * layer.transform.scale, rotation: layer.transform.rotation };
+    this.lastBounds = { cx: layer.transform.x * ctx.width, cy: layer.transform.y * ctx.height, w: w * layer.transform.scale * layer.transform.scaleX, h: h * layer.transform.scale * layer.transform.scaleY, rotation: layer.transform.rotation };
   }
 
   bounds() { return this.lastBounds; }

@@ -84,8 +84,12 @@ figma_not_connected`, `429 rate_limited | quota`.
 - `POST /api/exports` takes `{ source: { kind: 'project', id, animationId? }, format, settings }`. With an
   `animationId` that one move is rendered as a plain timeline; `scene-json` always exports the whole file
   including controls, moves, rules and slider links.
-- `POST /api/community` publishes (or, if the file already has a live post, updates) a copy of a file. Images
-  are copied into community storage; the post never references the author's workspace. `POST
-  /api/community/:id/remix` copies the post (and its images) into the caller's workspace.
+- `POST /api/community` publishes (or, if the file already has a live post, updates) a copy of a file. Body:
+  `{ projectId, title, description?, tags?, category? }` where `category` is one of Characters, Interactive UI,
+  Illustrations, Typography, Celebrations, Loaders; it is stored on the file and as the post's first tag
+  (`?tag=interactive-ui` filters by it). Images and sounds are copied into community storage; the post never
+  references the author's workspace. `POST /api/community/:id/remix` copies the post (and its images and
+  sounds) into the caller's workspace.
+- `POST /api/assets?kind=audio` accepts MP3, WAV or OGG (sniffed from the bytes, up to 10 MB).
 - Outbound requests for user-supplied URLs (Figma) allow only http(s), refuse private, loopback and link-local
   addresses on every redirect hop, and cap size and time. Third-party tokens are stored AES-256-GCM encrypted.

@@ -1,5 +1,5 @@
 import { uid } from '../util/random';
-import type { Layer, LayerType, SceneDocument, GradientProps, MeshProps, ParticleProps, TextProps, ImageProps, ShapeProps } from './schema';
+import type { Layer, LayerType, SceneDocument, Transform, GradientProps, MeshProps, ParticleProps, TextProps, ImageProps, ShapeProps } from './schema';
 import { SCHEMA_VERSION } from './schema';
 
 export const defaultGradient = (): GradientProps => ({
@@ -94,7 +94,7 @@ export const defaultShape = (kind: ShapeProps['kind'] = 'rect'): ShapeProps => (
 
 const NAMES: Record<LayerType, string> = { group: 'Group', gradient: 'Gradient', mesh: 'Mesh', particles: 'Particles', text: 'Text', image: 'Image', shape: 'Shape' };
 
-export function createLayer<T extends LayerType>(type: T, patch: Partial<Layer> = {}): Extract<Layer, { type: T }> {
+export function createLayer<T extends LayerType>(type: T, patch: Omit<Partial<Layer>, 'transform'> & { transform?: Partial<Transform> } = {}): Extract<Layer, { type: T }> {
   const props =
     type === 'gradient' ? defaultGradient() :
     type === 'mesh' ? defaultMesh() :
@@ -111,9 +111,9 @@ export function createLayer<T extends LayerType>(type: T, patch: Partial<Layer> 
     locked: false,
     opacity: 1,
     blend: type === 'particles' ? 'add' : 'normal',
-    transform: { x: 0.5, y: 0.5, rotation: 0, scale: 1 },
     props,
     ...patch,
+    transform: { x: 0.5, y: 0.5, rotation: 0, scale: 1, scaleX: 1, scaleY: 1, ...patch.transform },
   } as any;
 }
 

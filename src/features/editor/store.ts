@@ -215,8 +215,10 @@ export function prune(d: SceneDocument): SceneDocument {
     ...d,
     layers: d.layers.map((l) => (l.parentId && !L.has(l.parentId) ? { ...l, parentId: null } : l)),
     tracks: d.tracks.filter((t) => L.has(t.layerId)),
+    exposed: d.exposed.map((p) => ({ ...p, targets: p.targets.filter((t) => L.has(t.layerId)) })).filter((p) => p.targets.length),
     machine: {
       ...d.machine,
+      inputs: d.machine.inputs.map((i) => (i.dragLayer && !L.has(i.dragLayer) ? { ...i, dragLayer: undefined } : i)),
       animations: d.machine.animations.map((a) => ({ ...a, tracks: a.tracks.filter((t) => L.has(t.layerId)) })),
       rules: d.machine.rules.filter((r) => ok(r.when)).map((r) => ({ ...r, only: r.only.filter(ok), do: r.do.filter(ok) })).filter((r) => r.do.length),
       bindings: d.machine.bindings.filter(ok),

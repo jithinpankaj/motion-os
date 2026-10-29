@@ -12,7 +12,7 @@ import type { Request } from 'express';
 const importLimit = rateLimit({ name: 'import', windowMs: 60_000, max: 12, key: (r) => r.user?.id ?? r.ip ?? 'x' });
 
 /** Store bytes as a new workspace asset (validated by the same sniffing as uploads). */
-export async function createAsset(req: Request, body: Buffer, o: { name: string; kind: 'image' | 'logo' | 'svg'; category: string; tags: string[] }) {
+export async function createAsset(req: Request, body: Buffer, o: { name: string; kind: 'image' | 'logo' | 'svg' | 'audio'; category: string; tags: string[] }) {
   const { db } = req.ctx;
   const id = uid('ast');
   const v = await db.tx(async (tx) => {

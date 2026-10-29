@@ -6,6 +6,8 @@ import type { AssetResolver } from '../engine/assets';
 import type { Bounds } from '../engine/layers/base';
 import { MotionCanvas, type MotionCanvasHandle } from './MotionCanvas';
 import { useReducedMotion } from '../lib/prefs';
+import { playSound } from '../lib/sound';
+import type { BuiltinSound } from '../../shared/scene/schema';
 
 export type MotionPlayerHandle = { runtime: MotionRuntime; reset: () => void };
 
@@ -37,7 +39,10 @@ export const MotionPlayer = forwardRef<MotionPlayerHandle, {
   useImperativeHandle(ref, () => ({ runtime, reset: () => { runtime.reset(); onChange?.(); } }), [runtime, onChange]);
 
   useEffect(() => { runtime.setDoc(doc); }, [doc, runtime]);
-  useEffect(() => runtime.on(() => onChange?.()), [runtime, onChange]);
+  // Tell the host once the runtime exists (so its controls panel can show), then on every event.
+  useEffect(() => { onChange?.(); return runtime.on(() => onChange?.()); }, [runtime, onChange]);
+  // "Play a sound" actions become audio here (muted players stay silent).
+  useEffect(() => runtime.on((e) => { if (e.kind === 'sound') void playSound(e.detail === 'asset' ? { assetId: e.id, volume: e.volume } : { builtin: e.id as BuiltinSound, volume: e.volume }, assets); }), [runtime, assets]);
 
   // Feed the renderer from the runtime every frame.
   useEffect(() => {
@@ -97,7 +102,8 @@ export const MotionPlayer = forwardRef<MotionPlayerHandle, {
     for (const id of inside) if (!hovered.current.has(id)) runtime.pointer('enter', id);
     for (const id of hovered.current) if (!inside.has(id)) runtime.pointer('leave', id);
     hovered.current = inside;
-    setCursor(top ? 'pointer' : 'default');
+    if (pressed.current && runtime.isDragging(pressed.current)) return;
+    setCursor(top ? (runtime.dragLayers.has(top) ? 'grab' : 'pointer') : 'default');
   };
   const onLeave = () => {
     for (const id of hovered.current) runtime.pointer('leave', id);
@@ -107,7 +113,11 @@ export const MotionPlayer = forwardRef<MotionPlayerHandle, {
   const onDown = (e: React.PointerEvent) => {
     const { top } = interactiveUnder(scenePoint(e).x, scenePoint(e).y);
     pressed.current = top;
-    if (top) runtime.pointer('down', top);
+    if (!top) return;
+    // Keep receiving the pointer while it's held, even outside the canvas (for dragging).
+    try { host.current?.setPointerCapture(e.pointerId); } catch {}
+    runtime.pointer('down', top);
+    if (runtime.dragLayers.has(top)) setCursor('grabbing');
   };
   const onUp = (e: React.PointerEvent) => {
     const { top } = interactiveUnder(scenePoint(e).x, scenePoint(e).y);

@@ -143,7 +143,7 @@ export class TextView implements LayerView {
     }
     const w = (L.boxW + L.pad * 2), h = (L.boxH + L.pad * 2);
     placeQuad(this.mesh, layer, ctx, w, h);
-    this.lastBounds = { cx: layer.transform.x * ctx.width, cy: layer.transform.y * ctx.height, w: L.boxW * layer.transform.scale, h: L.boxH * layer.transform.scale, rotation: layer.transform.rotation };
+    this.lastBounds = { cx: layer.transform.x * ctx.width, cy: layer.transform.y * ctx.height, w: L.boxW * layer.transform.scale * layer.transform.scaleX, h: L.boxH * layer.transform.scale * layer.transform.scaleY, rotation: layer.transform.rotation };
   }
 
   /** Per-unit reveal progress (unit = glyph, word or line depending on the preset). */

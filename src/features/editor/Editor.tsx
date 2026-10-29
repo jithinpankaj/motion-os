@@ -11,7 +11,8 @@ import type { MotionPlayerHandle } from '../../components/MotionPlayer';
 import { ControlWidgets } from '../../components/ControlWidgets';
 import { Stage } from './Stage';
 import { LeftPanel } from './LeftPanel';
-import { CanvasSettings, Inspector } from './Inspector';
+import { CanvasSettings, Customise, Inspector } from './Inspector';
+import { LIBRARY_CATEGORIES } from '../../../shared/motion/presets';
 import { QuickMoves, Timeline } from './Animate';
 import { InteractPanel } from './Interact';
 import {
@@ -105,7 +106,7 @@ export default function Editor() {
         <button className="icon-btn" aria-label="Undo" disabled={!canUndo} onClick={undo}><Icon name="undo" /></button>
         <button className="icon-btn" aria-label="Redo" disabled={!canRedo} onClick={redo}><Icon name="redo" /></button>
         {can('export.create') && <button className="btn" onClick={() => setExporting(true)}><Icon name="download" size={14} />Export</button>}
-        {can('community.publish') && <button className="btn primary" onClick={() => setSharing(true)}><Icon name="globe" size={14} />{community ? 'Update post' : 'Share'}</button>}
+        {can('community.publish') && <button className="btn primary" onClick={() => setSharing(true)}><Icon name="globe" size={14} />{community ? 'Update Community post' : 'Add to Community'}</button>}
       </header>
 
       {mode === 'try' ? <div className="ed-left"><div className="sec"><div className="sec-h">Try it</div><div className="empty-hint">This is exactly how it behaves for people. Use the controls on the right, and click or hover things on the canvas.</div></div></div> : <LeftPanel doc={doc} />}
@@ -114,6 +115,7 @@ export default function Editor() {
         {mode === 'design' && (layer ? <Inspector doc={doc} layer={layer} /> : <CanvasSettings doc={doc} />)}
         {mode === 'animate' && <><QuickMoves layer={layer} />{layer && <Inspector doc={doc} layer={layer} />}</>}
         {mode === 'interact' && <InteractPanel doc={doc} />}
+        {mode === 'try' && <Customise doc={doc} />}
         {mode === 'try' && <div className="sec"><div className="sec-h">Controls</div><ControlWidgets doc={doc} runtime={player.current?.runtime ?? null} onReset={() => player.current?.reset()} /></div>}
       </aside>
       {mode === 'animate' && <Timeline doc={doc} />}
@@ -122,7 +124,7 @@ export default function Editor() {
         footer={<><button className="btn ghost" onClick={() => { if (id) clearDraft(id); setDraft(null); }}>Discard</button><button className="btn primary" onClick={() => { const d = deserializeScene(draft!.doc); useEditor.setState({ doc: d, saveState: 'dirty' }); save(true); setDraft(null); }}>Recover</button></>}><div /></Modal>
       <Modal open={!!conflict} onClose={() => {}} title="Someone else saved this file" subtitle={`${conflict?.updatedBy ?? 'Another person'} saved a newer version while you were editing.`}
         footer={<><button className="btn" onClick={() => resolveConflict('theirs')}>Use their version</button><button className="btn primary" onClick={() => resolveConflict('mine')}>Keep mine</button></>}><div className="empty-hint">“Keep mine” saves your version over theirs (theirs stays in the history).</div></Modal>
-      {sharing && id && <ShareDialog projectId={id} name={doc.meta.name} existing={community} onClose={() => setSharing(false)} onDone={(c) => { setCommunity(c); setSharing(false); }} />}
+      {sharing && id && <ShareDialog projectId={id} name={doc.meta.name} category={doc.meta.category} existing={community} onClose={() => setSharing(false)} onDone={(c) => { setCommunity(c); setSharing(false); }} />}
       {exporting && id && <ExportDialog projectId={id} doc={doc} onClose={() => setExporting(false)} />}
     </div>
   );
@@ -130,8 +132,9 @@ export default function Editor() {
 
 const saveLabel = (s: string) => ({ saved: 'All changes saved', dirty: 'Saving soon…', saving: 'Saving…', offline: 'Offline — kept on this device', conflict: 'Needs your attention', error: 'Couldn’t save' } as Record<string, string>)[s] ?? s;
 
-function ShareDialog({ projectId, name, existing, onClose, onDone }: { projectId: string; name: string; existing: { id: string } | null; onClose: () => void; onDone: (c: { id: string }) => void }) {
+function ShareDialog({ projectId, name, category: initial, existing, onClose, onDone }: { projectId: string; name: string; category?: string; existing: { id: string } | null; onClose: () => void; onDone: (c: { id: string }) => void }) {
   const [title, setTitle] = useState(name);
+  const [category, setCategory] = useState<string>(LIBRARY_CATEGORIES.includes(initial as any) ? initial! : '');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
   const [busy, setBusy] = useState(false);
@@ -139,19 +142,25 @@ function ShareDialog({ projectId, name, existing, onClose, onDone }: { projectId
     setBusy(true);
     try {
       await save(true);
-      const r = await api('/community', { body: { projectId, title, description, tags: tags.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 6) } });
+      const r = await api('/community', { body: { projectId, title, description, ...(category ? { category } : {}), tags: tags.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 6) } });
       toast('ok', r.updated ? 'Community post updated' : 'Shared with the community', 'Anyone on this server can now try and remix it.', { label: 'View', run: () => window.open(`/community/${r.id}`, '_self') });
       onDone({ id: r.id });
     } catch (e) { toast('danger', 'Couldn’t share', errorMessage(e)); } finally { setBusy(false); }
   };
   return (
-    <Modal open onClose={onClose} title={existing ? 'Update your community post' : 'Share to the community'} subtitle="Everyone on this server can try it and remix their own copy. Your file stays yours — they get a copy."
+    <Modal open onClose={onClose} title={existing ? 'Update your Community post' : 'Add to the Community'} subtitle="Everyone on this server can find it by category, try it and remix their own copy. Your file stays yours — they get a copy."
       footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || title.trim().length < 2} onClick={go}>{busy ? <span className="spinner" /> : existing ? 'Update post' : 'Share'}</button></>}>
       <div className="col" style={{ gap: 12 }}>
         <label className="col" style={{ gap: 4 }}><span className="label">Title</span><input className="input" value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} /></label>
+        <label className="col" style={{ gap: 4 }}><span className="label">Category</span>
+          <select className="input" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category">
+            <option value="">No category</option>
+            {LIBRARY_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </label>
         <label className="col" style={{ gap: 4 }}><span className="label">What does it do? <span className="faint">(optional)</span></span><textarea className="input" rows={3} style={{ height: 'auto', padding: 8 }} maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Tap the switch to turn it on." /></label>
         <label className="col" style={{ gap: 4 }}><span className="label">Tags <span className="faint">(comma separated)</span></span><input className="input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="toggle, button, ui" /></label>
-        <div className="empty-hint">Images in your file are copied into the post. You can unpublish any time from the post page.</div>
+        <div className="empty-hint">Images and sounds in your file are copied into the post. You can unpublish any time from the post page.</div>
       </div>
     </Modal>
   );

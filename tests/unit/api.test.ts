@@ -9,6 +9,8 @@ import { createApp } from '../../server/app';
 import { ensureGlobals } from '../../server/services/workspace';
 import { seedDemo, DEMO_PASSWORD } from '../../server/seed';
 import { encodePng } from '../../server/services/png';
+import { ensurePresetPosts } from '../../server/routes/community';
+import { MOTION_PRESETS } from '../../shared/motion/presets';
 
 let db: Db, server: Server, base = '';
 const sessions: Record<string, { cookie: string; ws: string }> = {};
@@ -78,7 +80,7 @@ const fileNamed = async (name: string) => (await call('designer', 'GET', '/proje
 
 describe('exports', () => {
   it('exports one move of an interactive file as a timeline', async () => {
-    const p = await fileNamed('Toggle switch');
+    const p = await fileNamed('Living button');
     const anim = p.doc.machine.animations[0];
     const ok = await call('marketing', 'POST', '/exports', { source: { kind: 'project', id: p.id, animationId: anim.id }, format: 'mp4', settings: { width: 1080, height: 1080, fps: 30, duration: 1, quality: 'draft' } });
     expect(ok.status).toBe(201);
@@ -88,12 +90,12 @@ describe('exports', () => {
     expect((await call('marketing', 'POST', '/exports', { source: { kind: 'project', id: p.id, animationId: 'an_missing' }, format: 'png', settings: { width: 64, height: 64, time: 0 } })).status).toBe(404);
   });
   it('refuses unimplemented formats and odd MP4 sizes', async () => {
-    const s = { kind: 'project', id: (await fileNamed('Toggle switch')).id };
+    const s = { kind: 'project', id: (await fileNamed('Living button')).id };
     expect((await call('marketing', 'POST', '/exports', { source: s, format: 'lottie', settings: {} })).status).toBe(422);
     expect((await call('marketing', 'POST', '/exports', { source: s, format: 'mp4', settings: { width: 1081, height: 1080, fps: 30, duration: 1 } })).status).toBe(400);
   });
   it('produces the full motion file (with its interactions) on the server', async () => {
-    const p = await fileNamed('Toggle switch');
+    const p = await fileNamed('Living button');
     const r = await call('engineer', 'POST', '/exports', { source: { kind: 'project', id: p.id }, format: 'scene-json', settings: {} });
     expect(r.body.job.status).toBe('completed');
     const file = await (await fetch(base + r.body.job.result.url)).json();
@@ -101,7 +103,7 @@ describe('exports', () => {
     expect(file.machine.rules.length).toBeGreaterThan(0);
   });
   it('rejects uploaded results that do not match the job', async () => {
-    const p = await fileNamed('Toggle switch');
+    const p = await fileNamed('Living button');
     const j = (await call('marketing', 'POST', '/exports', { source: { kind: 'project', id: p.id }, format: 'png', settings: { width: 64, height: 64, time: 1 } })).body.job;
     await call('marketing', 'PATCH', `/exports/${j.id}`, { status: 'processing' });
     expect((await call('marketing', 'PUT', `/exports/${j.id}/result`, undefined, Buffer.from('not a png at all'))).status).toBe(400);
@@ -116,9 +118,10 @@ describe('files', () => {
     const blank = await call('designer', 'POST', '/projects', { name: 'Blank story', width: 1080, height: 1920, background: '#112233' });
     const b = (await call('designer', 'GET', `/projects/${blank.body.id}`)).body;
     expect(b.scene.doc.canvas).toMatchObject({ width: 1080, height: 1920, background: '#112233' });
-    const preset = await call('designer', 'POST', '/projects', { name: 'Buddy', preset: 'curious-buddy' });
+    const preset = await call('designer', 'POST', '/projects', { name: 'Button', preset: 'living-button' });
     const d = (await call('designer', 'GET', `/projects/${preset.body.id}`)).body.scene.doc;
-    expect(d.machine.inputs.some((i: any) => i.follow === 'pointerX')).toBe(true);
+    expect(d.machine.animations.map((a: any) => a.name)).toEqual(['Idle', 'Hover', 'Unhover', 'Press', 'Release']);
+    expect(d.exposed.length).toBeGreaterThan(0);
     expect((await call('designer', 'POST', '/projects', { name: 'X', preset: 'nope' })).status).toBe(400);
   });
   it('detects concurrent edits instead of silently overwriting', async () => {
@@ -142,9 +145,12 @@ describe('community', () => {
   };
   it('lists the presets for every signed-in user, in order, and requires sign-in', async () => {
     expect((await fetch(`${base}/api/community`)).status).toBe(401);
+    // A preset that has left the library disappears from the gallery on the next start.
+    await db.query(`INSERT INTO community_posts (id, author_name, title, description, tags, doc, is_preset, preset_key) VALUES ('cp_retired', 'Motion OS', 'Retired', '', '{}', '{}', true, 'retired')`);
+    await ensurePresetPosts(db);
     const r = await noWs('outsider', 'GET', '/community?sort=presets');
     expect(r.status).toBe(200);
-    expect(r.body.posts[0].title).toBe('Curious buddy');
+    expect(r.body.posts.map((p: any) => p.title)).toEqual(MOTION_PRESETS.map((p) => p.name)); // retired presets are gone
     expect(r.body.posts.every((p: any) => p.isPreset)).toBe(true);
   });
   it('publishes with images copied, lets another workspace remix, and keeps posts independent', async () => {
@@ -174,8 +180,37 @@ describe('community', () => {
     expect((await noWs('outsider', 'GET', `/community/${pub.body.id}`)).status).toBe(404);
     expect((await call('outsider', 'GET', `/projects/${remix.body.id}`)).status).toBe(200);
   });
+  it('uploads a sound, publishes it with the file under a category, and remixes copy it along', async () => {
+    // A tiny valid WAV file (44-byte header + silence).
+    const wav = Buffer.alloc(44 + 800);
+    wav.write('RIFF', 0); wav.writeUInt32LE(36 + 800, 4); wav.write('WAVE', 8); wav.write('fmt ', 12); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+    wav.writeUInt32LE(8000, 24); wav.writeUInt32LE(8000, 28); wav.writeUInt16LE(1, 32); wav.writeUInt16LE(8, 34); wav.write('data', 36); wav.writeUInt32LE(800, 40);
+    expect((await call('designer', 'POST', '/assets?name=Not%20audio&kind=audio', undefined, Buffer.from('hello'))).status).toBe(400);
+    const up = await call('designer', 'POST', '/assets?name=Ding&kind=audio&category=sound', undefined, wav);
+    expect(up.status, JSON.stringify(up.body)).toBe(201);
+    expect(up.body.mime).toBe('audio/wav');
+    const created = await call('designer', 'POST', '/projects', { name: 'Sound test', preset: 'living-button' });
+    const full = (await call('designer', 'GET', `/projects/${created.body.id}`)).body;
+    const doc = full.scene.doc;
+    doc.machine.rules[0].do.push({ type: 'sound', sound: null, assetId: up.body.id, volume: 0.5 });
+    expect((await call('designer', 'PUT', `/projects/${created.body.id}/scene`, { doc, baseRevision: full.scene.revision })).status).toBe(200);
+    const pub = await call('designer', 'POST', '/community', { projectId: created.body.id, title: 'Ding button', category: 'Interactive UI', tags: ['sound'] });
+    expect(pub.status, JSON.stringify(pub.body)).toBe(201);
+    const post = (await noWs('outsider', 'GET', `/community/${pub.body.id}`)).body;
+    expect(post.post.tags).toEqual(['interactive-ui', 'sound']);
+    expect(post.post.doc.meta.category).toBe('Interactive UI');
+    const sid = post.post.doc.machine.rules[0].do.find((a: any) => a.type === 'sound').assetId;
+    expect(sid).toMatch(/^ca_/); // the community copy
+    const audio = await fetch(base + post.assets[sid].url);
+    expect(audio.headers.get('content-type')).toBe('audio/wav');
+    expect((await noWs('outsider', 'GET', '/community?tag=interactive-ui')).body.posts.some((p: any) => p.id === pub.body.id)).toBe(true);
+    const remix = await call('outsider', 'POST', `/community/${pub.body.id}/remix`);
+    const mine = (await call('outsider', 'GET', `/projects/${remix.body.id}`)).body.scene.doc;
+    const rid = mine.machine.rules[0].do.find((a: any) => a.type === 'sound').assetId;
+    expect((await call('outsider', 'GET', `/assets/${rid}`)).body.asset.kind).toBe('audio');
+  });
   it('republishing updates the same post, and presets cannot be unpublished', async () => {
-    const p = await fileNamed('Toggle switch');
+    const p = await fileNamed('Living button');
     const a = await call('designer', 'POST', '/community', { projectId: p.id, title: 'Switch' });
     const b = await call('designer', 'POST', '/community', { projectId: p.id, title: 'Switch v2' });
     expect(b.body).toMatchObject({ id: a.body.id, updated: true });

@@ -9,8 +9,8 @@ import { uid } from '../../shared/util/random';
 import type { Db } from '../db';
 import type { Request } from 'express';
 
-const LIMITS: Record<string, number> = { image: 20e6, svg: 2e6, video: 100e6, font: 10e6 };
-const KIND_FAMILIES: Record<string, string[]> = { image: ['image'], logo: ['image', 'svg'], svg: ['svg'], video: ['video'], font: ['font'] };
+const LIMITS: Record<string, number> = { image: 20e6, svg: 2e6, video: 100e6, font: 10e6, audio: 10e6 };
+const KIND_FAMILIES: Record<string, string[]> = { image: ['image'], logo: ['image', 'svg'], svg: ['svg'], video: ['video'], font: ['font'], audio: ['audio'] };
 const uploadLimit = rateLimit({ name: 'upload', windowMs: 60_000, max: 30, key: (r) => r.user?.id ?? r.ip ?? 'x' });
 
 export async function storeAssetVersion(db: Db, req: Request, assetId: string, body: Buffer, kindHint: string) {
@@ -62,7 +62,7 @@ export function assetRoutes() {
 
   r.post('/assets', requirePerm('asset.upload'), uploadLimit, raw({ type: () => true, limit: '100mb' }), async (req, res) => {
     const meta = parse(z.object({
-      name: z.string().trim().min(1).max(160), kind: z.enum(['image', 'logo', 'svg', 'video', 'font']), category: z.string().max(40).default('general'),
+      name: z.string().trim().min(1).max(160), kind: z.enum(['image', 'logo', 'svg', 'video', 'font', 'audio']), category: z.string().max(40).default('general'),
       tags: z.string().max(400).default(''), team: z.string().optional(), campaign: z.string().optional(), license: z.string().max(2000).optional(),
     }), req.query);
     if (!Buffer.isBuffer(req.body) || !req.body.length) throw badRequest('Empty upload');

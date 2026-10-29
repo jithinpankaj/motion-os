@@ -20,32 +20,30 @@ test('navigation is simple and adapts to permissions', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'New file' })).toHaveCount(0);
 });
 
-const openFile = async (page: Page, name: string) => {
-  const id = await page.evaluate(async (n) => {
-    const s = await fetch('/api/session').then((r) => r.json());
-    const p = (await fetch('/api/projects', { headers: { 'x-workspace-id': s.workspaces[0].id } }).then((r) => r.json())).projects;
-    return p.find((x: any) => x.name === n).id;
-  }, name);
-  await page.goto(`/edit/${id}`);
-  await expect(page.getByRole('navigation', { name: 'Editor mode' })).toBeVisible();
-};
+/** A fresh copy of a library component each run, so tests never depend on earlier edits. */
+const freshFile = (page: Page, preset: string, name: string): Promise<string> => page.evaluate(async ([preset, name]) => {
+  const s = await fetch('/api/session').then((r) => r.json());
+  const r = await fetch('/api/projects', { method: 'POST', headers: { 'content-type': 'application/json', 'x-workspace-id': s.workspaces[0].id }, body: JSON.stringify({ name, preset }) }).then((x) => x.json());
+  return r.id;
+}, [preset, name]);
 
-test('Editor: design, animate, interact and try a toggle switch', async ({ page }) => {
+test('Editor: try the living button, then design, animate and interact', async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 900 });
   await login(page, 'dana@motion.os');
-  // A fresh copy of the preset each run, so the test never depends on earlier edits.
-  const id = await page.evaluate(async () => {
-    const s = await fetch('/api/session').then((r) => r.json());
-    const r = await fetch('/api/projects', { method: 'POST', headers: { 'content-type': 'application/json', 'x-workspace-id': s.workspaces[0].id }, body: JSON.stringify({ name: 'E2E toggle', preset: 'toggle-switch' }) }).then((x) => x.json());
-    return r.id;
-  });
-  await page.goto(`/edit/${id}`);
-  // Try it: clicking the switch on the canvas flips the "On" control.
+  // A fresh copy of the component each run, so the test never depends on earlier edits.
+  await page.goto(`/edit/${await freshFile(page, 'living-button', 'E2E button')}`);
+  // Try it: the controls show straight away; hovering and clicking the button runs its states.
   await page.getByRole('button', { name: 'Try it' }).click();
+  await expect(page.getByRole('switch', { name: 'Hovered' })).toBeVisible();
   const box = await page.locator('.stage-box').boundingBox();
-  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await expect(page.getByRole('switch', { name: 'On' })).toHaveAttribute('aria-checked', 'true');
-  await expect(page.locator('.log')).toContainText('Turn on');
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height * 0.55, { steps: 4 });
+  await expect(page.getByRole('switch', { name: 'Hovered' })).toHaveAttribute('aria-checked', 'true');
+  await page.mouse.down();
+  await expect(page.locator('.log')).toContainText('Press');
+  await page.mouse.up();
+  await expect(page.locator('.log')).toContainText('Release');
+  // Customise recolours every part that uses the colour.
+  await expect(page.locator('.ed-right')).toContainText('Button colour');
   // Design: add a star; Animate: give it a one-click Spin, which becomes its own move.
   await page.getByRole('button', { name: 'Design' }).click();
   await page.locator('.tool', { hasText: 'Star' }).click();
@@ -60,32 +58,44 @@ test('Editor: design, animate, interact and try a toggle switch', async ({ page 
   await page.locator('.modal select').nth(1).selectOption({ index: (await page.locator('.modal select').nth(1).locator('option').count()) - 1 });
   await page.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(page.locator('.rule').filter({ hasText: 'hovers over' }).first()).toBeVisible();
+  // A rule can play a sound: pick "play a sound" and a built-in sound appears.
+  const lastRule = page.locator('.rule').last();
+  await lastRule.getByRole('combobox', { name: 'Do' }).last().selectOption('sound');
+  await expect(lastRule.getByRole('combobox', { name: 'Sound' })).toHaveValue('pop');
   await expect(page.locator('.ed-top')).toContainText('All changes saved', { timeout: 8000 });
+  // "Add to Community" asks for a library category, pre-filled from the file.
+  await page.getByRole('button', { name: 'Add to Community' }).click();
+  await expect(page.locator('.modal').getByRole('combobox', { name: 'Category' })).toHaveValue('Interactive UI');
+  await page.locator('.modal').getByRole('button', { name: 'Cancel' }).click();
   await page.reload();
   await page.getByRole('button', { name: 'Interact' }).click();
   await expect(page.locator('.rule').filter({ hasText: 'hovers over' }).first()).toBeVisible();
 });
 
-test('Community: try the curious buddy, then remix it', async ({ page }) => {
+test('Community: try the living button, then remix it', async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 900 });
   await login(page, 'mia@motion.os');
   await page.goto('/community?sort=presets');
-  await page.getByRole('button', { name: /Curious buddy/ }).first().click();
-  await expect(page.getByRole('heading', { name: 'Curious buddy' })).toBeVisible();
-  await expect(page.locator('.widget', { hasText: 'Look X' })).toContainText('Follows the pointer');
-  await page.mouse.move(10, 10);
-  await page.mouse.move(1300, 800, { steps: 8 });
-  await page.getByRole('button', { name: 'Press' }).click();
-  await expect(page.locator('.log')).toContainText('Happy jump');
+  // Categories filter the library.
+  await page.getByRole('group', { name: 'Categories' }).getByRole('button', { name: 'Characters' }).click();
+  await expect(page.getByRole('button', { name: /Mochi/ }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /Living button/ })).toHaveCount(0);
+  await page.getByRole('group', { name: 'Categories' }).getByRole('button', { name: 'Interactive UI' }).click();
+  await page.getByRole('button', { name: /Living button/ }).first().click();
+  await expect(page.getByRole('heading', { name: 'Living button' })).toBeVisible();
+  await page.getByRole('switch', { name: 'Held' }).click();
+  await expect(page.locator('.log')).toContainText('Press');
+  await page.getByRole('switch', { name: 'Held' }).click();
+  await expect(page.locator('.log')).toContainText('Unhover');
   await page.getByRole('button', { name: /Remix into my files/ }).click();
   await expect(page).toHaveURL(/\/edit\/prj_/);
-  await expect(page.locator('.ed-top')).toContainText('Curious buddy remix');
+  await expect(page.locator('.ed-top')).toContainText('Living button remix');
 });
 
 test('Export: one move as MP4 at the file size', async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 900 });
   await login(page, 'dana@motion.os');
-  await openFile(page, 'Day & night');
+  await page.goto(`/edit/${await freshFile(page, 'living-button', 'E2E export')}`);
   const started = new Date().toISOString();
   await page.getByRole('button', { name: 'Export', exact: true }).click();
   await page.locator('.modal').getByRole('button', { name: 'Export', exact: true }).click();
@@ -103,11 +113,11 @@ test('Export: one move as MP4 at the file size', async ({ page }) => {
     return { w: v.videoWidth, h: v.videoHeight, d: v.duration };
   }, job);
   expect(info).toMatchObject({ w: 1080, h: 1080 });
-  expect(info.d).toBeCloseTo(1.6, 1); // the "Sunset" move
+  expect(info.d).toBeCloseTo(10, 1); // the 5 s "Idle" loop, exported as two cycles
 });
 
 test.describe('visual regression', () => {
-  for (const name of ['Aurora Flow', 'Liquid Mesh', 'Organic Blobs', 'Particle Field', 'Kinetic Typography', 'Curious buddy', 'Traffic light']) {
+  for (const name of ['Aurora Flow', 'Liquid Mesh', 'Organic Blobs', 'Particle Field', 'Kinetic Typography', 'Living button']) {
     test(`${name} renders deterministically`, async ({ page }) => {
       await login(page, 'dana@motion.os');
       const png = await page.evaluate(async (presetName) => {

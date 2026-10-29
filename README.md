@@ -13,14 +13,21 @@ the Community.
   - **Animate** — *moves* are short animations ("Turn on", "Bounce"). Pick a one-click move (Pop, Spin, Bounce,
     Pulse, Wiggle, Shake, Float, Grow, Squash, Change colour…) or change things on the canvas and each change
     becomes a keyframe at the playhead. Timeline with draggable keyframes and easing in plain words.
-  - **Interact** — *controls* (toggle, button, slider — a slider can follow the pointer) and *rules* written as
+  - **Interact** — *controls* (toggle, button, slider — a slider can follow the pointer, or follow only while you
+    drag a layer, with springy bounce) and *rules* written as
     sentences: **When** someone clicks *Star* → **then** play *Spin*, with optional **only if** conditions.
     **Slider links** let a slider set or shift a property (e.g. the pointer moves a character's eyes). One-click
     recipes: click to toggle, hover effect, press to play.
   - **Try it** — the live result with switches, buttons and sliders and a "what just happened" log.
-- **Community** — a gallery shared by everyone on this server. Twelve presets (Curious buddy, toggle switch,
-  favourite button, press button, progress loader, traffic light, checklist, day & night, hover card,
-  notification bell, bouncing ball, aurora mood). Open any post to play with it, like it, and remix your own copy.
+- **Library & Community** — a gallery shared by everyone on this server, filterable by category (Characters,
+  Interactive UI, Illustrations, Typography, Celebrations, Loaders). The Motion OS library has twelve components
+  (Living button, Wandering creature, Slot bird, Mochi, Blooming flower, Morning coffee, Day & night switch, Task
+  checkbox, Bouncy headline, Like burst, Reward badge, Inchworm loader), each built only from editor shapes and
+  moves, with a note on every move explaining the motion principle. Open any post to play with it, like it, and
+  remix your own copy; **Add to Community** in the editor publishes your file under a category.
+- **Sound** — rules can play a sound: 14 built-in sounds (synthesised, nothing to download) or your own MP3/WAV/OGG.
+  Players have a sound on/off switch.
+- **Customise** — library files expose friendly settings (colours, labels) that change every part that uses them.
 - **Export** — one move as MP4 or PNG (rendered frame-exact in a background worker), or the whole file as a
   motion file (`.json`).
 
@@ -56,7 +63,7 @@ delete `.data/` to reset.
 npm test
 ```
 
-55 unit/integration tests: the interaction runtime (toggles, buttons, number thresholds, pointer events,
+62 unit/integration tests: the interaction runtime (toggles, buttons, number thresholds, pointer events,
 pointer following, slider links, resting state, chaining), one-click moves, every preset, scene validation and
 migration, timeline evaluation, permissions, compatibility, outbound-request safety, plus an in-process API
 suite (permissions, workspace isolation, exports of single moves, files, concurrency conflicts, upload
@@ -67,9 +74,10 @@ likes and unpublishing).
 npm run e2e
 ```
 
-11 Playwright tests in your installed Chrome: navigation per role; the editor end to end (try a toggle on the
-canvas, add a shape, one-click move, hover recipe, autosave and reload); trying and remixing the Curious buddy
-in the Community; exporting a move as MP4 and checking the file; and visual regression for seven presets.
+10 Playwright tests in your installed Chrome: navigation per role; the editor end to end (hover and press the
+Living button in Try it, add a shape, one-click move, hover recipe, a sound action, the Add to Community dialog,
+autosave and reload); filtering the Community by category, trying and remixing the Living button; exporting a
+move as MP4 and checking the file; and visual regression for six files.
 
 ## Layout
 
@@ -78,5 +86,6 @@ shared/   scene schema (shapes + interaction model), migrations, timeline, inter
 server/   Express API, PostgreSQL schema, auth, permissions, storage, community, Figma import, seed
 src/engine/   WebGL renderer (shapes, text, images, gradients, particles), export worker
 src/features/ home, editor, community, settings
-docs/     STATUS.md (what's built and what isn't), SCENE_SPEC.md, API.md
+shared/motion/library/   the component library (one file per component, plus a small rig helper)
+docs/     STATUS.md (what's built and what isn't), SCENE_SPEC.md, API.md, FONTS.md (font sources and licences)
 ```

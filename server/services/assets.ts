@@ -10,6 +10,7 @@ export function sceneAssetIds(doc: SceneDocument): string[] {
     if (l.type === 'mesh' && l.props.material.textureAssetId) ids.add(l.props.material.textureAssetId);
     if (l.type === 'text' && l.props.fontAssetId) ids.add(l.props.fontAssetId);
   }
+  for (const r of doc.machine.rules) for (const a of r.do) if (a.type === 'sound' && a.assetId) ids.add(a.assetId);
   return [...ids];
 }
 
@@ -24,6 +25,11 @@ export function remapSceneAssets(doc: SceneDocument, map: Record<string, string 
       if (l.type === 'text') return { ...l, props: { ...l.props, fontAssetId: m(l.props.fontAssetId) } };
       return l;
     }),
+    machine: {
+      ...doc.machine,
+      // A sound whose file wasn't copied falls back to a built-in click rather than pointing nowhere.
+      rules: doc.machine.rules.map((r) => ({ ...r, do: r.do.map((a) => (a.type === 'sound' && a.assetId ? (m(a.assetId) ? { ...a, assetId: m(a.assetId) } : { ...a, assetId: null, sound: 'click' as const }) : a)) })),
+    },
   };
 }
 

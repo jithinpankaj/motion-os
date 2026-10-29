@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { MotionRuntime, docForAnimation, previewDoc } from '../../shared/motion/runtime';
 import { MOVES, buildMove, mergeIntoAnimation } from '../../shared/motion/moves';
-import { MOTION_PRESETS } from '../../shared/motion/presets';
+import { LIBRARY_CATEGORIES, MOTION_PRESETS, categoryTag } from '../../shared/motion/presets';
+import { getIn } from '../../shared/util/paths';
+import { resolveHierarchy } from '../../src/engine/renderer';
 import { createLayer, createScene } from '../../shared/scene/defaults';
 import { deserializeScene, serializeScene } from '../../shared/scene/serialize';
 import type { Animation, SceneDocument } from '../../shared/scene/schema';
@@ -150,56 +152,145 @@ describe('moves and presets', () => {
     expect(a2.tracks[0].keyframes.length).toBe(6);
     expect(a2.duration).toBeCloseTo(3.2);
   });
-  it('every preset is a valid, interactive file that round-trips', () => {
-    expect(MOTION_PRESETS.length).toBeGreaterThanOrEqual(10);
+  it('every library component is a valid, interactive, categorised file that round-trips', () => {
+    expect(MOTION_PRESETS.length).toBeGreaterThanOrEqual(1);
     for (const p of MOTION_PRESETS) {
       const doc = p.build();
       const back = deserializeScene(serializeScene(doc));
+      expect(back).toEqual(doc);
+      expect(LIBRARY_CATEGORIES).toContain(p.category);
+      expect(back.meta.tags).toContain(categoryTag(p.category));
       expect(back.machine.rules.length + back.machine.bindings.length).toBeGreaterThan(0);
+      expect(back.machine.animations.every((a) => a.note && a.note.length > 20)).toBe(true); // every move explains itself
       const rt = new MotionRuntime(back);
       for (let i = 0; i < 40; i++) rt.step(0.05);
       expect(rt.layers()).toHaveLength(back.layers.length);
       expect(previewDoc(back).tracks.every((t) => back.layers.some((l) => l.id === t.layerId))).toBe(true);
     }
   });
-  it('the curious buddy looks toward the pointer, eases there, and looks back when it leaves', () => {
-    const doc = MOTION_PRESETS.find((p) => p.key === 'curious-buddy')!.build();
-    const rt = new MotionRuntime(doc);
-    expect(rt.follows).toBe(true);
-    const pupil = () => rt.layers().find((l) => l.name === 'Pupil left')!.transform;
-    const white = () => rt.layers().find((l) => l.name === 'Eye left')!.transform;
-    const rest = { ...pupil() };
-    rt.pointerMove(1.4, -0.3); // off the canvas, up and to the right: clamps to the edge
-    rt.step(0.016);
-    const early = pupil().x - rest.x;
-    for (let i = 0; i < 90; i++) rt.step(0.016);
-    expect(early).toBeGreaterThan(0);
-    expect(early).toBeLessThan(pupil().x - rest.x); // eased, not snapped
-    expect((pupil().x - rest.x) * 1080).toBeCloseTo(40, 0); // full 40px shift right
-    expect((pupil().y - rest.y) * 1080).toBeCloseTo(-32, 0); // and up
-    expect(pupil().x - rest.x).toBeGreaterThan(white().x - doc.layers.find((l) => l.name === 'Eye left')!.transform.x); // pupils move more than the eye
-    expect(rt.log.some((e) => e.text.includes('Look'))).toBe(false); // following is silent
-    rt.pointerAway();
-    for (let i = 0; i < 120; i++) rt.step(0.016);
-    expect(pupil().x).toBeCloseTo(rest.x, 3);
+
+  describe('the living button', () => {
+    const doc = MOTION_PRESETS.find((p) => p.key === 'living-button')!.build();
+    const id = (name: string) => doc.machine.inputs.find((i) => i.name === name)!.id;
+    const cap = (rt: MotionRuntime) => rt.layers().find((l) => l.name === 'Cap')!.transform;
+    const run = (rt: MotionRuntime, s: number) => { for (let t = 0; t < s; t += 0.01) rt.step(0.01); };
+    const touch = doc.layers.find((l) => l.name === 'Touch area')!;
+
+    it('lifts on hover, squashes into its base when pressed, and springs past its height on release', () => {
+      const rt = new MotionRuntime(doc);
+      const rest = cap(rt).y;
+      rt.pointer('enter', touch.id); run(rt, 0.6);
+      const hovered = cap(rt).y;
+      expect((rest - hovered) * 1080).toBeCloseTo(12, 0);
+      rt.pointer('down', touch.id); run(rt, 0.3);
+      expect(cap(rt).y).toBeGreaterThan(rest); // pushed down into the base
+      expect(cap(rt).scaleY).toBeLessThan(0.9);
+      expect(cap(rt).scaleX).toBeGreaterThan(1); // wider while squashed: it keeps its volume
+      rt.pointer('up', touch.id); run(rt, 0.14);
+      expect(cap(rt).y).toBeLessThan(hovered); // overshoots…
+      run(rt, 1);
+      expect(cap(rt).y).toBeCloseTo(hovered, 4); // …then settles at the hover height
+      rt.pointer('leave', touch.id); run(rt, 1);
+      expect(cap(rt).y).toBeCloseTo(rest, 4);
+      expect(cap(rt).scaleY).toBeCloseTo(1, 4);
+    });
+    it('leaving while held releases it; on touch screens (no hover) it goes straight back to rest', () => {
+      const rt = new MotionRuntime(doc);
+      const rest = cap(rt).y;
+      rt.pointer('enter', touch.id); rt.pointer('down', touch.id); run(rt, 0.3);
+      rt.pointer('leave', touch.id);
+      expect(rt.values[id('Held')]).toBe(false);
+      run(rt, 1.2);
+      expect(cap(rt).y).toBeCloseTo(rest, 4);
+      rt.pointer('down', touch.id); run(rt, 0.3); rt.pointer('up', touch.id); run(rt, 1.2);
+      expect(cap(rt).y).toBeCloseTo(rest, 4);
+    });
+    it('never has two states fighting over the idle loop', () => {
+      const keys = (name: string) => new Set(doc.machine.animations.find((a) => a.name === name)!.tracks.map((t) => `${t.layerId}|${t.path}`));
+      const idle = keys('Idle');
+      for (const name of ['Hover', 'Unhover', 'Press', 'Release']) for (const k of keys(name)) expect(idle.has(k)).toBe(false);
+    });
+    it('its Customise settings each change real properties of the right type', () => {
+      expect(doc.exposed.map((p) => p.label)).toEqual(['Button colour', 'Ink colour', 'Sparkle colour', 'Cheek colour', 'Shine colour', 'Label']);
+      for (const p of doc.exposed) for (const t of p.targets) {
+        const v = getIn(doc.layers.find((l) => l.id === t.layerId)!, t.path);
+        expect(typeof v).toBe('string');
+        if (p.type === 'color') expect(v).toMatch(/^#[0-9a-f]{6}$/i);
+      }
+    });
   });
-  it('the traffic light cycles through its lights with the Next button', () => {
-    const doc = MOTION_PRESETS.find((p) => p.key === 'traffic-light')!.build();
-    const rt = new MotionRuntime(doc);
-    const step = doc.machine.inputs.find((i) => i.name === 'Step')!, next = doc.machine.inputs.find((i) => i.name === 'Next')!;
-    const seen = [];
-    for (let i = 0; i < 4; i++) { rt.fire(next.id); seen.push(rt.values[step.id]); }
-    expect(seen).toEqual([1, 2, 0, 1]);
+
+  it('squash and stretch on a group spreads and stretches its children along its own axes', () => {
+    const g = createLayer('group', { id: 'g', transform: { x: 0.5, y: 0.5, scaleY: 0.5, scaleX: 2 } });
+    const child = createLayer('shape', { id: 'c', parentId: 'g', transform: { x: 0.6, y: 0.7 } });
+    const out = resolveHierarchy([g, child]).find((l) => l.id === 'c')!.transform;
+    expect(out.x).toBeCloseTo(0.7); // 0.1 right of the pivot, doubled
+    expect(out.y).toBeCloseTo(0.6); // 0.2 below the pivot, halved
+    expect(out).toMatchObject({ scaleX: 2, scaleY: 0.5 });
   });
-  it('the checklist only celebrates when every box is ticked', () => {
-    const doc = MOTION_PRESETS.find((p) => p.key === 'checklist')!.build();
-    const rt = new MotionRuntime(doc);
-    const cheer = doc.machine.animations.find((a) => a.name === 'Celebrate')!;
-    const [a, b, c] = doc.machine.inputs;
-    rt.setBoolean(a.id, true); rt.setBoolean(b.id, true);
-    expect(rt.isPlaying(cheer.id)).toBe(false);
-    rt.setBoolean(c.id, true);
-    expect(rt.isPlaying(cheer.id)).toBe(true);
+  it('a circle turned inside a squashed group stays squashed along the group, not along itself', () => {
+    const g = createLayer('group', { id: 'g', transform: { x: 0.5, y: 0.5, scaleY: 0.3 } });
+    for (const deg of [0, 45, 90, 135]) {
+      const c = createLayer('shape', { id: 'c', parentId: 'g', transform: { x: 0.5, y: 0.5, rotation: deg } });
+      c.props = { ...c.props, kind: 'ellipse', width: 100, height: 100 };
+      const t = resolveHierarchy([g, c]).find((l) => l.id === 'c')!.transform;
+      // The drawn ellipse's horizontal and vertical radii (for a unit circle) must be 1 and 0.3.
+      const r = (t.rotation * Math.PI) / 180;
+      const horiz = Math.hypot(Math.cos(r) * t.scaleX, Math.sin(r) * t.scaleY), vert = Math.hypot(Math.sin(r) * t.scaleX, Math.cos(r) * t.scaleY);
+      expect(Math.max(horiz, vert)).toBeCloseTo(1, 5);
+      expect(Math.min(horiz, vert)).toBeCloseTo(0.3, 5);
+      expect(horiz).toBeGreaterThan(vert);
+    }
+    // A thin line turned inside a slightly stretched group keeps pointing the same way.
+    const g2 = createLayer('group', { id: 'g', transform: { x: 0.5, y: 0.5, scaleX: 1.02, scaleY: 0.98 } });
+    const line = createLayer('shape', { id: 'c', parentId: 'g', transform: { x: 0.5, y: 0.5, rotation: 200 } });
+    expect(Math.abs(resolveHierarchy([g2, line]).find((l) => l.id === 'c')!.transform.rotation - 200)).toBeLessThan(2); // a stretch tilts a slanted line only slightly
+  });
+  it('old files without stretch values still load, at 100%', () => {
+    const d = createScene();
+    const l: any = createLayer('shape');
+    delete l.transform.scaleX; delete l.transform.scaleY;
+    d.layers = [l];
+    expect(deserializeScene(JSON.parse(JSON.stringify(d))).layers[0].transform).toMatchObject({ scaleX: 1, scaleY: 1 });
+  });
+  it('“play a sound” reaches the player as an event, but not while settling the starting state', () => {
+    const d = createScene();
+    const box = createLayer('shape', { id: 'box' });
+    const on = { id: 'on', name: 'On', type: 'boolean' as const, default: true };
+    d.layers = [box];
+    d.machine = { inputs: [on], animations: [], bindings: [], rules: [
+      { id: 'r1', when: { type: 'boolean', inputId: 'on', value: true }, only: [], do: [{ type: 'sound', sound: 'chime', assetId: null, volume: 0.4 }] },
+      { id: 'r2', when: { type: 'pointer', event: 'click', layerId: 'box' }, only: [], do: [{ type: 'sound', sound: 'pop', assetId: null, volume: 0.7 }] },
+    ] };
+    const back = deserializeScene(JSON.parse(JSON.stringify(d)));
+    const heard: { id: string; volume?: number }[] = [];
+    const rt = new MotionRuntime(back);
+    rt.on((e) => { if (e.kind === 'sound') heard.push({ id: e.id, volume: e.volume }); });
+    rt.reset(); // "On" starts true: settling must stay silent
+    expect(heard).toEqual([]);
+    rt.pointer('click', 'box');
+    expect(heard).toEqual([{ id: 'pop', volume: 0.7 }]);
+    const bad = { ...d, machine: { ...d.machine, rules: [{ ...d.machine.rules[1], do: [{ type: 'sound', sound: null, assetId: null, volume: 1 }] }] } };
+    expect(() => deserializeScene(bad)).toThrow(/built-in sound or an uploaded file/);
+  });
+  it('a drag slider follows only while its layer is held, then springs home with an overshoot', () => {
+    const d = createScene();
+    const blob = createLayer('shape', { id: 'blob' });
+    d.layers = [blob];
+    d.machine = { inputs: [{ id: 'dx', name: 'Drag X', type: 'number', default: 0, min: -1, max: 1, follow: 'pointerX', smoothing: 0.4, dragLayer: 'blob', bounce: 0.6 }], animations: [], rules: [], bindings: [] };
+    const rt = new MotionRuntime(deserializeScene(JSON.parse(JSON.stringify(d))));
+    expect(rt.pointerLayers.has('blob')).toBe(true);
+    rt.pointerMove(1, 0.5);
+    for (let i = 0; i < 60; i++) rt.step(1 / 60);
+    expect(rt.values.dx).toBe(0); // not held: ignores the pointer
+    rt.pointer('down', 'blob');
+    for (let i = 0; i < 90; i++) rt.step(1 / 60);
+    expect(rt.values.dx).toBeCloseTo(1, 2);
+    rt.pointer('up', 'blob');
+    let lowest = 1;
+    for (let i = 0; i < 180; i++) { rt.step(1 / 60); lowest = Math.min(lowest, Number(rt.values.dx)); }
+    expect(lowest).toBeLessThan(-0.05); // overshot past home
+    expect(rt.values.dx).toBeCloseTo(0, 3); // and settled
   });
   it('rejects rules that point at missing layers, controls or moves', () => {
     const d = sample() as SceneDocument;

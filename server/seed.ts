@@ -95,11 +95,8 @@ export async function seedDemo(db: Db, storage: Storage) {
     images.push({ id: assetId, key, png });
   }
 
-  // A few starter files in the workspace.
-  for (const key of ['toggle-switch', 'day-night', 'progress']) {
-    const p = MOTION_PRESETS.find((x) => x.key === key)!;
-    await createProject(db, ws, designer, p.name, p.build(), null, p.description);
-  }
+  // A copy of each library component as a starter file.
+  for (const p of MOTION_PRESETS) await createProject(db, ws, designer, p.name, p.build(), null, p.description);
   // One community post by Dana, with its image copied into community storage like a real publish.
   const card = launchCard(images[0].id);
   const { projectId } = await createProject(db, ws, designer, card.meta.name, card, null, card.meta.description);

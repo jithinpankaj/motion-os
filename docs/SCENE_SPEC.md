@@ -59,3 +59,20 @@ v3 adds a `shape` layer (`props.kind`: rect | ellipse | polygon | star; `width`/
 - `bindings` (“slider links”) — `{ id, inputId, layerId, path, from: [a, b], to: [c, d], relative? }`.
 
 Every reference must resolve (validation rejects dangling ids). Migration v2→v3 adds an empty machine.
+
+### Additions within v3 (backward compatible)
+
+- `transform.scaleX` / `transform.scaleY` (default 1) — squash and stretch in the layer's own axes. A group
+  passes its stretch to its children: positions spread along the group's axes, and each child's final shape is
+  the nearest rotation + stretch (exact for circles and for children that aren't turned inside the group;
+  otherwise the child keeps its own x-axis and only the skew is dropped, because layers can't be skewed).
+- `animations[].note` — a plain-language note about why the move is built the way it is (shown above its timeline).
+- `inputs[].dragLayer` — a pointer-following slider that only follows while that layer is held, and returns to
+  its default when let go. `inputs[].bounce` (0–0.95) makes following and returning springy (a damped spring
+  that overshoots); without it, following eases exponentially.
+- Action `{ type: 'sound', sound: <built-in> | null, assetId: <uploaded audio> | null, volume }` — exactly one
+  of `sound` / `assetId`. Built-in sounds: click, tap, pop, blip, bubble, boing, squish, whoosh, sparkle, chime,
+  success, bonk, tick, spin (synthesised in the browser). Sounds are skipped while settling the starting state
+  and before the viewer has interacted with the page (browser autoplay rules). Video exports are silent.
+- `exposed[]` parameters of type color / text / number appear as **Customise** settings; each writes to all of
+  its targets.

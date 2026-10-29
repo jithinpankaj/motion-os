@@ -1,5 +1,5 @@
 /** Content sniffing: uploads are classified by magic bytes, never by filename or client MIME. */
-export type Sniffed = { mime: string; ext: string; family: 'image' | 'svg' | 'video' | 'font' | 'json'; width?: number; height?: number };
+export type Sniffed = { mime: string; ext: string; family: 'image' | 'svg' | 'video' | 'font' | 'json' | 'audio'; width?: number; height?: number };
 
 const ascii = (b: Buffer, s: number, e: number) => b.subarray(s, e).toString('latin1');
 
@@ -11,6 +11,9 @@ export function sniff(b: Buffer): Sniffed | null {
   if (ascii(b, 0, 6) === 'GIF87a' || ascii(b, 0, 6) === 'GIF89a') return { mime: 'image/gif', ext: 'gif', family: 'image', width: b.readUInt16LE(6), height: b.readUInt16LE(8) };
   if (ascii(b, 4, 8) === 'ftyp') return { mime: 'video/mp4', ext: 'mp4', family: 'video' };
   if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return { mime: 'video/webm', ext: 'webm', family: 'video' };
+  if (ascii(b, 0, 4) === 'RIFF' && ascii(b, 8, 12) === 'WAVE') return { mime: 'audio/wav', ext: 'wav', family: 'audio' };
+  if (ascii(b, 0, 4) === 'OggS') return { mime: 'audio/ogg', ext: 'ogg', family: 'audio' };
+  if (ascii(b, 0, 3) === 'ID3' || (b[0] === 0xff && (b[1] & 0xe6) === 0xe2)) return { mime: 'audio/mpeg', ext: 'mp3', family: 'audio' };
   if (ascii(b, 0, 4) === 'wOF2') return { mime: 'font/woff2', ext: 'woff2', family: 'font' };
   if (ascii(b, 0, 4) === 'wOFF') return { mime: 'font/woff', ext: 'woff', family: 'font' };
   if (ascii(b, 0, 4) === 'OTTO') return { mime: 'font/otf', ext: 'otf', family: 'font' };

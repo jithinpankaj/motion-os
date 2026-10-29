@@ -90,5 +90,5 @@ export function placeQuad(mesh: THREE.Mesh, layer: Layer, ctx: FrameContext, wPx
   mesh.position.set(layer.transform.x * ctx.width, -layer.transform.y * ctx.height, 0);
   mesh.rotation.set(0, 0, (-layer.transform.rotation * Math.PI) / 180);
   const s = layer.transform.scale * extraScale;
-  mesh.scale.set(wPx * s, hPx * s, 1);
+  mesh.scale.set(wPx * s * layer.transform.scaleX, hPx * s * layer.transform.scaleY, 1);
 }

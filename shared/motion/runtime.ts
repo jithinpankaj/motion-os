@@ -11,7 +11,7 @@ import { ease } from '../util/easing';
  */
 export type InputValue = boolean | number;
 type Playing = { anim: Animation; time: number; dir: 1 | -1; seq: number; mixFrom: Map<string, number | string>; mixElapsed: number; done: boolean };
-export type RuntimeEvent = { kind: 'input' | 'play' | 'stop' | 'finish' | 'rule'; id: string; detail?: string };
+export type RuntimeEvent = { kind: 'input' | 'play' | 'stop' | 'finish' | 'rule' | 'sound'; id: string; detail?: string; volume?: number };
 
 const MIX = 0.18; // seconds of cross-blend when a move takes over a property mid-flight
 const keyOf = (layerId: string, path: string) => `${layerId}|${path}`;
@@ -28,6 +28,10 @@ export class MotionRuntime {
   private clock = 0;
   /** Where pointer-following sliders are heading; they ease toward it every step. */
   private targets = new Map<string, number>();
+  /** Velocities of springy sliders, layers being dragged, and where the pointer last was. */
+  private vel = new Map<string, number>();
+  private dragging = new Set<string>();
+  private lastPointer: { fx: number; fy: number } | null = null;
 
   constructor(doc: SceneDocument) {
     this.doc = doc;
@@ -62,6 +66,8 @@ export class MotionRuntime {
     this.log = [];
     this.clock = 0;
     this.targets.clear();
+    this.vel.clear();
+    this.dragging.clear();
     // Rules that describe a resting state (a toggle that starts on, a slider already past a value)
     // are settled instantly so the first frame already looks right.
     for (const r of this.doc.machine.rules) {
@@ -114,6 +120,10 @@ export class MotionRuntime {
   }
 
   pointer(event: 'click' | 'enter' | 'leave' | 'down' | 'up', layerId: string) {
+    // Dragging: sliders tied to this layer start following on press and spring home on release.
+    const drags = this.doc.machine.inputs.filter((i) => i.type === 'number' && i.follow && i.dragLayer === layerId);
+    if (drags.length && event === 'down') { this.dragging.add(layerId); if (this.lastPointer) this.pointerMove(this.lastPointer.fx, this.lastPointer.fy); }
+    if (drags.length && event === 'up' && this.dragging.delete(layerId)) for (const i of drags) this.targets.set(i.id, Number(i.default));
     for (const r of this.doc.machine.rules) if (r.when.type === 'pointer' && r.when.event === event && r.when.layerId === layerId && this.guards(r)) this.run(r);
   }
 
@@ -122,8 +132,10 @@ export class MotionRuntime {
 
   /** Pointer position as fractions of the canvas (may be outside 0–1 when off the canvas). */
   pointerMove(fx: number, fy: number) {
+    this.lastPointer = { fx, fy };
     for (const i of this.doc.machine.inputs) {
       if (i.type !== 'number' || !i.follow) continue;
+      if (i.dragLayer && !this.dragging.has(i.dragLayer)) continue;
       const f = Math.min(1, Math.max(0, i.follow === 'pointerX' ? fx : fy));
       const lo = i.min ?? 0, hi = i.max ?? 100;
       this.targets.set(i.id, lo + (hi - lo) * f);
@@ -131,11 +143,21 @@ export class MotionRuntime {
   }
   /** The pointer went away: following sliders drift back to where they started. */
   pointerAway() {
+    this.dragging.clear();
     for (const i of this.doc.machine.inputs) if (i.type === 'number' && i.follow) this.targets.set(i.id, Number(i.default));
   }
+  /** Is someone dragging this layer right now? */
+  isDragging(layerId: string) { return this.dragging.has(layerId); }
 
   /** Layers that react to the pointer (for hit-testing order and the cursor). */
-  get pointerLayers() { return new Set(this.doc.machine.rules.flatMap((r) => (r.when.type === 'pointer' ? [r.when.layerId] : []))); }
+  get pointerLayers() {
+    return new Set([
+      ...this.doc.machine.rules.flatMap((r) => (r.when.type === 'pointer' ? [r.when.layerId] : [])),
+      ...this.dragLayers,
+    ]);
+  }
+  /** Layers someone can grab and drag. */
+  get dragLayers() { return new Set(this.doc.machine.inputs.flatMap((i) => (i.type === 'number' && i.follow && i.dragLayer ? [i.dragLayer] : []))); }
   isPlaying(animId: string) { const p = this.playing.get(animId); return !!p && !p.done; }
 
   // ---------- actions ----------
@@ -171,6 +193,11 @@ export class MotionRuntime {
       this.fire(a.inputId);
     } else if (a.type === 'setNumber') {
       this.setNumber(a.inputId, a.mode === 'add' ? Number(this.values[a.inputId] ?? 0) + a.value : a.value);
+    } else if (a.type === 'sound') {
+      // Settling the starting state is silent; players turn this event into audio.
+      if (opts.settle) return;
+      const id = a.assetId ?? a.sound!;
+      this.emit({ kind: 'sound', id, detail: a.assetId ? 'asset' : 'builtin', volume: a.volume }, `♪ ${a.assetId ? 'Your sound' : a.sound}`);
     }
   }
 
@@ -195,6 +222,16 @@ export class MotionRuntime {
       if (!inp) { this.targets.delete(id); continue; }
       const cur = Number(this.values[id] ?? 0);
       const rate = 2 + (1 - (inp.smoothing ?? 0.6)) * 28; // per second; higher = snappier
+      if (inp.bounce) {
+        // A damped spring: it overshoots and wobbles before settling (in small sub-steps for stability).
+        let x = cur, v = this.vel.get(id) ?? 0;
+        const k = rate * rate, c = 2 * rate * (1 - inp.bounce);
+        for (let left = dt; left > 1e-9; left -= 1 / 240) { const h = Math.min(1 / 240, left); v += (k * (target - x) - c * v) * h; x += v * h; }
+        if (Math.abs(target - x) < 1e-4 && Math.abs(v) < 1e-3) { x = target; v = 0; }
+        this.vel.set(id, v);
+        this.setNumber(id, x, true);
+        continue;
+      }
       const next = Math.abs(target - cur) < 1e-3 ? target : cur + (target - cur) * (1 - Math.exp(-rate * dt));
       this.setNumber(id, next, true);
     }

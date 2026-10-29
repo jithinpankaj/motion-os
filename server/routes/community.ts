@@ -7,7 +7,7 @@ import { createProject } from './projects';
 import { createAsset } from './imports';
 import { remapSceneAssets, sceneAssetIds } from '../services/assets';
 import { deserializeScene } from '../../shared/scene/serialize';
-import { MOTION_PRESETS } from '../../shared/motion/presets';
+import { LIBRARY_CATEGORIES, MOTION_PRESETS, categoryTag } from '../../shared/motion/presets';
 import { uid } from '../../shared/util/random';
 import type { Db } from '../db';
 import type { Request } from 'express';
@@ -26,10 +26,12 @@ export async function ensurePresetPosts(db: Db) {
     const doc = p.build();
     await db.query(
       `INSERT INTO community_posts (id, author_name, title, description, tags, doc, is_preset, preset_key) VALUES ($1, 'Motion OS', $2, $3, $4, $5, true, $6)
-       ON CONFLICT (preset_key) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, tags = EXCLUDED.tags, doc = EXCLUDED.doc`,
+       ON CONFLICT (preset_key) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, tags = EXCLUDED.tags, doc = EXCLUDED.doc, unpublished_at = NULL`,
       [uid('cp'), p.name, `${p.description} ${p.tip}`, p.tags, JSON.stringify(doc), p.key],
     );
   }
+  // Presets that are no longer in the library leave the gallery (remixes people made are kept).
+  await db.query(`UPDATE community_posts SET unpublished_at = now() WHERE is_preset AND unpublished_at IS NULL AND NOT (preset_key = ANY($1::text[]))`, [MOTION_PRESETS.map((p) => p.key)]);
 }
 
 const row = (p: any, me?: string) => ({
@@ -93,14 +95,16 @@ export function communityRoutes() {
   const r = Router();
 
   r.post('/community', requirePerm('community.publish'), publishLimit, async (req, res) => {
-    const body = parse(z.object({ projectId: z.string().max(64), title: z.string().trim().min(2).max(80), description: z.string().trim().max(500).default(''), tags: z.array(z.string().trim().toLowerCase().min(1).max(24)).max(6).default([]) }), req.body);
+    const body = parse(z.object({ projectId: z.string().max(64), title: z.string().trim().min(2).max(80), description: z.string().trim().max(500).default(''), tags: z.array(z.string().trim().toLowerCase().min(1).max(24)).max(6).default([]), category: z.enum(LIBRARY_CATEGORIES).optional() }), req.body);
+    // A library category is stored on the file and as its first tag, so the gallery can filter by it.
+    if (body.category) body.tags = [categoryTag(body.category), ...body.tags.filter((t) => t !== categoryTag(body.category!))].slice(0, 7);
     const { db, storage } = req.ctx;
     const proj = await db.one(`SELECT p.id, p.remix_of, s.doc FROM motion_projects p JOIN motion_scenes s ON s.project_id = p.id WHERE p.id = $1 AND p.workspace_id = $2 AND p.deleted_at IS NULL`, [body.projectId, req.ws!.id]);
     if (!proj) throw notFound('File');
     const existing = await db.one(`SELECT id FROM community_posts WHERE project_id = $1 AND unpublished_at IS NULL`, [proj.id]);
     const postId = existing?.id ?? uid('cp');
     let doc = deserializeScene(proj.doc);
-    // Copy every image the file uses into community storage, and point the copy at those.
+    // Copy every image and sound the file uses into community storage, and point the copy at those.
     const ids = sceneAssetIds(doc);
     const assets = ids.length ? await db.query(`SELECT a.id, v.storage_key, v.mime, v.width, v.height, v.bytes FROM media_assets a JOIN asset_versions v ON v.id = a.current_version_id WHERE a.workspace_id = $1 AND a.id = ANY($2::text[]) AND a.deleted_at IS NULL`, [req.ws!.id, ids]) : [];
     const map: Record<string, string | null> = Object.fromEntries(ids.map((i) => [i, null]));
@@ -113,6 +117,7 @@ export function communityRoutes() {
       map[a.id] = cid;
     }
     doc = remapSceneAssets(doc, map);
+    if (body.category) doc = { ...doc, meta: { ...doc.meta, category: body.category } };
     const remixOf = proj.remix_of ? (await db.one(`SELECT id FROM community_posts WHERE id = $1`, [proj.remix_of]))?.id ?? null : null;
     await db.tx(async (tx) => {
       if (existing) {
@@ -146,10 +151,11 @@ export function communityRoutes() {
     if (!p) throw notFound('Post');
     let doc = deserializeScene(p.doc);
     const files = await db.query(`SELECT * FROM community_assets WHERE post_id = $1`, [p.id]);
-    if (files.length && !has(req, 'asset.upload')) throw new HttpError(403, 'forbidden', 'This remix includes images, which needs permission to upload images');
+    if (files.length && !has(req, 'asset.upload')) throw new HttpError(403, 'forbidden', 'This remix includes images or sounds, which needs permission to upload files');
     const map: Record<string, string> = {};
     for (const f of files) {
-      const a = await createAsset(req, await storage.get(f.storage_key), { name: `${p.title} image`, kind: f.mime === 'image/svg+xml' ? 'svg' : 'image', category: 'remix', tags: ['remix'] });
+      const audio = f.mime.startsWith('audio/');
+      const a = await createAsset(req, await storage.get(f.storage_key), { name: `${p.title} ${audio ? 'sound' : 'image'}`, kind: audio ? 'audio' : f.mime === 'image/svg+xml' ? 'svg' : 'image', category: 'remix', tags: ['remix'] });
       map[f.id] = a.id;
     }
     doc = remapSceneAssets(doc, map);

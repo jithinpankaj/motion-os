@@ -22,6 +22,9 @@ export const TransformSchema = z.object({
   y: num(-4, 5),
   rotation: num(-3600, 3600),
   scale: num(0.01, 20),
+  /** Squash and stretch: extra scale across (X) and up/down (Y) in the layer's own axes. Groups pass it to their children. */
+  scaleX: num(0.01, 20).default(1),
+  scaleY: num(0.01, 20).default(1),
 });
 
 export const GRADIENT_MODES = ['linear', 'radial', 'mesh', 'aurora', 'noise', 'organic'] as const;
@@ -185,6 +188,10 @@ export const InputSchema = z.object({
   /** Sliders can follow the pointer: across (x) or up and down (y), eased by `smoothing` (0 snappy … 1 lazy). */
   follow: z.enum(['pointerX', 'pointerY']).optional(),
   smoothing: num(0, 0.98).optional(),
+  /** Follow only while someone drags this layer; letting go sends it back to its default. */
+  dragLayer: id.optional(),
+  /** Springiness when it moves (0 = settles smoothly, higher = overshoots and wobbles). */
+  bounce: num(0, 0.95).optional(),
 });
 export const AnimationSchema = z.object({
   id,
@@ -192,6 +199,8 @@ export const AnimationSchema = z.object({
   duration: num(0.05, 120),
   loop: z.enum(['once', 'loop', 'pingpong']),
   tracks: z.array(TrackSchema).max(400),
+  /** A plain-language note on why the move is built the way it is, shown above its timeline. */
+  note: z.string().max(600).optional(),
 });
 const CompareSchema = z.enum(['>', '<', '=', '>=', '<=']);
 export const WhenSchema = z.discriminatedUnion('type', [
@@ -206,12 +215,16 @@ export const ConditionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('boolean'), inputId: id, value: z.boolean() }),
   z.object({ type: z.literal('number'), inputId: id, op: CompareSchema, value: finite }),
 ]);
+/** Sounds that ship with the app (synthesised in the browser, so they cost nothing to load). */
+export const BUILTIN_SOUNDS = ['click', 'tap', 'pop', 'blip', 'bubble', 'boing', 'squish', 'whoosh', 'sparkle', 'chime', 'success', 'bonk', 'tick', 'spin'] as const;
 export const ActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('play'), animationId: id, direction: z.enum(['forward', 'reverse']), from: z.enum(['start', 'current']) }),
   z.object({ type: z.literal('stop'), animationId: id }),
   z.object({ type: z.literal('setBoolean'), inputId: id, value: z.enum(['on', 'off', 'toggle']) }),
   z.object({ type: z.literal('fire'), inputId: id }),
   z.object({ type: z.literal('setNumber'), inputId: id, mode: z.enum(['set', 'add']), value: finite }),
+  /** Play a sound: one of the built-in sounds, or an uploaded audio file (assetId). */
+  z.object({ type: z.literal('sound'), sound: z.enum(BUILTIN_SOUNDS).nullable(), assetId: id.nullable(), volume: num(0, 1) }),
 ]);
 export const RuleSchema = z.object({ id, when: WhenSchema, only: z.array(ConditionSchema).max(8), do: z.array(ActionSchema).min(1).max(12) });
 export const BindingSchema = z.object({
@@ -314,6 +327,7 @@ export type Rule = z.infer<typeof RuleSchema>;
 export type When = z.infer<typeof WhenSchema>;
 export type Condition = z.infer<typeof ConditionSchema>;
 export type Action = z.infer<typeof ActionSchema>;
+export type BuiltinSound = (typeof BUILTIN_SOUNDS)[number];
 export type Binding = z.infer<typeof BindingSchema>;
 export type Track = z.infer<typeof TrackSchema>;
 export type Keyframe = z.infer<typeof KeyframeSchema>;
@@ -323,3 +337,4 @@ export type ParamType = ExposedParam['type'];
 export type Target = z.infer<typeof TargetSchema>;
 export type LayoutOverride = z.infer<typeof LayoutOverrideSchema>;
 export type Vec2 = z.infer<typeof Vec2Schema>;
+export type Transform = z.infer<typeof TransformSchema>;

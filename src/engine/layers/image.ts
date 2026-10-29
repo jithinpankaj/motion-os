@@ -58,7 +58,7 @@ export class ImageView implements LayerView {
     u.uPhase.value = loopPhase(ctx, p.displacementSpeed);
     u.uOpacity.value = layer.opacity;
     placeQuad(this.mesh, layer, ctx, wPx, hPx, mode === 3 ? 0.86 + 0.14 * prog : 1);
-    this.lastBounds = { cx: layer.transform.x * ctx.width, cy: layer.transform.y * ctx.height, w: wPx * layer.transform.scale, h: hPx * layer.transform.scale, rotation: layer.transform.rotation };
+    this.lastBounds = { cx: layer.transform.x * ctx.width, cy: layer.transform.y * ctx.height, w: wPx * layer.transform.scale * layer.transform.scaleX, h: hPx * layer.transform.scale * layer.transform.scaleY, rotation: layer.transform.rotation };
   }
 
   private load(assetId: string | null, layerId: string) {

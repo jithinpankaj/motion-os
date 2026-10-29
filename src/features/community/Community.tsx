@@ -11,6 +11,9 @@ import { previewDoc } from '../../../shared/motion/runtime';
 
 export type Post = { id: string; title: string; description: string; tags: string[]; author: string; isPreset: boolean; remixCount: number; likeCount: number; liked: boolean; publishedAt: string; mine: boolean; doc: any };
 
+import { LIBRARY_CATEGORIES, categoryTag } from '../../../shared/motion/presets';
+const CATEGORY_TAGS = new Set(LIBRARY_CATEGORIES.map(categoryTag));
+
 /** The shared gallery: presets from the Motion OS team and everything people publish on this server. */
 export default function Community() {
   const [sp, setSp] = useSearchParams();
@@ -42,9 +45,13 @@ export default function Community() {
         </div>
       </div>
       <div className="row wrap" style={{ gap: 6, marginTop: 20 }}>
-        {(['recent', 'popular', 'presets'] as const).map((s) => <button key={s} className="chip" aria-pressed={sort === s} onClick={() => set('sort', s === 'recent' ? null : s)}>{s === 'recent' ? 'Newest' : s === 'popular' ? 'Popular' : 'Starter presets'}</button>)}
+        {(['recent', 'popular', 'presets'] as const).map((s) => <button key={s} className="chip" aria-pressed={sort === s} onClick={() => set('sort', s === 'recent' ? null : s)}>{s === 'recent' ? 'Newest' : s === 'popular' ? 'Popular' : 'Motion OS library'}</button>)}
+      </div>
+      <div className="row wrap" style={{ gap: 6, marginTop: 8 }} role="group" aria-label="Categories">
+        <button className="chip" aria-pressed={!tag || !CATEGORY_TAGS.has(tag)} onClick={() => set('tag', null)}>All categories</button>
+        {LIBRARY_CATEGORIES.map((c) => <button key={c} className="chip" aria-pressed={tag === categoryTag(c)} onClick={() => set('tag', tag === categoryTag(c) ? null : categoryTag(c))}>{c}</button>)}
         <span style={{ width: 10 }} />
-        {data?.tags.map((t) => <button key={t.tag} className="chip" aria-pressed={tag === t.tag} onClick={() => set('tag', tag === t.tag ? null : t.tag)}>#{t.tag}</button>)}
+        {data?.tags.filter((t) => !CATEGORY_TAGS.has(t.tag)).slice(0, 12).map((t) => <button key={t.tag} className="chip" aria-pressed={tag === t.tag} onClick={() => set('tag', tag === t.tag ? null : t.tag)}>#{t.tag}</button>)}
       </div>
       <div className="section" style={{ marginTop: 22 }}>
         {error && <EmptyState icon="alert" title="Community unavailable">{error}</EmptyState>}
@@ -61,8 +68,8 @@ export function PostCard({ p, onOpen }: { p: Post; onOpen: (f: any) => void }) {
   const assets = useMemo(() => communityResolver(p.id), [p.id]);
   return (
     <MotionTile id={`cp-${p.id}`} doc={view} assets={assets} aspect={`${p.doc.canvas.width} / ${p.doc.canvas.height}`} title={p.title}
-      subtitle={<span className="row" style={{ gap: 8 }}><span>{p.isPreset ? 'Starter preset' : p.author}</span><span>·</span><span><Icon name="branch" size={11} /> {p.remixCount}</span><span><Icon name="sparkles" size={11} /> {p.likeCount}</span>{!p.isPreset && <span className="faint">· {timeAgo(p.publishedAt)}</span>}</span>}
-      badges={<>{p.isPreset ? <span className="badge info">preset</span> : <span />}{p.doc.machine.inputs.length + p.doc.machine.rules.length > 0 ? <span className="badge">interactive</span> : <span />}</>}
+      subtitle={<span className="row" style={{ gap: 8 }}><span>{p.isPreset ? 'Motion OS library' : p.author}</span>{p.doc.meta.category && <><span>·</span><span>{p.doc.meta.category}</span></>}<span>·</span><span><Icon name="branch" size={11} /> {p.remixCount}</span><span><Icon name="sparkles" size={11} /> {p.likeCount}</span>{!p.isPreset && <span className="faint">· {timeAgo(p.publishedAt)}</span>}</span>}
+      badges={<>{p.isPreset ? <span className="badge info">library</span> : <span />}{p.doc.machine.inputs.length + p.doc.machine.rules.length > 0 ? <span className="badge">interactive</span> : <span />}</>}
       onHover={preload.community} onOpen={onOpen} />
   );
 }

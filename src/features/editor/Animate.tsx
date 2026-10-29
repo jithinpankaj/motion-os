@@ -14,7 +14,7 @@ export const EASINGS: { value: Easing & string; label: string }[] = [
   { value: 'linear', label: 'Steady' }, { value: 'step', label: 'Jump' },
 ];
 const PATH_LABEL: Record<string, string> = {
-  'transform.x': 'X', 'transform.y': 'Y', 'transform.rotation': 'Rotation', 'transform.scale': 'Scale', opacity: 'Opacity',
+  'transform.x': 'X', 'transform.y': 'Y', 'transform.rotation': 'Rotation', 'transform.scale': 'Scale', 'transform.scaleX': 'Stretch ↔', 'transform.scaleY': 'Stretch ↕', opacity: 'Opacity',
   'props.width': 'Width', 'props.height': 'Height', 'props.radius': 'Corners', 'props.innerRadius': 'Pointiness',
   'props.fill.color': 'Colour', 'props.fill.color2': 'Colour 2', 'props.fill.angle': 'Gradient angle', 'props.stroke.width': 'Outline', 'props.stroke.color': 'Outline colour',
   'props.color': 'Colour', 'props.size': 'Size', 'props.tracking': 'Spacing', 'props.noiseAmp': 'Movement', 'props.distortion': 'Swirl', 'props.grain': 'Grain',
@@ -104,6 +104,12 @@ export function Timeline({ doc }: { doc: SceneDocument }) {
           <button className="icon-btn" aria-label="Delete move" title="Delete this move" onClick={() => { if (confirm(`Delete the move “${anim.name}”? Rules that play it are removed too.`)) deleteAnimation(anim.id); }}><Icon name="trash" size={14} /></button>
         </>}
       </div>
+      {anim && (
+        <div className="tl-note">
+          <Icon name="info" size={12} />
+          <input className="input" value={anim.note ?? ''} placeholder="Add a note: why does this move work the way it does?" maxLength={600} onChange={(e) => updateAnimation(anim.id, { note: e.target.value || undefined }, `an-note:${anim.id}`)} aria-label="Note about this move" />
+        </div>
+      )}
       {anim && sel && selectedKey && (
         <div className="tl-head" style={{ paddingTop: 6, paddingBottom: 6 }}>
           <span className="faint" style={{ fontSize: 12 }}>Keyframe at {sel.t.toFixed(2)}s · how it moves to the next one:</span>
