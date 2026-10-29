@@ -8,6 +8,7 @@ import { api, errorMessage } from '../../lib/api';
 import { Tip } from '../../ui/controls';
 import { Icon } from '../../ui/Icon';
 import { commit, undo, useEditor } from './store';
+import { setLayout, useLayout } from './layout';
 
 /**
  * Ask Claude: describe what you want in your own words ("when someone clicks the star, make it
@@ -32,7 +33,15 @@ export function AssistantPanel({ doc, assets, onClose }: { doc: SceneDocument; a
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' }); }, [msgs, busy]);
   useEffect(() => { const el = input.current; if (el) { el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 168)}px`; } }, [text]);
 
-  const ideas = useMemo(() => suggestions(doc), [doc.layers.length, doc.machine.animations.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mode = useEditor((s) => s.mode);
+  const ruleId = useEditor((s) => s.selectedRule);
+  const ruleIndex = mode === 'interact' && ruleId ? doc.machine.rules.findIndex((r) => r.id === ruleId) : -1;
+  const context = ruleIndex >= 0 ? { kind: 'rule' as const, n: ruleIndex + 1 } : selected ? { kind: 'layer' as const, name: selected.name, eyes: doc.layers.some((l) => l.parentId === selected.id && /eye/i.test(l.name)) || /eye|face|head|creature|character/i.test(selected.name) } : { kind: 'file' as const };
+  const ideas = useMemo(() => suggestions(doc, context), [doc.layers.length, doc.machine.animations.length, JSON.stringify(context)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const contextLabel = context.kind === 'rule' ? `Ideas for interaction ${context.n}` : context.kind === 'layer' ? `Ideas for ${context.name}` : 'Ideas for this file';
+  // A canvas action can open the panel with a prompt already written.
+  const askPrompt = useLayout((s) => s.askPrompt);
+  useEffect(() => { if (askPrompt) { setText(askPrompt); setLayout({ askPrompt: null }); requestAnimationFrame(() => input.current?.focus()); } }, [askPrompt]);
   const offline = status?.configured === false;
   const lastChange = [...msgs].reverse().find((m) => m.after);
 
@@ -85,7 +94,7 @@ export function AssistantPanel({ doc, assets, onClose }: { doc: SceneDocument; a
           {!msgs.length && (
             <div className="ask-empty">
               <div className="ai-hello">What should happen?</div>
-              <div className="ai-sub">Try one of these. They use this file’s own names.</div>
+              <div className="ai-sub">{contextLabel}. They use this file’s own names.</div>
               {ideas.map((s) => <button key={s} className="ask-idea" onClick={() => pickIdea(s)} disabled={busy || offline}><Icon name="sparkles" size={13} /><span>{s}</span></button>)}
               <div className="ai-sub" style={{ marginTop: 4 }}>Claude only changes this file, and every change can be undone.</div>
             </div>
@@ -154,8 +163,19 @@ function ResultPreview({ doc, assets }: { doc: SceneDocument; assets: AssetResol
   return <div style={{ position: 'absolute', inset: 0 }} onPointerEnter={() => setHot(true)} onPointerLeave={() => setHot(false)}><HubPreview doc={view} assets={assets} active={hot} label="Result of Claude’s change" style={{ width: '100%', height: '100%', display: 'block' }} /></div>;
 }
 
-/** Starter ideas that use the file's own names, so the first try works. */
-function suggestions(doc: SceneDocument): string[] {
+/** Starter ideas that use the file's own names and follow what you're working on. */
+type Context = { kind: 'file' } | { kind: 'layer'; name: string; eyes: boolean } | { kind: 'rule'; n: number };
+function suggestions(doc: SceneDocument, c: Context): string[] {
+  if (c.kind === 'rule') return [
+    `Explain interaction ${c.n} in plain words`,
+    `Simplify the conditions on interaction ${c.n}`,
+    `Does anything conflict with interaction ${c.n}? Fix it if so`,
+  ];
+  if (c.kind === 'layer') return [
+    c.eyes ? `Make ${c.name} blink every few seconds` : `Make ${c.name} bounce in when the file starts`,
+    `When the pointer hovers over ${c.name}, make it grow a little; shrink back when it leaves`,
+    `Add a gentle looping wobble to ${c.name}, as secondary motion`,
+  ];
   const shapes = doc.layers.filter((l) => l.type !== 'group' && !l.locked && l.name !== 'Touch area');
   const thing = doc.layers.find((l) => l.name === 'Touch area') ? 'the button' : shapes.at(-1)?.name ?? 'the shape';
   const move = (doc.machine.animations.find((a) => a.loop === 'once') ?? doc.machine.animations[0])?.name;

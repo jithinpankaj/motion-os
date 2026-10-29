@@ -14,15 +14,15 @@ const STEPS = [
   { title: 'Design', what: 'What it looks like', how: 'Add shapes, text and images, or import a design. Colours and sizes live on the right.' },
   { title: 'Animate', what: 'How it moves', how: 'Select a layer and pick a one click move like Pop, Bounce or Spin. Fine tune it on the timeline.' },
   { title: 'Interact', what: 'How it reacts', how: 'Answer three questions: what people do, on what, and what should happen. It reads like a sentence.' },
-  { title: 'Try it', what: 'Play with it', how: 'Hover and click the canvas like a visitor would. What’s happening explains every result.' },
+  { title: 'Preview', what: 'Play with it', how: 'Press Preview and hover or click the canvas like a visitor would. What’s happening explains every result.' },
 ];
 const WALKTHROUGH = [
   ['Start', 'Open the Living button starter, or a blank file from Home.'],
   ['Design', 'Select the big orange top and change its colour on the right.'],
-  ['Animate', 'Select the sparkle and click Spin. A new move appears on the timeline.'],
+  ['Animate', 'Switch to Animate, select the sparkle and click Spin. A new move appears on the timeline.'],
   ['Interact', 'New interaction, then “clicks”, the Touch area, “Play a move”, Spin, and Create.'],
-  ['Try it', 'Click the button. If nothing happens, What’s happening tells you why.'],
-  ['Share', 'Press Add to Community and pick a category. Everyone on this server can try it.'],
+  ['Preview', 'Press Preview and click the button. If nothing happens, What’s happening tells you why.'],
+  ['Share', 'Open Share, choose Add to Community and pick a category. Everyone on this server can try it.'],
 ];
 const EXAMPLES = [
   'When someone clicks the star, make it bounce and play a pop sound.',

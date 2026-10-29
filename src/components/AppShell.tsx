@@ -41,8 +41,9 @@ export function AppShell({ children, bare }: { children: ReactNode; bare?: boole
   }, [can, nav]);
 
   return (
-    <div className="shell">
-      <nav className="rail" aria-label="Primary">
+    <div className="shell" style={bare ? { gridTemplateColumns: '1fr' } : undefined}>
+      {/* The editor has its own back button and creation rail, so the app rail steps aside there. */}
+      {!bare && <nav className="rail" aria-label="Primary">
         <NavLink to="/" className="rail-logo" aria-label="Motion OS home"><Logo size={26} /></NavLink>
         <LayoutGroup id="rail">
           {items.map((n) => (
@@ -61,7 +62,7 @@ export function AppShell({ children, bare }: { children: ReactNode; bare?: boole
             <Icon name="settings" />
           </NavLink>
         </Tip>
-      </nav>
+      </nav>}
       <div className="main" style={bare ? { gridTemplateRows: '1fr' } : undefined}>
         {!bare && <Header onSearch={() => setPalette(true)} />}
         <motion.main key={loc.pathname.split('/')[1] || 'home'} className="page" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, ease: [0.2, 0, 0, 1] }} style={{ position: 'relative' }}>

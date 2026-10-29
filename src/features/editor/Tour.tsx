@@ -10,12 +10,12 @@ export const TOUR_KEY = 'mos.tour.v1';
 type Step = { target?: string; title: string; body: string; icon: string };
 const STEPS: Step[] = [
   { icon: 'sparkles', title: 'Welcome to Motion OS', body: 'You’re going to make something that moves and reacts. Here’s a quick one minute tour. You can skip it and replay it any time with the ? button.' },
-  { target: '.modes', icon: 'layers', title: 'Four steps, left to right', body: 'Design what it looks like → Animate how it moves → Interact to make it react → Try it to play with the result. Switch between them here whenever you like.' },
-  { target: '.ed-left', icon: 'shapes', title: 'Your layers', body: 'Add shapes, text and images at the top, or import a design. Below is every layer in the file. Click one to select it.' },
+  { target: '.modes', icon: 'layers', title: 'Three workspaces', body: 'Design what it looks like, Animate how it moves, Interact to make it react. Press Preview (top right) any time to play with the result.' },
+  { target: '.ed-left', icon: 'shapes', title: 'Your layers', body: 'Every layer in the file, as a tree. Add new things from the rail on its left. Fold groups, search by name, and right-click a layer for more.' },
   { target: '.stage-box', icon: 'crosshair', title: 'The canvas', body: 'Click something to select it. Drag to move it, pull a corner to resize, and use the dot on top to rotate.' },
-  { target: '.ed-right', icon: 'settings', title: 'Settings for what you picked', body: 'Colours, sizes and positions live here. In Animate this becomes one-click moves like Bounce or Spin; in Interact it lists your interactions as plain sentences.' },
+  { target: '.ed-right', icon: 'settings', title: 'Settings for what you picked', body: 'Only what fits your selection shows here: colours and sizes for a shape, type settings for text, the canvas when nothing is selected. In Animate this becomes one-click moves like Bounce or Spin; in Interact it lists your interactions as plain sentences.' },
   { target: '[data-tour="ask"]', icon: 'sparkles', title: 'Ask Claude', body: 'Not sure how? Type what you want, like “when someone clicks the star, make it spin”, and Claude makes the change. You can always undo it.' },
-  { target: '[data-tour="share"]', icon: 'globe', title: 'Share it', body: 'When you’re happy, add it to the Community so others can try it and remix their own copy. Everything saves automatically as you go.' },
+  { target: '[data-tour="share"]', icon: 'globe', title: 'Share it', body: 'When you’re happy, Share adds it to the Community so others can try it and remix their own copy. Everything saves automatically as you go.' },
 ];
 
 export function Tour({ onDone }: { onDone: () => void }) {

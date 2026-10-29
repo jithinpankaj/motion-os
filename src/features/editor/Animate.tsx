@@ -3,6 +3,7 @@ import type { Easing, Layer, SceneDocument } from '../../../shared/scene/schema'
 import { MOVES, colorPath, type MoveKey } from '../../../shared/motion/moves';
 import { Segmented } from '../../ui/controls';
 import { Icon } from '../../ui/Icon';
+import { clamp, setLayout, useLayout } from './layout';
 import {
   activeAnimation, addAnimation, applyMove, deleteAnimation, deleteKeyframe, deleteTrack, endCoalesce, moveKeyframe, select,
   setKeyEasing, setPlayhead, setPlaying, updateAnimation, useEditor,
@@ -60,8 +61,11 @@ export function Timeline({ doc }: { doc: SceneDocument }) {
   const toT = (clientX: number) => { const r = lanes.current!.getBoundingClientRect(); return Math.max(0, Math.min(D, ((clientX - r.left - 8) / (r.width - 16)) * D)); };
   const pct = (t: number) => `calc(8px + (100% - 16px) * ${t / D})`;
 
+  const { timeline: height, timelineOpen: open, timelineSelectedOnly: onlySel } = useLayout();
+  const selection = useEditor((s) => s.selection);
   const byLayer = new Map<string, NonNullable<typeof anim>['tracks']>();
-  for (const t of anim?.tracks ?? []) { const arr = byLayer.get(t.layerId) ?? []; arr.push(t); byLayer.set(t.layerId, arr); }
+  for (const t of anim?.tracks ?? []) {
+    if (onlySel && selection && t.layerId !== selection) continue; const arr = byLayer.get(t.layerId) ?? []; arr.push(t); byLayer.set(t.layerId, arr); }
   const sel = selectedKey && anim?.tracks.find((t) => t.id === selectedKey.trackId)?.keyframes.find((k) => k.id === selectedKey.keyId);
 
   const scrub = (e: React.PointerEvent) => {
@@ -85,8 +89,17 @@ export function Timeline({ doc }: { doc: SceneDocument }) {
   const ticks = Array.from({ length: Math.floor(D / (D > 4 ? 1 : 0.25)) + 1 }, (_, i) => i * (D > 4 ? 1 : 0.25));
 
   return (
-    <div className="ed-bottom">
+    <div className={`ed-bottom${open ? '' : ' collapsed'}`} style={open ? { height } : undefined}>
+      {open && <div className="tl-resize" role="separator" aria-orientation="horizontal" aria-label="Resize the timeline" title="Drag to resize · double-click to reset"
+        onDoubleClick={() => setLayout({ timeline: 236 })}
+        onPointerDown={(e) => {
+          const y0 = e.clientY, h0 = height;
+          const move = (ev: PointerEvent) => setLayout({ timeline: clamp(h0 + (y0 - ev.clientY), 140, Math.max(160, window.innerHeight * 0.6)) });
+          const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+          window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+        }} />}
       <div className="tl-head">
+        <button className="icon-btn sm" aria-label={open ? 'Collapse the timeline' : 'Expand the timeline'} aria-expanded={open} onClick={() => setLayout({ timelineOpen: !open })}><Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} /></button>
         <span className="sec-h" style={{ marginRight: 4 }}>Moves</span>
         <div className="row wrap" style={{ gap: 4 }}>
           {doc.machine.animations.map((a) => <button key={a.id} className="chip" aria-pressed={a.id === activeId} onClick={() => { useEditor.setState({ activeAnim: a.id, playhead: 0, playing: false, selectedKey: null }); }}>{a.name}</button>)}
@@ -101,23 +114,24 @@ export function Timeline({ doc }: { doc: SceneDocument }) {
             <input className="input" style={{ width: 58, height: 28 }} type="number" min={0.1} max={120} step={0.1} value={anim.duration} onChange={(e) => { const v = parseFloat(e.target.value); if (v > 0) updateAnimation(anim.id, { duration: Math.min(120, v) }, `an-d:${anim.id}`); }} aria-label="Move length in seconds" />s
           </label>
           <Segmented value={anim.loop} onChange={(v) => updateAnimation(anim.id, { loop: v })} options={[{ value: 'once', label: 'Once' }, { value: 'loop', label: 'Loop' }, { value: 'pingpong', label: 'Back & forth' }]} label="Repeat" />
+          <button className="chip" aria-pressed={onlySel} disabled={!selection && !onlySel} title={selection ? 'Show only the selected layer’s tracks' : 'Select a layer first'} onClick={() => setLayout({ timelineSelectedOnly: !onlySel })}><Icon name="crosshair" size={11} />Selected only</button>
           <button className="icon-btn" aria-label="Delete move" title="Delete this move" onClick={() => { if (confirm(`Delete the move “${anim.name}”? Rules that play it are removed too.`)) deleteAnimation(anim.id); }}><Icon name="trash" size={14} /></button>
         </>}
       </div>
-      {anim && (
+      {open && anim && (
         <div className="tl-note">
           <Icon name="info" size={12} />
           <input className="input" value={anim.note ?? ''} placeholder="Add a note: why does this move work the way it does?" maxLength={600} onChange={(e) => updateAnimation(anim.id, { note: e.target.value || undefined }, `an-note:${anim.id}`)} aria-label="Note about this move" />
         </div>
       )}
-      {anim && sel && selectedKey && (
+      {open && anim && sel && selectedKey && (
         <div className="tl-head" style={{ paddingTop: 6, paddingBottom: 6 }}>
           <span className="faint" style={{ fontSize: 12 }}>Keyframe at {sel.t.toFixed(2)}s · how it moves to the next one:</span>
           <div className="row wrap" style={{ gap: 4 }}>{EASINGS.map((e) => <button key={e.value} className="chip" aria-pressed={sel.easing === e.value} onClick={() => setKeyEasing(selectedKey.trackId, selectedKey.keyId, e.value)}>{e.label}</button>)}</div>
           <button className="btn sm ghost" onClick={() => deleteKeyframe(selectedKey.trackId, selectedKey.keyId)}><Icon name="trash" size={12} />Delete keyframe</button>
         </div>
       )}
-      {!anim ? (
+      {!open ? null : !anim ? (
         <div style={{ padding: 16 }} className="empty-hint">A <b>move</b> is a short animation, like “Turn on” or “Bounce”. Create one, then change things on the canvas. Each change becomes a keyframe at the red playhead. Or select a layer and use a one-click move.</div>
       ) : (
         <div className="tl">
@@ -130,7 +144,7 @@ export function Timeline({ doc }: { doc: SceneDocument }) {
                 ...tracks.map((t) => <div key={t.id} className="tl-row" style={{ paddingLeft: 26 }}><span className="grow">{pathLabel(t.path)}</span><button className="icon-btn sm" aria-label={`Remove ${pathLabel(t.path)} animation`} onClick={() => deleteTrack(t.id)}><Icon name="x" size={10} /></button></div>),
               ];
             })}
-            {!byLayer.size && <div className="tl-row" style={{ color: 'var(--text-3)' }}>No keyframes yet</div>}
+            {!byLayer.size && <div className="tl-row" style={{ color: 'var(--text-3)' }}>{onlySel && selection ? 'The selected layer has no keyframes in this move' : 'No keyframes yet'}</div>}
           </div>
           <div className="tl-lanes" ref={lanes} onPointerDown={scrub}>
             <div className="tl-ruler">{ticks.map((t) => <span key={t} style={{ left: pct(t) }}>{+t.toFixed(2)}s</span>)}</div>

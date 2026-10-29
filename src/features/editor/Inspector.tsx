@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { Layer, SceneDocument } from '../../../shared/scene/schema';
 import { GRADIENT_MODES } from '../../../shared/scene/schema';
 import { getIn, setIn } from '../../../shared/util/paths';
@@ -7,30 +7,43 @@ import { Segmented, Slider } from '../../ui/controls';
 import { Icon } from '../../ui/Icon';
 import { SCENE_FONTS, ensureFont } from '../../engine/fonts';
 import { importDesignFile } from '../../lib/designImport';
-import { activeAnimation, commit, deleteKeyframe, layersAt, setProp, trackFor, useEditor } from './store';
+import { activeAnimation, commit, deleteKeyframe, layersAt, select, setProp, trackFor, useEditor } from './store';
 
-type Spec =
-  | { path: string; label: string; kind: 'number'; unit?: string; scale?: number; offset?: number; min?: number; max?: number; step?: number; anim?: boolean }
-  | { path: string; label: string; kind: 'slider'; min: number; max: number; step?: number; unit?: string; scale?: number; anim?: boolean }
-  | { path: string; label: string; kind: 'color'; anim?: boolean }
-  | { path: string; label: string; kind: 'select'; options: { value: string | number; label: string }[]; anim?: boolean };
+type Spec = ({ path: string; label: string; anim?: boolean; adv?: boolean }) & (
+  | { kind: 'number'; unit?: string; scale?: number; offset?: number; min?: number; max?: number; step?: number }
+  | { kind: 'slider'; min: number; max: number; step?: number; unit?: string; scale?: number }
+  | { kind: 'color' }
+  | { kind: 'select'; options: { value: string | number; label: string }[] });
 
-/** Properties shown for a layer, in friendly units (pixels, degrees, percent). */
+/**
+ * Properties shown for a layer, in friendly units (pixels, degrees, percent), grouped the way
+ * designers think: how it looks, its geometry, then where it sits. Fields marked "adv" wait behind
+ * the section's "More" toggle.
+ */
 function specsFor(l: Layer, doc: SceneDocument): { title: string; items: Spec[] }[] {
   const W = doc.canvas.width, H = doc.canvas.height, m = Math.min(W, H);
-  const base: { title: string; items: Spec[] } = { title: 'Position', items: [
+  const opacity: Spec = { path: 'opacity', label: 'Opacity', kind: 'slider', min: 0, max: 1, step: 0.01, unit: '%', scale: 100, anim: true };
+  const transform: { title: string; items: Spec[] } = { title: 'Transform', items: [
     { path: 'transform.x', label: 'X', kind: 'number', unit: 'px', scale: W, anim: true },
     { path: 'transform.y', label: 'Y', kind: 'number', unit: 'px', scale: H, anim: true },
     { path: 'transform.rotation', label: 'Rotation', kind: 'number', unit: '°', anim: true },
     { path: 'transform.scale', label: 'Scale', kind: 'number', unit: '%', scale: 100, anim: true, min: 1 },
-    { path: 'transform.scaleX', label: 'Stretch ↔', kind: 'number', unit: '%', scale: 100, anim: true, min: 1 },
-    { path: 'transform.scaleY', label: 'Stretch ↕', kind: 'number', unit: '%', scale: 100, anim: true, min: 1 },
-    { path: 'opacity', label: 'Opacity', kind: 'slider', min: 0, max: 1, step: 0.01, unit: '%', scale: 100, anim: true },
+    { path: 'transform.scaleX', label: 'Stretch ↔', kind: 'number', unit: '%', scale: 100, anim: true, min: 1, adv: true },
+    { path: 'transform.scaleY', label: 'Stretch ↕', kind: 'number', unit: '%', scale: 100, anim: true, min: 1, adv: true },
   ] };
   if (l.type === 'shape') {
     const kind = l.props.kind;
     return [
-      { title: 'Shape', items: [
+      { title: 'Appearance', items: [
+        { path: 'props.fill.type', label: 'Fill', kind: 'select', options: [{ value: 'solid', label: 'Solid' }, { value: 'linear', label: 'Gradient' }, { value: 'radial', label: 'Radial' }, { value: 'none', label: 'None' }] },
+        ...(l.props.fill.type !== 'none' ? [{ path: 'props.fill.color', label: 'Colour', kind: 'color', anim: true } as Spec] : []),
+        ...(l.props.fill.type === 'linear' || l.props.fill.type === 'radial' ? [{ path: 'props.fill.color2', label: 'Colour 2', kind: 'color', anim: true } as Spec] : []),
+        ...(l.props.fill.type === 'linear' ? [{ path: 'props.fill.angle', label: 'Angle', kind: 'number', unit: '°', anim: true } as Spec] : []),
+        { path: 'props.stroke.width', label: 'Outline', kind: 'number', unit: 'px', anim: true, min: 0 },
+        ...(l.props.stroke.width > 0 ? [{ path: 'props.stroke.color', label: 'Outline colour', kind: 'color', anim: true } as Spec] : []),
+        opacity,
+      ] },
+      { title: 'Geometry', items: [
         { path: 'props.kind', label: 'Type', kind: 'select', options: [{ value: 'rect', label: 'Rectangle' }, { value: 'ellipse', label: 'Circle / oval' }, { value: 'polygon', label: 'Polygon' }, { value: 'star', label: 'Star' }] },
         { path: 'props.width', label: 'Width', kind: 'number', unit: 'px', anim: true, min: 1 },
         { path: 'props.height', label: 'Height', kind: 'number', unit: 'px', anim: true, min: 1 },
@@ -38,27 +51,20 @@ function specsFor(l: Layer, doc: SceneDocument): { title: string; items: Spec[] 
         ...(kind === 'polygon' || kind === 'star' ? [{ path: 'props.sides', label: kind === 'star' ? 'Points' : 'Sides', kind: 'slider', min: 3, max: 12, step: 1 } as Spec] : []),
         ...(kind === 'star' ? [{ path: 'props.innerRadius', label: 'Pointiness', kind: 'slider', min: 0.05, max: 0.95, step: 0.01, anim: true } as Spec] : []),
       ] },
-      { title: 'Fill', items: [
-        { path: 'props.fill.type', label: 'Fill', kind: 'select', options: [{ value: 'solid', label: 'Solid' }, { value: 'linear', label: 'Gradient' }, { value: 'radial', label: 'Radial' }, { value: 'none', label: 'None' }] },
-        ...(l.props.fill.type !== 'none' ? [{ path: 'props.fill.color', label: 'Colour', kind: 'color', anim: true } as Spec] : []),
-        ...(l.props.fill.type === 'linear' || l.props.fill.type === 'radial' ? [{ path: 'props.fill.color2', label: 'Colour 2', kind: 'color', anim: true } as Spec] : []),
-        ...(l.props.fill.type === 'linear' ? [{ path: 'props.fill.angle', label: 'Angle', kind: 'number', unit: '°', anim: true } as Spec] : []),
-        { path: 'props.stroke.width', label: 'Outline', kind: 'number', unit: 'px', anim: true, min: 0 },
-        ...(l.props.stroke.width > 0 ? [{ path: 'props.stroke.color', label: 'Outline colour', kind: 'color', anim: true } as Spec] : []),
-      ] },
-      base,
+      transform,
     ];
   }
   if (l.type === 'text') return [
-    { title: 'Text', items: [
+    { title: 'Typography', items: [
       { path: 'props.fontFamily', label: 'Font', kind: 'select', options: SCENE_FONTS.map((f) => ({ value: f.family, label: `${f.family} · ${f.source}` })) },
-      { path: 'props.size', label: 'Size', kind: 'number', unit: 'px', scale: m, anim: true, min: 4 },
       { path: 'props.weight', label: 'Weight', kind: 'select', options: [300, 400, 500, 600, 700, 800].map((w) => ({ value: w, label: String(w) })) },
-      { path: 'props.color', label: 'Colour', kind: 'color', anim: true },
+      { path: 'props.size', label: 'Size', kind: 'number', unit: 'px', scale: m, anim: true, min: 4 },
       { path: 'props.align', label: 'Align', kind: 'select', options: [{ value: 'left', label: 'Left' }, { value: 'center', label: 'Centre' }, { value: 'right', label: 'Right' }] },
       { path: 'props.tracking', label: 'Spacing', kind: 'slider', min: -0.1, max: 0.5, step: 0.01, anim: true },
+      { path: 'props.color', label: 'Colour', kind: 'color', anim: true },
+      opacity,
     ] },
-    base,
+    transform,
   ];
   if (l.type === 'image') return [
     { title: 'Image', items: [
@@ -67,26 +73,66 @@ function specsFor(l: Layer, doc: SceneDocument): { title: string; items: Spec[] 
       { path: 'props.fit', label: 'Fit', kind: 'select', options: [{ value: 'contain', label: 'Fit inside' }, { value: 'cover', label: 'Fill & crop' }, { value: 'fill', label: 'Stretch' }] },
       { path: 'props.mask', label: 'Shape', kind: 'select', options: [{ value: 'none', label: 'As is' }, { value: 'rounded', label: 'Rounded' }, { value: 'circle', label: 'Circle' }, { value: 'fade', label: 'Soft edges' }] },
       ...(l.props.mask === 'rounded' ? [{ path: 'props.radius', label: 'Rounding', kind: 'slider', min: 0, max: 0.5, step: 0.01, anim: true } as Spec] : []),
+      opacity,
     ] },
-    base,
+    transform,
   ];
   if (l.type === 'gradient') return [{ title: 'Gradient', items: [
     { path: 'props.mode', label: 'Style', kind: 'select', options: GRADIENT_MODES.map((g) => ({ value: g, label: g[0].toUpperCase() + g.slice(1) })) },
     ...l.props.stops.map((_, i) => ({ path: `props.stops.${i}.color`, label: `Colour ${i + 1}`, kind: 'color', anim: true } as Spec)),
     { path: 'props.speed', label: 'Speed', kind: 'slider', min: 0, max: 4, step: 1 },
-    { path: 'props.noiseAmp', label: 'Movement', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true },
-    { path: 'props.distortion', label: 'Swirl', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true },
-    { path: 'props.grain', label: 'Grain', kind: 'slider', min: 0, max: 1, step: 0.01, anim: true },
-  ] }, { title: 'Layer', items: [base.items[6]] }];
+    { path: 'props.noiseAmp', label: 'Movement', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true, adv: true },
+    { path: 'props.distortion', label: 'Swirl', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true, adv: true },
+    { path: 'props.grain', label: 'Grain', kind: 'slider', min: 0, max: 1, step: 0.01, anim: true, adv: true },
+    opacity,
+  ] }];
   if (l.type === 'particles') return [{ title: 'Particles', items: [
     { path: 'props.count', label: 'Amount', kind: 'slider', min: 100, max: 30000, step: 100 },
     { path: 'props.size', label: 'Size', kind: 'slider', min: 0.5, max: 16, step: 0.1, anim: true },
     { path: 'props.colorA', label: 'Colour', kind: 'color', anim: true },
     { path: 'props.colorB', label: 'Colour 2', kind: 'color', anim: true },
-    { path: 'props.velocity', label: 'Speed', kind: 'slider', min: 0, max: 1, step: 0.01, anim: true },
-    { path: 'props.noise', label: 'Wander', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true },
-  ] }, { title: 'Layer', items: [base.items[6]] }];
-  return [base];
+    { path: 'props.velocity', label: 'Speed', kind: 'slider', min: 0, max: 1, step: 0.01, anim: true, adv: true },
+    { path: 'props.noise', label: 'Wander', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true, adv: true },
+    opacity,
+  ] }];
+  return [{ title: 'Appearance', items: [opacity] }, transform];
+}
+
+/** One collapsible inspector section. Open/closed is remembered per section title. */
+const SECTIONS_KEY = 'mos.inspector.closed';
+const readClosed = (): string[] => { try { return JSON.parse(localStorage.getItem(SECTIONS_KEY) ?? '[]'); } catch { return []; } };
+export function Section({ title, children, more, actions }: { title: string; children: ReactNode; more?: ReactNode; actions?: ReactNode }) {
+  const [closed, setClosed] = useState(() => readClosed().includes(title));
+  const [showMore, setShowMore] = useState(false);
+  const flip = () => { const next = !closed; setClosed(next); try { const c = readClosed().filter((t) => t !== title); localStorage.setItem(SECTIONS_KEY, JSON.stringify(next ? [...c, title] : c)); } catch { /* ignore */ } };
+  return (
+    <section className={`isec${closed ? ' closed' : ''}`}>
+      <div className="isec-h">
+        <button className="isec-t" aria-expanded={!closed} onClick={flip}><Icon name="chevronDown" size={12} />{title}</button>
+        {actions}
+      </div>
+      {!closed && <div className="isec-b">
+        {children}
+        {more && <>
+          {showMore && more}
+          <button className="isec-more" aria-expanded={showMore} onClick={() => setShowMore(!showMore)}>{showMore ? 'Fewer options' : 'More options'}</button>
+        </>}
+      </div>}
+    </section>
+  );
+}
+
+/** Where the selected layer lives: its parent groups, each one click away. */
+function Breadcrumb({ doc, layer }: { doc: SceneDocument; layer: Layer }) {
+  const path: Layer[] = [];
+  let p = layer.parentId;
+  while (p && path.length < 12) { const g = doc.layers.find((l) => l.id === p); if (!g) break; path.unshift(g); p = g.parentId; }
+  return (
+    <nav className="crumbs" aria-label="Layer path">
+      <button onClick={() => select(null)}>Canvas</button>
+      {path.map((g) => <span key={g.id}><Icon name="chevronRight" size={10} /><button onClick={() => select(g.id)}>{g.name}</button></span>)}
+    </nav>
+  );
 }
 
 export function Inspector({ doc, layer }: { doc: SceneDocument; layer: Layer }) {
@@ -96,19 +142,25 @@ export function Inspector({ doc, layer }: { doc: SceneDocument; layer: Layer }) 
   const anim = mode === 'animate' ? activeAnimation() : null;
   const shown = (anim ? layersAt(doc, anim, playhead) : doc.layers).find((l) => l.id === layer.id) ?? layer;
   useEffect(() => { if (layer.type === 'text') ensureFont(layer.props.fontFamily); }, [layer]);
+  const children = layer.type === 'group' ? [...doc.layers].reverse().filter((l) => l.parentId === layer.id) : [];
   return (
-    <div>
-      <div className="sec">
-        <input className="input" value={layer.name} onChange={(e) => setProp(layer.id, 'name', e.target.value, `name:${layer.id}`)} aria-label="Layer name" />
+    <div className="insp">
+      <div className="insp-id">
+        <Breadcrumb doc={doc} layer={layer} />
+        <input className="insp-name" value={layer.name} onChange={(e) => setProp(layer.id, 'name', e.target.value, `name:${layer.id}`)} aria-label="Layer name" />
         {layer.type === 'text' && <TextBox layer={layer} />}
         {layer.type === 'image' && <ReplaceImage layer={layer} />}
       </div>
-      {specsFor(shown, doc).map((g) => (
-        <div key={g.title} className="sec">
-          <div className="sec-h">{g.title}</div>
-          {g.items.map((s) => <PropRow key={s.path} spec={s} layer={shown} anim={anim ? { id: anim.id } : null} playhead={playhead} />)}
-        </div>
-      ))}
+      {specsFor(shown, doc).map((g) => {
+        const row = (sp: Spec) => <PropRow key={sp.path} spec={sp} layer={shown} anim={anim ? { id: anim.id } : null} playhead={playhead} />;
+        const adv = g.items.filter((i) => i.adv);
+        return <Section key={g.title} title={g.title} more={adv.length ? adv.map(row) : undefined}>{g.items.filter((i) => !i.adv).map(row)}</Section>;
+      })}
+      {layer.type === 'group' && (
+        <Section title={`Contents · ${children.length}`}>
+          {children.map((c) => <button key={c.id} className="child-row" onClick={() => select(c.id)}><Icon name={c.type === 'group' ? 'folder' : c.type === 'text' ? 'type' : 'shapes'} size={12} />{c.name}</button>)}
+        </Section>
+      )}
     </div>
   );
 }
@@ -184,28 +236,28 @@ function NumberBox({ value, unit, onChange, label }: { value: number; unit?: str
   );
 }
 
-/** Artboard settings when nothing is selected. */
+/** Nothing selected: the file's component controls, then the canvas itself. */
 export function CanvasSettings({ doc }: { doc: SceneDocument }) {
   const set = (patch: Partial<SceneDocument['canvas']>, key: string) => commit((d) => ({ ...d, canvas: { ...d.canvas, ...patch } }), key);
   const sizes = [[1080, 1080, 'Square'], [1080, 1350, 'Portrait'], [1080, 1920, 'Story'], [1920, 1080, 'Wide'], [800, 600, 'Card'], [512, 512, 'Icon']] as const;
   return (
-    <div>
+    <div className="insp">
+      <div className="insp-empty">No layer selected. Pick something on the canvas or in Layers to edit it.</div>
       <Customise doc={doc} />
-      <div className="sec">
-        <div className="sec-h">Canvas</div>
-        <input className="input" value={doc.meta.name} onChange={(e) => commit((d) => ({ ...d, meta: { ...d.meta, name: e.target.value || 'Untitled' } }), 'meta-name')} aria-label="File name" />
+      <Section title="Canvas">
+        <div className="prop"><span className="lbl">Name</span><input className="input" style={{ height: 30 }} value={doc.meta.name} onChange={(e) => commit((d) => ({ ...d, meta: { ...d.meta, name: e.target.value || 'Untitled' } }), 'meta-name')} aria-label="Document name" /><span /></div>
         <div className="prop"><span className="lbl">Background</span><ColorField label="Background" value={doc.canvas.background} onChange={(v) => set({ background: v }, 'bg')} /><span /></div>
-        <div className="prop"><span className="lbl">Size</span><span className="faint mono" style={{ fontSize: 11.5 }}>{doc.canvas.width} × {doc.canvas.height}</span><span /></div>
-        <div className="row wrap" style={{ gap: 5 }}>{sizes.map(([w, h, n]) => <button key={n} className="chip" aria-pressed={doc.canvas.width === w && doc.canvas.height === h} onClick={() => set({ width: w, height: h }, 'size')}>{n}</button>)}</div>
-      </div>
-      <div className="sec"><div className="empty-hint">Select a layer to edit it, or add one from the left. Tip: drag on the canvas to move things; corners resize; the dot on top rotates.</div></div>
+        <div className="prop"><span className="lbl">Size</span><span className="faint mono">{doc.canvas.width} × {doc.canvas.height}</span><span /></div>
+        <div className="size-chips">{sizes.map(([w, h, n]) => <button key={n} className="chip" aria-pressed={doc.canvas.width === w && doc.canvas.height === h} onClick={() => set({ width: w, height: h }, 'size')}>{n}</button>)}</div>
+      </Section>
     </div>
   );
 }
 
 /**
- * The file's "Customise" settings: friendly knobs (a colour, a label, an amount) that each change
- * one or more properties at once, so a beginner can restyle a component without finding every layer.
+ * Component controls: friendly knobs (a colour, a label, an amount) that each change one or more
+ * properties at once, so a beginner can restyle a component without finding every layer. A dot
+ * marks values that differ from the component's defaults; each can be reset on its own.
  */
 export function Customise({ doc }: { doc: SceneDocument }) {
   const params = doc.exposed.filter((p) => (p.type === 'color' || p.type === 'text' || p.type === 'number') && p.targets.length);
@@ -217,22 +269,29 @@ export function Customise({ doc }: { doc: SceneDocument }) {
   };
   const set = (p: (typeof params)[number], v: unknown) =>
     commit((d) => ({ ...d, layers: d.layers.map((l) => p.targets.filter((t) => t.layerId === l.id).reduce((acc, t) => setIn(acc, t.path, v), l)) }), `param:${p.key}`);
+  const same = (a: unknown, b: unknown) => String(a).toLowerCase() === String(b).toLowerCase();
+  const edited = params.filter((p) => p.default !== undefined && !same(current(p), p.default));
+  const groups = [...new Set(params.map((p) => p.group || 'Style'))];
   return (
-    <div className="sec">
-      <div className="sec-h">Customise</div>
-      {params.map((p) => {
-        const v = current(p);
-        return (
-          <div key={p.key} className="prop" title={p.description}>
-            <span className="lbl">{p.label}</span>
-            {p.type === 'color' && <ColorField label={p.label} value={String(v)} onChange={(c) => set(p, c)} />}
-            {p.type === 'text' && <input className="input" value={String(v ?? '')} maxLength={p.maxLength ?? 60} onChange={(e) => set(p, e.target.value)} aria-label={p.label} />}
-            {p.type === 'number' && <Slider value={Number(v)} min={p.min ?? 0} max={p.max ?? 1} step={p.step ?? 0.01} onChange={(n) => set(p, n)} label={p.label} />}
-            <span />
-          </div>
-        );
-      })}
-      {params.some((p) => p.description) && <div className="empty-hint">Each setting changes every part that uses it. Hover a setting to see what it changes.</div>}
-    </div>
+    <Section title="Component controls" actions={edited.length > 0 && <button className="isec-act" onClick={() => commit((d) => edited.reduce((acc, p) => ({ ...acc, layers: acc.layers.map((l) => p.targets.filter((t) => t.layerId === l.id).reduce((x, t) => setIn(x, t.path, p.default), l)) }), d))}>Reset all</button>}>
+      {groups.map((g) => (
+        <div key={g} className="cc-group">
+          {groups.length > 1 && <div className="cc-h">{g === 'Style' ? 'Appearance' : g}</div>}
+          {params.filter((p) => (p.group || 'Style') === g).map((p) => {
+            const v = current(p);
+            const changed = p.default !== undefined && !same(v, p.default);
+            return (
+              <div key={p.key} className="prop" title={p.description}>
+                <span className="lbl">{changed && <i className="cc-dot" aria-label="edited" />}{p.label}</span>
+                {p.type === 'color' && <ColorField label={p.label} value={String(v)} onChange={(c) => set(p, c)} />}
+                {p.type === 'text' && <input className="input" style={{ height: 30 }} value={String(v ?? '')} maxLength={p.maxLength ?? 60} onChange={(e) => set(p, e.target.value)} aria-label={p.label} />}
+                {p.type === 'number' && <Slider value={Number(v)} min={p.min ?? 0} max={p.max ?? 1} step={p.step ?? 0.01} onChange={(n) => set(p, n)} label={p.label} />}
+                {changed ? <button className="kbtn" aria-label={`Reset ${p.label}`} title="Reset to default" onClick={() => set(p, p.default)}><Icon name="restart" size={11} /></button> : <span />}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </Section>
   );
 }

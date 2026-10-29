@@ -35,7 +35,7 @@ test('Editor: try the living button, then design, animate and interact', async (
   // A fresh copy of the component each run, so the test never depends on earlier edits.
   await page.goto(`/edit/${await freshFile(page, 'living-button', 'E2E button')}`);
   // Try it: hovering and pressing the button moves it between its states; the debugger says what ran.
-  await page.getByRole('button', { name: 'Try it' }).click();
+  await page.getByRole('button', { name: 'Preview' }).click();
   const box = await page.locator('.stage-box').boundingBox();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height * 0.55, { steps: 4 });
   await expect(page.locator('.dbg-state')).toContainText('Hover');
@@ -47,14 +47,17 @@ test('Editor: try the living button, then design, animate and interact', async (
   // Customise recolours every part that uses the colour.
   await expect(page.locator('.ed-right')).toContainText('Button colour');
   // Design: add a star; Animate: give it a one-click Spin, which becomes its own move.
-  await page.getByRole('button', { name: 'Design' }).click();
-  await page.locator('.tool', { hasText: 'Star' }).click();
+  await page.getByRole('button', { name: 'Stop preview' }).click();
+  await page.getByRole('button', { name: 'Design', exact: true }).click();
+  // Star lives in the Shapes flyout on the creation rail.
+  await page.getByRole('button', { name: 'More Shapes' }).click();
+  await page.getByRole('menuitem', { name: /Star/ }).click();
   await expect(page.locator('.layer-row[aria-selected="true"]')).toContainText('Star');
-  await page.getByRole('button', { name: 'Animate' }).click();
+  await page.getByRole('button', { name: 'Animate', exact: true }).click();
   await page.locator('.move', { hasText: 'Spin' }).click();
   await expect(page.locator('.tl-head .chip[aria-pressed="true"]')).toContainText('Star · Spin');
   // Interact: the helper asks three plain questions and writes two readable interactions.
-  await page.getByRole('button', { name: 'Interact' }).click();
+  await page.getByRole('button', { name: 'Interact', exact: true }).click();
   await page.getByRole('button', { name: 'New interaction' }).click();
   await page.locator('.tile', { hasText: 'hovers over' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
@@ -72,11 +75,12 @@ test('Editor: try the living button, then design, animate and interact', async (
   await expect(page.locator('.icard.open').getByRole('combobox', { name: 'Sound' }).last()).toHaveValue('pop');
   await expect(page.locator('.ed-top')).toContainText('All changes saved', { timeout: 8000 });
   // "Add to Community" asks for a library category, pre-filled from the file.
-  await page.getByRole('button', { name: 'Add to Community' }).click();
+  await page.getByRole('button', { name: 'Share' }).click();
+  await page.getByRole('menuitem', { name: 'Add to Community' }).click();
   await expect(page.locator('.modal').getByRole('combobox', { name: 'Category' })).toHaveValue('Interactive UI');
   await page.locator('.modal').getByRole('button', { name: 'Cancel' }).click();
   await page.reload();
-  await page.getByRole('button', { name: 'Interact' }).click();
+  await page.getByRole('button', { name: 'Interact', exact: true }).click();
   await expect(page.locator('.icard', { hasText: 'hovers over Star' })).toHaveCount(1);
 });
 
@@ -84,7 +88,7 @@ test('Interactions: a beginner builds one in plain words, then changes a word an
   await page.setViewportSize({ width: 1440, height: 900 });
   await login(page, 'dana@motion.os');
   await page.goto(`/edit/${await freshFile(page, 'bouncy-headline', 'E2E simple')}`);
-  await page.getByRole('button', { name: 'Interact' }).click();
+  await page.getByRole('button', { name: 'Interact', exact: true }).click();
   // "When someone clicks anywhere → play Jump, then back next time" — three questions, no jargon.
   await page.getByRole('button', { name: 'New interaction' }).click();
   await page.locator('.tile', { hasText: 'clicks' }).click();
@@ -109,7 +113,7 @@ test('Interactions: a beginner builds one in plain words, then changes a word an
   await expect(page.locator('.ed-top')).toContainText('All changes saved', { timeout: 8000 });
   // Try it: Enter plays it; the debugger says so in a sentence.
   await page.reload();
-  await page.getByRole('button', { name: 'Try it' }).click();
+  await page.getByRole('button', { name: 'Preview' }).click();
   await page.locator('.stage-box').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('Enter');
   await expect(page.locator('.dbg')).toContainText('ran.');
@@ -127,7 +131,7 @@ test('New users: the Learn page, the editor tour, and Ask Claude', async ({ page
   await page.getByRole('button', { name: 'Open a starter and take the tour' }).click();
   await expect(page.getByRole('dialog', { name: /Tour step 1 of 7/ })).toBeVisible();
   await page.getByRole('button', { name: 'Next' }).click();
-  await expect(page.getByRole('dialog', { name: /Tour step 2 of 7: Four steps/ })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: /Tour step 2 of 7: Three workspaces/ })).toBeVisible();
   await expect(page.locator('.tour-spot')).toBeVisible();
   for (let i = 0; i < 5; i++) await page.getByRole('button', { name: 'Next' }).click();
   await page.getByRole('button', { name: 'Start making' }).click();
@@ -164,7 +168,7 @@ test('Community: try the living button, then remix it', async ({ page }) => {
   await expect(page.locator('.log')).toContainText('Release');
   await page.getByRole('button', { name: /Remix into my files/ }).click();
   await expect(page).toHaveURL(/\/edit\/prj_/);
-  await expect(page.locator('.ed-top')).toContainText('Living button remix');
+  await expect(page.getByRole('textbox', { name: 'File name' })).toHaveValue('Living button remix');
 });
 
 test('Export: one move as MP4 at the file size', async ({ page }) => {

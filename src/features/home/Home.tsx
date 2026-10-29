@@ -69,7 +69,7 @@ export default function Home() {
       {!learnHidden && (
         <div className="learn-banner">
           <Icon name="library" size={16} />
-          <span><b>New here?</b> A five minute guide walks you through Design, Animate, Interact and Try it.</span>
+          <span><b>New here?</b> A five minute guide walks you through Design, Animate, Interact and Preview.</span>
           <Link to="/learn" className="btn sm primary">Show me how</Link>
           <button className="icon-btn sm" aria-label="Hide this tip" onClick={() => { try { localStorage.setItem('mos.learn.hidden', '1'); } catch { /* private mode */ } setLearnHidden(true); }}><Icon name="x" size={12} /></button>
         </div>
