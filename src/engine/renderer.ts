@@ -10,12 +10,13 @@ import { MeshView, meshKey } from './layers/mesh';
 import { ParticleView, particleKey } from './layers/particles';
 import { TextView, textKey } from './layers/text';
 import { ImageView, imageKey } from './layers/image';
+import { ShapeView } from './layers/shape';
 
 export type Issue = { layerId: string; message: string };
 export type Metrics = { fps: number; frameMs: number; drawCalls: number; triangles: number; points: number; textureMB: number; compileMs: number; views: number; quality: number };
 
 const structuralKey = (l: Layer, ctx: { doc: SceneDocument }) =>
-  l.type === 'gradient' ? gradientKey(l) : l.type === 'mesh' ? meshKey(l) : l.type === 'particles' ? particleKey(l, ctx) : l.type === 'text' ? textKey(l) : l.type === 'image' ? imageKey(l) : 'group';
+  l.type === 'gradient' ? gradientKey(l) : l.type === 'mesh' ? meshKey(l) : l.type === 'particles' ? particleKey(l, ctx) : l.type === 'text' ? textKey(l) : l.type === 'image' ? imageKey(l) : l.type === 'shape' ? 'shape' : 'group';
 
 /** Compose group transforms/visibility/opacity into child layers (2D layers only). */
 export function resolveHierarchy(layers: Layer[]): Layer[] {
@@ -58,6 +59,11 @@ export class SceneRenderer {
   private frameTimes: number[] = [];
   private disposeCtx: () => void;
   pointer = { x: 0.5, y: 0.5, active: false };
+  /**
+   * Optional source of per-frame layer values. The interaction runtime and the move editor plug in
+   * here; without it the scene's own timeline is evaluated at time t.
+   */
+  layerSource: ((doc: SceneDocument, t: number) => Layer[]) | null = null;
   motion: MotionMode = 'full';
   metrics: Metrics = { fps: 0, frameMs: 0, drawCalls: 0, triangles: 0, points: 0, textureMB: 0, compileMs: 0, views: 0, quality: 1 };
 
@@ -140,7 +146,7 @@ export class SceneRenderer {
     renderer.clear(true, true, false);
     renderer.info.reset();
 
-    const layers = resolveHierarchy(evaluateLayers(doc, ctx.t));
+    const layers = resolveHierarchy(this.layerSource ? this.layerSource(doc, ctx.t) : evaluateLayers(doc, ctx.t));
     const alive = new Set<string>();
     let compile = 0;
     for (const layer of layers) {
@@ -202,6 +208,7 @@ export class SceneRenderer {
       case 'particles': return new ParticleView(layer, ctx);
       case 'text': return new TextView(layer, ctx);
       case 'image': return new ImageView(layer, ctx);
+      case 'shape': return new ShapeView(layer, ctx);
       default: throw new Error('unknown layer');
     }
   }

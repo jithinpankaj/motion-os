@@ -40,6 +40,8 @@ export function classifyLayer(l: Layer): { cls: FeatureClass; feature: string }[
       return [{ cls: l.props.animation.preset === 'scramble' ? 'fallback' : 'vector', feature: `text (${l.props.animation.preset})` }];
     case 'image':
       return [{ cls: l.props.displacement > 0 ? 'native' : 'raster', feature: `image${l.props.displacement > 0 ? ' with displacement' : ''}` }, ...(l.props.mask !== 'none' ? [{ cls: 'vector' as const, feature: `${l.props.mask} mask` }] : [])];
+    case 'shape':
+      return [{ cls: 'vector', feature: `${l.props.kind} shape${l.props.fill.type === 'linear' || l.props.fill.type === 'radial' ? ' with gradient fill' : ''}` }];
     case 'group':
       return [];
   }

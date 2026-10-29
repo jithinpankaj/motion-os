@@ -20,7 +20,6 @@ export function heroNavigate(nav: NavigateFunction, to: string, from?: { id: str
 }
 
 export const preload = {
-  playground: () => import('../features/playground/Playground'),
-  studio: () => import('../features/studio/Studio'),
-  campaign: () => import('../features/campaigns/Campaign'),
+  editor: () => import('../features/editor/Editor'),
+  community: () => import('../features/community/Post'),
 };

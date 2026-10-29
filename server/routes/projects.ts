@@ -1,15 +1,14 @@
 import { Router } from 'express';
-import { RecipeSchema } from '../../shared/motionStyles';
 import { z } from 'zod';
 import { requirePerm } from '../auth';
 import { badRequest, conflict, notFound, parse } from '../http';
 import { audit } from '../audit';
 import { deserializeScene } from '../../shared/scene/serialize';
 import { createScene } from '../../shared/scene/defaults';
-import { LAUNCH_PRESETS } from '../../shared/scene/presets';
+import { MOTION_PRESETS } from '../../shared/motion/presets';
 import { uid } from '../../shared/util/random';
 import { sceneAssetIds, syncAssetRefs } from '../services/assets';
-import { snapshotSceneVersion } from '../services/templates';
+import { snapshotSceneVersion } from '../services/versions';
 import type { Db } from '../db';
 
 export async function createProject(db: Db, wsId: string, userId: string, name: string, doc: any, brandId: string | null, description = '') {
@@ -39,9 +38,9 @@ export function projectRoutes() {
 
   r.get('/projects', requirePerm('scene.view'), async (req, res) => {
     const rows = await req.ctx.db.query(
-      `SELECT p.id, p.name, p.description, p.updated_at, p.created_at, u.name AS owner, s.doc, t.id AS template_id, t.status AS template_status, (p.recipe IS NOT NULL) AS has_recipe, p.motion_campaign_id
+      `SELECT p.id, p.name, p.description, p.updated_at, p.created_at, u.name AS owner, s.doc,
+              (SELECT c.id FROM community_posts c WHERE c.project_id = p.id AND c.unpublished_at IS NULL LIMIT 1) AS community_id
          FROM motion_projects p JOIN motion_scenes s ON s.project_id = p.id LEFT JOIN users u ON u.id = p.owner_id
-         LEFT JOIN motion_templates t ON t.project_id = p.id AND t.status <> 'archived'
         WHERE p.workspace_id = $1 AND p.deleted_at IS NULL ORDER BY p.updated_at DESC LIMIT 200`,
       [req.ws!.id],
     );
@@ -49,32 +48,31 @@ export function projectRoutes() {
   });
 
   r.post('/projects', requirePerm('scene.create'), async (req, res) => {
-    const body = parse(z.object({ name: z.string().trim().min(1).max(120), preset: z.string().optional(), scene: z.unknown().optional(), brandId: z.string().optional(), recipe: RecipeSchema.optional() }), req.body);
+    const body = parse(z.object({
+      name: z.string().trim().min(1).max(120), preset: z.string().max(60).optional(), scene: z.unknown().optional(),
+      width: z.number().int().min(16).max(4096).optional(), height: z.number().int().min(16).max(4096).optional(), background: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+    }), req.body);
     let doc: any;
     if (body.scene !== undefined) doc = { ...deserializeScene(body.scene), id: uid('scn') }; // untrusted import → migrate + validate
     else if (body.preset) {
-      const p = LAUNCH_PRESETS.find((x) => x.key === body.preset);
+      const p = MOTION_PRESETS.find((x) => x.key === body.preset);
       if (!p) throw badRequest('Unknown preset');
-      doc = p.build(uid('scn'));
-    } else doc = createScene();
-    const brand = body.brandId ? await req.ctx.db.one(`SELECT id FROM brands WHERE id = $1 AND workspace_id = $2`, [body.brandId, req.ws!.id]) : await req.ctx.db.one(`SELECT id FROM brands WHERE workspace_id = $1 ORDER BY created_at LIMIT 1`, [req.ws!.id]);
-    const out = await createProject(req.ctx.db, req.ws!.id, req.user!.id, body.name, doc, brand?.id ?? null);
-    if (body.recipe) await req.ctx.db.query(`UPDATE motion_projects SET recipe = $2, recipe_revision = 1 WHERE id = $1`, [out.projectId, JSON.stringify(body.recipe)]);
+      doc = p.build();
+    } else {
+      const base = createScene();
+      doc = { ...base, canvas: { ...base.canvas, width: body.width ?? 1080, height: body.height ?? 1080, background: body.background ?? '#0b0b10' } };
+    }
+    const out = await createProject(req.ctx.db, req.ws!.id, req.user!.id, body.name, doc, null);
     res.status(201).json({ id: out.projectId });
   });
 
   r.get('/projects/:id', requirePerm('scene.view'), async (req, res) => {
     const p = await load(req);
-    const template = await req.ctx.db.one(
-      `SELECT t.id, t.name, t.status, t.published_version_id, t.category, t.channels, t.visible_team_ids, t.description,
-              (SELECT json_agg(json_build_object('id', v.id, 'version', v.version, 'status', v.status, 'changelog', v.changelog, 'created_at', v.created_at) ORDER BY v.version DESC) FROM template_versions v WHERE v.template_id = t.id) AS versions
-         FROM motion_templates t WHERE t.project_id = $1 AND t.status <> 'archived'`,
-      [p.id],
-    );
+    const post = await req.ctx.db.one(`SELECT id, published_at, updated_at FROM community_posts WHERE project_id = $1 AND unpublished_at IS NULL`, [p.id]);
     res.json({
-      project: { id: p.id, name: p.name, description: p.description, brandId: p.brand_id, updatedAt: p.updated_at, recipe: p.recipe ?? null, recipeRevision: p.recipe_revision ?? null },
+      project: { id: p.id, name: p.name, description: p.description, updatedAt: p.updated_at, remixOf: p.remix_of ?? null },
       scene: { doc: deserializeScene(p.doc), revision: p.revision, updatedAt: p.scene_updated_at, updatedBy: p.updated_by_name },
-      template,
+      community: post ? { id: post.id, publishedAt: post.published_at, updatedAt: post.updated_at } : null,
     });
   });
 
@@ -94,20 +92,6 @@ export function projectRoutes() {
     await db.query(`UPDATE motion_projects SET updated_at = now(), name = $2 WHERE id = $1`, [p.id, doc.meta.name]);
     await syncAssetRefs(db, req.ws!.id, 'scene', p.scene_id, sceneAssetIds(doc), false);
     res.json({ revision: updated.revision, updatedAt: updated.updated_at });
-  });
-
-  /** Save from the simple Create flow: the rebuilt scene and its recipe, with the same conflict check. */
-  r.put('/projects/:id/recipe', requirePerm('scene.edit'), async (req, res) => {
-    const body = parse(z.object({ recipe: RecipeSchema, doc: z.unknown(), baseRevision: z.number().int() }), req.body);
-    const p = await load(req);
-    const doc = deserializeScene(body.doc);
-    if (p.revision !== body.baseRevision) throw conflict(`${p.updated_by_name ?? 'Someone'} saved a newer version of this motion`, { revision: p.revision });
-    const { db } = req.ctx;
-    const updated = await db.one(`UPDATE motion_scenes SET doc = $2, revision = revision + 1, updated_by = $3, updated_at = now() WHERE id = $1 AND revision = $4 RETURNING revision`, [p.scene_id, JSON.stringify(doc), req.user!.id, body.baseRevision]);
-    if (!updated) throw conflict('This motion changed while saving; reload and try again');
-    await db.query(`UPDATE motion_projects SET recipe = $2, recipe_revision = $3, name = $4, updated_at = now() WHERE id = $1`, [p.id, JSON.stringify(body.recipe), updated.revision, doc.meta.name]);
-    await syncAssetRefs(db, req.ws!.id, 'scene', p.scene_id, sceneAssetIds(doc), false);
-    res.json({ revision: updated.revision });
   });
 
   r.patch('/projects/:id', requirePerm('scene.edit'), async (req, res) => {

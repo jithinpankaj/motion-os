@@ -10,19 +10,28 @@ export function sceneAssetIds(doc: SceneDocument): string[] {
     if (l.type === 'mesh' && l.props.material.textureAssetId) ids.add(l.props.material.textureAssetId);
     if (l.type === 'text' && l.props.fontAssetId) ids.add(l.props.fontAssetId);
   }
-  for (const p of doc.exposed) {
-    if (p.type !== 'image') continue;
-    if (typeof p.default === 'string') ids.add(p.default);
-    for (const o of p.options ?? []) if (typeof o.value === 'string') ids.add(o.value);
-  }
   return [...ids];
+}
+
+/** Rewrite asset ids in a scene (publishing to and remixing from the community copy assets). */
+export function remapSceneAssets(doc: SceneDocument, map: Record<string, string | null>): SceneDocument {
+  const m = (id: string | null) => (id && id in map ? map[id] : id);
+  return {
+    ...doc,
+    layers: doc.layers.map((l) => {
+      if (l.type === 'image') return { ...l, props: { ...l.props, assetId: m(l.props.assetId) } };
+      if (l.type === 'mesh') return { ...l, props: { ...l.props, material: { ...l.props.material, textureAssetId: m(l.props.material.textureAssetId) } } };
+      if (l.type === 'text') return { ...l, props: { ...l.props, fontAssetId: m(l.props.fontAssetId) } };
+      return l;
+    }),
+  };
 }
 
 /**
  * Keep asset_references in sync for a referencing object. Drafts follow the current asset version
  * unless already pinned; template versions pin the exact version for reproducibility.
  */
-export async function syncAssetRefs(db: Db, wsId: string, refType: 'scene' | 'template_version' | 'variation' | 'export', refId: string, assetIds: string[], pin: boolean) {
+export async function syncAssetRefs(db: Db, wsId: string, refType: 'scene' | 'export', refId: string, assetIds: string[], pin: boolean) {
   const valid = assetIds.length
     ? await db.query(`SELECT id, current_version_id FROM media_assets WHERE workspace_id = $1 AND id = ANY($2::text[]) AND deleted_at IS NULL`, [wsId, assetIds])
     : [];

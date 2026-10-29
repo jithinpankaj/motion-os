@@ -91,10 +91,9 @@ export function assetRoutes() {
     const versions = await db.query(`SELECT id, version, mime, bytes, width, height, sha256, created_at, storage_key FROM asset_versions WHERE asset_id = $1 ORDER BY version DESC`, [a.id]);
     const usage = await db.query(
       `SELECT r.ref_type, r.ref_id, r.pinned, v.version AS pinned_version,
-              coalesce(p.name, t.name || ' v' || tv.version) AS label, coalesce(p.id, t.project_id) AS project_id
+              p.name AS label, p.id AS project_id
          FROM asset_references r LEFT JOIN asset_versions v ON v.id = r.asset_version_id
          LEFT JOIN motion_scenes s ON r.ref_type = 'scene' AND s.id = r.ref_id LEFT JOIN motion_projects p ON p.id = s.project_id AND p.deleted_at IS NULL
-         LEFT JOIN template_versions tv ON r.ref_type = 'template_version' AND tv.id = r.ref_id LEFT JOIN motion_templates t ON t.id = tv.template_id
         WHERE r.asset_id = $1`,
       [a.id],
     );
@@ -135,8 +134,6 @@ export function assetRoutes() {
 
   r.delete('/assets/:id', requirePerm('asset.manage'), async (req, res) => {
     const { db } = req.ctx;
-    const pinned = await db.one(`SELECT count(*)::int AS n FROM asset_references WHERE asset_id = $1 AND ref_type = 'template_version'`, [req.params.id]);
-    if (pinned!.n) throw conflict('This asset is used by published templates and must stay available so those outputs remain reproducible.');
     await db.query(`UPDATE media_assets SET deleted_at = now() WHERE id = $1 AND workspace_id = $2`, [req.params.id, req.ws!.id]);
     await audit(db, req, 'asset.delete', 'asset', String(req.params.id));
     res.json({ ok: true });
@@ -144,12 +141,10 @@ export function assetRoutes() {
 
   /** Resolve asset ids to signed URLs, honouring version pins of the requesting context. */
   r.post('/assets/resolve', requirePerm('asset.view'), async (req, res) => {
-    const body = parse(z.object({ ids: z.array(z.string().max(64)).max(100), context: z.object({ type: z.enum(['scene', 'template_version', 'campaign', 'export']), id: z.string() }).optional() }), req.body);
+    const body = parse(z.object({ ids: z.array(z.string().max(64)).max(100), context: z.object({ type: z.enum(['scene', 'export']), id: z.string() }).optional() }), req.body);
     const { db } = req.ctx, ws = req.ws!.id;
     let pins: Record<string, string> = {};
     const ctx = body.context;
-    if (ctx?.type === 'template_version') pins = (await db.one(`SELECT asset_pins FROM template_versions WHERE id = $1 AND workspace_id = $2`, [ctx.id, ws]))?.asset_pins ?? {};
-    if (ctx?.type === 'campaign') pins = (await db.one(`SELECT tv.asset_pins FROM campaigns c JOIN template_versions tv ON tv.id = c.template_version_id WHERE c.id = $1 AND c.workspace_id = $2`, [ctx.id, ws]))?.asset_pins ?? {};
     if (ctx?.type === 'export') pins = (await db.one(`SELECT source->'pins' AS pins FROM export_jobs WHERE id = $1 AND workspace_id = $2`, [ctx.id, ws]))?.pins ?? {};
     if (ctx?.type === 'scene') {
       const rows = await db.query(`SELECT asset_id, asset_version_id FROM asset_references WHERE ref_type = 'scene' AND ref_id = $1 AND pinned AND workspace_id = $2`, [ctx.id, ws]);
@@ -185,7 +180,9 @@ export function fileRoutes() {
       res.status(403).json({ error: { code: 'invalid_signature', message: 'This link has expired or is invalid' } });
       return;
     }
-    const meta = (await req.ctx.db.one(`SELECT mime FROM asset_versions WHERE storage_key = $1`, [key])) ?? (await req.ctx.db.one(`SELECT mime FROM exported_files WHERE storage_key = $1`, [key]));
+    const meta = (await req.ctx.db.one(`SELECT mime FROM asset_versions WHERE storage_key = $1`, [key]))
+      ?? (await req.ctx.db.one(`SELECT mime FROM exported_files WHERE storage_key = $1`, [key]))
+      ?? (await req.ctx.db.one(`SELECT mime FROM community_assets WHERE storage_key = $1`, [key]));
     if (!meta) { res.status(404).end(); return; }
     const data = await req.ctx.storage.get(key).catch(() => null);
     if (!data) { res.status(404).json({ error: { code: 'missing', message: 'File is missing from storage' } }); return; }

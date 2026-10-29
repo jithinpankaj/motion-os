@@ -133,39 +133,6 @@ CREATE TABLE IF NOT EXISTS brands (
   UNIQUE (workspace_id, slug)
 );
 
-CREATE TABLE IF NOT EXISTS brand_tokens (
-  id text PRIMARY KEY,
-  brand_id text NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  key text NOT NULL,
-  category text NOT NULL,
-  value jsonb NOT NULL,
-  description text NOT NULL DEFAULT '',
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (brand_id, key)
-);
-
-CREATE TABLE IF NOT EXISTS token_versions (
-  id text PRIMARY KEY,
-  brand_id text NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  version int NOT NULL,
-  snapshot jsonb NOT NULL,
-  note text NOT NULL DEFAULT '',
-  created_by text REFERENCES users(id) ON DELETE SET NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (brand_id, version)
-);
-
-CREATE TABLE IF NOT EXISTS brand_rules (
-  id text PRIMARY KEY,
-  brand_id text NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  kind text NOT NULL,
-  config jsonb NOT NULL DEFAULT '{}'::jsonb,
-  description text NOT NULL DEFAULT ''
-);
-
 -- ─── Assets (declared before brand_assets / motion references) ────────────
 CREATE TABLE IF NOT EXISTS media_assets (
   id text PRIMARY KEY,
@@ -226,13 +193,6 @@ CREATE TABLE IF NOT EXISTS asset_collection_items (
   PRIMARY KEY (collection_id, asset_id)
 );
 
-CREATE TABLE IF NOT EXISTS brand_assets (
-  brand_id text NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
-  asset_id text NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
-  role text NOT NULL DEFAULT 'image',
-  PRIMARY KEY (brand_id, asset_id)
-);
-
 -- ─── Motion ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS motion_projects (
   id text PRIMARY KEY,
@@ -271,58 +231,6 @@ CREATE TABLE IF NOT EXISTS scene_versions (
   UNIQUE (scene_id, version)
 );
 
-CREATE TABLE IF NOT EXISTS motion_families (
-  id text PRIMARY KEY,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  brand_id text REFERENCES brands(id) ON DELETE SET NULL,
-  name text NOT NULL,
-  description text NOT NULL DEFAULT ''
-);
-
-CREATE TABLE IF NOT EXISTS motion_templates (
-  id text PRIMARY KEY,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  project_id text REFERENCES motion_projects(id) ON DELETE SET NULL,
-  family_id text REFERENCES motion_families(id) ON DELETE SET NULL,
-  brand_id text REFERENCES brands(id) ON DELETE SET NULL,
-  name text NOT NULL,
-  description text NOT NULL DEFAULT '',
-  category text NOT NULL DEFAULT 'General',
-  interaction text NOT NULL DEFAULT 'none',
-  channels text[] NOT NULL DEFAULT '{}',
-  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'approved', 'published', 'deprecated', 'archived')),
-  visible_team_ids text[] NOT NULL DEFAULT '{}',   -- empty = every team in the workspace
-  published_version_id text,
-  created_by text REFERENCES users(id) ON DELETE SET NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS templates_ws ON motion_templates (workspace_id, status);
-
-CREATE TABLE IF NOT EXISTS template_versions (
-  id text PRIMARY KEY,
-  template_id text NOT NULL REFERENCES motion_templates(id) ON DELETE RESTRICT,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  version int NOT NULL,
-  scene_version_id text NOT NULL REFERENCES scene_versions(id) ON DELETE RESTRICT,
-  status text NOT NULL DEFAULT 'review' CHECK (status IN ('draft', 'review', 'approved', 'published', 'deprecated', 'archived', 'rejected')),
-  changelog text NOT NULL DEFAULT '',
-  asset_pins jsonb NOT NULL DEFAULT '{}'::jsonb,   -- assetId -> assetVersionId
-  created_by text REFERENCES users(id) ON DELETE SET NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  published_at timestamptz,
-  UNIQUE (template_id, version)
-);
-
-CREATE TABLE IF NOT EXISTS template_parameters (
-  id text PRIMARY KEY,
-  template_version_id text NOT NULL REFERENCES template_versions(id) ON DELETE CASCADE,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  key text NOT NULL,
-  definition jsonb NOT NULL,
-  UNIQUE (template_version_id, key)
-);
-
 CREATE TABLE IF NOT EXISTS animation_presets (
   id text PRIMARY KEY,
   workspace_id text REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -347,76 +255,6 @@ CREATE TABLE IF NOT EXISTS channel_presets (
   width int NOT NULL,
   height int NOT NULL,
   safe_area jsonb NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS campaigns (
-  id text PRIMARY KEY,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  brand_id text REFERENCES brands(id) ON DELETE SET NULL,
-  owner_id text REFERENCES users(id) ON DELETE SET NULL,
-  family_id text REFERENCES motion_families(id) ON DELETE SET NULL,
-  template_id text NOT NULL REFERENCES motion_templates(id) ON DELETE RESTRICT,
-  template_version_id text NOT NULL REFERENCES template_versions(id) ON DELETE RESTRICT,
-  name text NOT NULL,
-  description text NOT NULL DEFAULT '',
-  master_values jsonb NOT NULL DEFAULT '{}'::jsonb,
-  approval_status text NOT NULL DEFAULT 'draft' CHECK (approval_status IN ('draft', 'review', 'approved', 'rejected')),
-  publishing_status text NOT NULL DEFAULT 'unpublished' CHECK (publishing_status IN ('unpublished', 'published', 'outdated')),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS campaigns_ws ON campaigns (workspace_id, updated_at DESC);
-
-CREATE TABLE IF NOT EXISTS campaign_variations (
-  id text PRIMARY KEY,
-  campaign_id text NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  channel_preset_id text NOT NULL REFERENCES channel_presets(id),
-  name text NOT NULL,
-  published_snapshot jsonb,                   -- immutable {templateVersionId, values} at publication
-  published_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (campaign_id, channel_preset_id)
-);
-
-CREATE TABLE IF NOT EXISTS content_overrides (
-  id text PRIMARY KEY,
-  variation_id text NOT NULL REFERENCES campaign_variations(id) ON DELETE CASCADE,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  param_key text NOT NULL,
-  value jsonb NOT NULL,
-  updated_by text REFERENCES users(id) ON DELETE SET NULL,
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (variation_id, param_key)
-);
-
--- ─── Governance ────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS approval_requests (
-  id text PRIMARY KEY,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  subject_type text NOT NULL CHECK (subject_type IN ('template_version', 'campaign')),
-  subject_id text NOT NULL,
-  requested_by text REFERENCES users(id) ON DELETE SET NULL,
-  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
-  note text NOT NULL DEFAULT '',
-  created_at timestamptz NOT NULL DEFAULT now(),
-  decided_at timestamptz
-);
-CREATE INDEX IF NOT EXISTS approvals_ws ON approval_requests (workspace_id, status);
-
-CREATE TABLE IF NOT EXISTS approval_decisions (
-  id text PRIMARY KEY,
-  request_id text NOT NULL REFERENCES approval_requests(id) ON DELETE CASCADE,
-  decided_by text REFERENCES users(id) ON DELETE SET NULL,
-  decision text NOT NULL CHECK (decision IN ('approved', 'rejected')),
-  comment text NOT NULL DEFAULT '',
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS campaign_approvals (
-  id text PRIMARY KEY,
-  campaign_id text NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
-  approval_request_id text NOT NULL REFERENCES approval_requests(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS audit_events (
@@ -473,18 +311,6 @@ CREATE TABLE IF NOT EXISTS exported_files (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS published_assets (
-  id text PRIMARY KEY,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  template_id text REFERENCES motion_templates(id) ON DELETE RESTRICT,
-  template_version_id text REFERENCES template_versions(id) ON DELETE RESTRICT,
-  variation_id text REFERENCES campaign_variations(id) ON DELETE SET NULL,
-  kind text NOT NULL,
-  config jsonb NOT NULL,
-  created_by text REFERENCES users(id) ON DELETE SET NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
 CREATE TABLE IF NOT EXISTS integration_connections (
   id text PRIMARY KEY,
   workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -498,46 +324,9 @@ CREATE TABLE IF NOT EXISTS integration_connections (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS publication_jobs (
-  id text PRIMARY KEY,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  connection_id text NOT NULL REFERENCES integration_connections(id) ON DELETE CASCADE,
-  export_job_id text REFERENCES export_jobs(id) ON DELETE SET NULL,
-  status text NOT NULL CHECK (status IN ('pending', 'confirmed', 'rejected', 'failed')),
-  destination_ref text,
-  error text,
-  created_by text REFERENCES users(id) ON DELETE SET NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
 -- Connections for design import (Figma) and analytics (GA4, Meta, LinkedIn) share integration_connections.
 ALTER TABLE integration_connections ADD COLUMN IF NOT EXISTS last_error text;
 ALTER TABLE integration_connections ADD COLUMN IF NOT EXISTS checked_at timestamptz;
-
-CREATE TABLE IF NOT EXISTS analytics_links (
-  id text PRIMARY KEY,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  project_id text NOT NULL REFERENCES motion_projects(id) ON DELETE CASCADE,
-  connection_id text NOT NULL REFERENCES integration_connections(id) ON DELETE CASCADE,
-  kind text NOT NULL CHECK (kind IN ('ga4', 'instagram', 'facebook', 'linkedin')),
-  ref text NOT NULL,
-  label text NOT NULL DEFAULT '',
-  created_by text REFERENCES users(id) ON DELETE SET NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS analytics_links_ws ON analytics_links (workspace_id);
-
-CREATE TABLE IF NOT EXISTS analytics_snapshots (
-  id text PRIMARY KEY,
-  link_id text NOT NULL REFERENCES analytics_links(id) ON DELETE CASCADE,
-  fetched_at timestamptz NOT NULL DEFAULT now(),
-  ok boolean NOT NULL,
-  metrics jsonb NOT NULL DEFAULT '{}'::jsonb,
-  series jsonb NOT NULL DEFAULT '[]'::jsonb,
-  series_label text,
-  error text
-);
-CREATE INDEX IF NOT EXISTS analytics_snapshots_link ON analytics_snapshots (link_id, fetched_at DESC);
 
 -- Which permission keys have been rolled out to a workspace's system roles (see ensureGlobals).
 CREATE TABLE IF NOT EXISTS permission_rollouts (
@@ -546,22 +335,46 @@ CREATE TABLE IF NOT EXISTS permission_rollouts (
   PRIMARY KEY (workspace_id, key)
 );
 
--- Settings from the simple Create flow, so a motion can be reopened there. recipe_revision is the
--- scene revision the recipe produced; a newer scene revision means it was edited in the advanced editor.
-ALTER TABLE motion_projects ADD COLUMN IF NOT EXISTS recipe jsonb;
-ALTER TABLE motion_projects ADD COLUMN IF NOT EXISTS recipe_revision integer;
 
--- Simple campaigns from Create: one design adapted to several channel sizes, saved together under a brand.
--- Each channel is an ordinary motion project (with its own recipe and scene) that points at its campaign.
-CREATE TABLE IF NOT EXISTS motion_campaigns (
+-- Community: a shared gallery across every workspace on this server. A post is an immutable copy of a
+-- motion (its assets are copied into community storage), so remixes never reach back into the source
+-- workspace. Unpublishing hides a post; remixes already made are unaffected.
+CREATE TABLE IF NOT EXISTS community_posts (
   id text PRIMARY KEY,
-  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  brand_id text REFERENCES brands(id) ON DELETE SET NULL,
-  name text NOT NULL,
-  created_by text REFERENCES users(id) ON DELETE SET NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
+  project_id text REFERENCES motion_projects(id) ON DELETE SET NULL,
+  workspace_id text REFERENCES workspaces(id) ON DELETE SET NULL,
+  author_id text REFERENCES users(id) ON DELETE SET NULL,
+  author_name text NOT NULL,
+  title text NOT NULL,
+  description text NOT NULL DEFAULT '',
+  tags text[] NOT NULL DEFAULT '{}',
+  doc jsonb NOT NULL,
+  is_preset boolean NOT NULL DEFAULT false,
+  preset_key text UNIQUE,
+  remix_of text REFERENCES community_posts(id) ON DELETE SET NULL,
+  remix_count integer NOT NULL DEFAULT 0,
+  like_count integer NOT NULL DEFAULT 0,
+  published_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  deleted_at timestamptz
+  unpublished_at timestamptz
 );
-CREATE INDEX IF NOT EXISTS motion_campaigns_ws ON motion_campaigns (workspace_id, updated_at DESC) WHERE deleted_at IS NULL;
-ALTER TABLE motion_projects ADD COLUMN IF NOT EXISTS motion_campaign_id text REFERENCES motion_campaigns(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS community_posts_recent ON community_posts (published_at DESC) WHERE unpublished_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS community_assets (
+  id text PRIMARY KEY,
+  post_id text NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+  storage_key text NOT NULL,
+  mime text NOT NULL,
+  width integer,
+  height integer,
+  bytes bigint NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS community_likes (
+  post_id text NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+  user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (post_id, user_id)
+);
+
+ALTER TABLE motion_projects ADD COLUMN IF NOT EXISTS remix_of text;

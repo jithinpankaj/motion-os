@@ -1,19 +1,32 @@
 # Motion OS
 
-A unified motion design system, creative studio and distribution platform.
-**Create once. Adapt everywhere. Stay on brand.**
+An interactive motion design tool that's easy to learn: draw something, give it moves, and make it react to
+clicks, hovers, toggles, buttons, sliders — or the pointer itself. Start from scratch or remix a preset from
+the Community.
 
-Five places, no jargon:
+## What's in it
 
-- **Create** — upload a finished design (PNG, JPG, WebP, layered SVG, PDF, Illustrator `.ai`, Photoshop `.psd`, or a Figma frame link). Layered files are split into parts so each part moves on its own. Pick a motion style, adjust the message, format and length, save, download MP4/PNG. Pick several channels to make a **campaign**: every size saved together under the current brand, exported in one go (zip with manifest) and tracked as a group in Analytics.
-- **Brand kit** — import colours, fonts, logo and tone from your website, a logo/image, a guidelines PDF or pasted codes; review before saving. Tone sets a *motion personality* (calm, balanced, energetic, playful) that every new motion uses. Create reusable elements (shapes in brand colours) or upload your own.
-- **Library** — your team's motions and the approved brand templates.
-- **Analytics** — connect Google Analytics 4, Meta (Instagram/Facebook) or a LinkedIn Page, link each motion to its post or tagged link, and see reach, engagement, clicks and sessions in one dashboard.
-- **Advanced** (rail menu) — the full Motion Studio editor (layers, timeline, shaders), campaigns with channel variations, the asset library, publishing integrations and raw brand tokens.
+- **Editor** with four tabs:
+  - **Design** — rectangles, circles, polygons, stars, text, images, gradient and particle effects. Click to
+    select, drag to move, corners resize, the top dot rotates. Import a design (PNG, JPG, SVG, PDF, Illustrator,
+    Photoshop or a Figma frame) and its parts become separate layers.
+  - **Animate** — *moves* are short animations ("Turn on", "Bounce"). Pick a one-click move (Pop, Spin, Bounce,
+    Pulse, Wiggle, Shake, Float, Grow, Squash, Change colour…) or change things on the canvas and each change
+    becomes a keyframe at the playhead. Timeline with draggable keyframes and easing in plain words.
+  - **Interact** — *controls* (toggle, button, slider — a slider can follow the pointer) and *rules* written as
+    sentences: **When** someone clicks *Star* → **then** play *Spin*, with optional **only if** conditions.
+    **Slider links** let a slider set or shift a property (e.g. the pointer moves a character's eyes). One-click
+    recipes: click to toggle, hover effect, press to play.
+  - **Try it** — the live result with switches, buttons and sliders and a "what just happened" log.
+- **Community** — a gallery shared by everyone on this server. Twelve presets (Curious buddy, toggle switch,
+  favourite button, press button, progress loader, traffic light, checklist, day & night, hover card,
+  notification bell, bouncing ball, aurora mood). Open any post to play with it, like it, and remix your own copy.
+- **Export** — one move as MP4 or PNG (rendered frame-exact in a background worker), or the whole file as a
+  motion file (`.json`).
 
 ## Run it
 
-Requires Node 22+ and a Chromium-based browser (WebGL 2 + WebCodecs for MP4).
+Requires Node 22+ and a Chromium-based browser (WebGL 2; WebCodecs for MP4).
 
 ```bash
 npm install
@@ -23,22 +36,19 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. The first start creates `.data/` (PostgreSQL via PGlite + object storage) and seeds a demo workspace, **Lumen Studio**, with six published templates, four images and one draft project.
+Open http://localhost:5173. The first start creates `.data/` (PostgreSQL via PGlite + object storage), the
+community presets, and a demo workspace, **Lumen Studio**, with a few starter files. In development you're
+signed in automatically as **alex@motion.os**; sign out (or open `/login`) to pick another demo account.
 
-In development you're signed in automatically as **alex@motion.os** (Owner) — no login screen. To act as another role, sign out (or open `/login`) and pick an account under *Local development · continue as*. Set `DEV_LOGIN_EMAIL` to change the default account, or `DEV_AUTO_LOGIN=0` to always require a password. Passwordless sign-in is disabled in production and only answers requests from the local machine.
+| Email | Role |
+|---|---|
+| alex@motion.os | Owner — everything, including roles and the audit log |
+| dana@motion.os, mia@motion.os, omar@motion.os | Makers — create, animate, publish, remix |
+| eli@motion.os | Engineer — open, try and export |
+| vic@motion.os | Viewer — read only |
 
-Local demo accounts (development seed only; password `motion-os-demo`):
-
-| Email | Role | Try |
-|---|---|---|
-| alex@motion.os | Owner | approvals, roles & permissions, audit log |
-| dana@motion.os | Designer | Motion Studio, parameters, publishing |
-| mia@motion.os | Marketing (brand team) | Create, Brand kit import, Analytics, campaigns |
-| eli@motion.os | Engineer | Playground → Developer tab → embed example |
-| omar@motion.os | Operations | templates and exports |
-| vic@motion.os | Viewer | read-only library |
-
-To use a real PostgreSQL server instead of PGlite set `DATABASE_URL`. To reset, stop the server and delete `.data/`.
+Demo password: `motion-os-demo` (development seed only). Set `DATABASE_URL` to use a real PostgreSQL server;
+delete `.data/` to reset.
 
 ## Tests
 
@@ -46,21 +56,27 @@ To use a real PostgreSQL server instead of PGlite set `DATABASE_URL`. To reset, 
 npm test
 ```
 
-68 unit/integration tests: scene serialization & migration, timeline evaluation, parameter validation, campaign inheritance, permissions & status machine, compatibility/flash detection, brand-import parsing (colours, fonts, roles, tone), every motion style producing a valid scene, outbound-request safety, plus in-process API suites (permissions, workspace isolation, governed exports, template lifecycle, concurrency conflicts, upload validation, signed URLs, byte ranges, website import and GA4/Meta/LinkedIn connectors against a fake network, Create recipes, simple campaigns).
+55 unit/integration tests: the interaction runtime (toggles, buttons, number thresholds, pointer events,
+pointer following, slider links, resting state, chaining), one-click moves, every preset, scene validation and
+migration, timeline evaluation, permissions, compatibility, outbound-request safety, plus an in-process API
+suite (permissions, workspace isolation, exports of single moves, files, concurrency conflicts, upload
+validation, signed URLs, byte ranges, community publishing, image copying, remixing across workspaces,
+likes and unpublishing).
 
 ```bash
 npm run e2e
 ```
 
-10 Playwright tests in your installed Chrome: the five-place navigation per role, the Create flow (layered SVG → style → save → Library), a three-size campaign, Journey B end-to-end (customise → export MP4 → decode the file and verify size, duration and that the headline is in the frame), Studio playback-through-edits + autosave + reload, and visual regression for all five launch presets.
+11 Playwright tests in your installed Chrome: navigation per role; the editor end to end (try a toggle on the
+canvas, add a shape, one-click move, hover recipe, autosave and reload); trying and remixing the Curious buddy
+in the Community; exporting a move as MP4 and checking the file; and visual regression for seven presets.
 
 ## Layout
 
 ```
-shared/   scene schema, migrations, timeline, params, inheritance, adaptation, compatibility, permissions (client + server)
-server/   Express API, PostgreSQL schema, auth, permissions, storage, integrations, seed
-src/engine/   Clock, GPUContext, SceneRenderer, layer views, shaders, RenderHub (thumbnail scheduler), export worker
-src/features/ home, explore, studio, playground, campaigns, brand, assets, integrations, settings, embed
-src/embed/    framework-agnostic embed runtime (mountMotion)
-docs/     ARCHITECTURE.md (design deliverables), STATUS.md (what's built / limitations), SCENE_SPEC.md, API.md
+shared/   scene schema (shapes + interaction model), migrations, timeline, interaction runtime, moves, presets
+server/   Express API, PostgreSQL schema, auth, permissions, storage, community, Figma import, seed
+src/engine/   WebGL renderer (shapes, text, images, gradients, particles), export worker
+src/features/ home, editor, community, settings
+docs/     STATUS.md (what's built and what isn't), SCENE_SPEC.md, API.md
 ```

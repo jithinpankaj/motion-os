@@ -7,110 +7,107 @@ async function login(page: Page, email: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText(/Good (morning|afternoon|evening)/)).toBeVisible();
+  await expect(page.getByText(/what are we animating\?/)).toBeVisible();
 }
 
-test('navigation is five simple places and adapts to permissions', async ({ page }) => {
+test('navigation is simple and adapts to permissions', async ({ page }) => {
   await login(page, 'mia@motion.os');
   const nav = page.getByRole('navigation', { name: 'Primary' });
-  for (const name of ['Home', 'Create', 'Brand kit', 'Library', 'Analytics']) await expect(nav.getByRole('link', { name, exact: true })).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Explore' })).toHaveCount(0);
+  for (const name of ['Home', 'Community']) await expect(nav.getByRole('link', { name, exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'New file' })).toBeVisible();
   await page.context().clearCookies();
   await login(page, 'eli@motion.os');
-  await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Create', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New file' })).toHaveCount(0);
 });
 
-test('Create: a layered SVG becomes a brand motion in three steps', async ({ page }) => {
-  await login(page, 'mia@motion.os');
-  await page.goto('/create');
-  await page.getByLabel('Upload a design').setInputFiles('tests/e2e/fixtures/poster.svg');
-  await expect(page.getByText(/Found 5 parts in/)).toBeVisible({ timeout: 20_000 });
-  await page.getByRole('radio', { name: /Gentle float/ }).click();
-  await expect(page.getByRole('heading', { name: 'Make it yours' })).toBeVisible();
-  await page.getByRole('textbox', { name: 'Headline' }).fill('Feel the season');
-  const name = `E2E spring float ${Date.now()}`;
-  await page.getByLabel('Motion name').fill(name);
-  await page.getByRole('button', { name: 'Save motion' }).click();
-  await expect(page.getByText('Saved to your library')).toBeVisible();
-  await expect(page).toHaveURL(/\/create\/prj_/);
-  await page.goto('/library');
-  await expect(page.getByText(name)).toBeVisible();
+const openFile = async (page: Page, name: string) => {
+  const id = await page.evaluate(async (n) => {
+    const s = await fetch('/api/session').then((r) => r.json());
+    const p = (await fetch('/api/projects', { headers: { 'x-workspace-id': s.workspaces[0].id } }).then((r) => r.json())).projects;
+    return p.find((x: any) => x.name === n).id;
+  }, name);
+  await page.goto(`/edit/${id}`);
+  await expect(page.getByRole('navigation', { name: 'Editor mode' })).toBeVisible();
+};
+
+test('Editor: design, animate, interact and try a toggle switch', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await login(page, 'dana@motion.os');
+  // A fresh copy of the preset each run, so the test never depends on earlier edits.
+  const id = await page.evaluate(async () => {
+    const s = await fetch('/api/session').then((r) => r.json());
+    const r = await fetch('/api/projects', { method: 'POST', headers: { 'content-type': 'application/json', 'x-workspace-id': s.workspaces[0].id }, body: JSON.stringify({ name: 'E2E toggle', preset: 'toggle-switch' }) }).then((x) => x.json());
+    return r.id;
+  });
+  await page.goto(`/edit/${id}`);
+  // Try it: clicking the switch on the canvas flips the "On" control.
+  await page.getByRole('button', { name: 'Try it' }).click();
+  const box = await page.locator('.stage-box').boundingBox();
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await expect(page.getByRole('switch', { name: 'On' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.log')).toContainText('Turn on');
+  // Design: add a star; Animate: give it a one-click Spin, which becomes its own move.
+  await page.getByRole('button', { name: 'Design' }).click();
+  await page.locator('.tool', { hasText: 'Star' }).click();
+  await expect(page.locator('.layer-row[aria-selected="true"]')).toContainText('Star');
+  await page.getByRole('button', { name: 'Animate' }).click();
+  await page.locator('.move', { hasText: 'Spin' }).click();
+  await expect(page.locator('.tl-head .chip[aria-pressed="true"]')).toContainText('Star · Spin');
+  // Interact: a hover recipe adds two readable rules.
+  await page.getByRole('button', { name: 'Interact' }).click();
+  await page.locator('.move', { hasText: 'Hover effect' }).click();
+  await page.locator('.modal select').first().selectOption({ label: 'Star' });
+  await page.locator('.modal select').nth(1).selectOption({ index: (await page.locator('.modal select').nth(1).locator('option').count()) - 1 });
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.locator('.rule').filter({ hasText: 'hovers over' }).first()).toBeVisible();
+  await expect(page.locator('.ed-top')).toContainText('All changes saved', { timeout: 8000 });
+  await page.reload();
+  await page.getByRole('button', { name: 'Interact' }).click();
+  await expect(page.locator('.rule').filter({ hasText: 'hovers over' }).first()).toBeVisible();
 });
 
-test('Create: one design saved as a campaign in three sizes', async ({ page }) => {
+test('Community: try the curious buddy, then remix it', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
   await login(page, 'mia@motion.os');
-  await page.goto('/create');
-  await page.getByLabel('Upload a design').setInputFiles('tests/e2e/fixtures/poster.svg');
-  await expect(page.getByText(/Found 5 parts in/)).toBeVisible({ timeout: 20_000 });
-  await page.getByRole('radio', { name: /Build in/ }).click();
-  for (const n of ['Instagram Feed', 'Instagram Story', 'LinkedIn Feed']) await page.locator('.tune .chip', { hasText: n }).click();
-  await expect(page.getByRole('radiogroup', { name: 'Preview channel' }).getByRole('radio')).toHaveCount(3);
-  const name = `E2E campaign ${Date.now()}`;
-  await page.getByLabel('Campaign name').fill(name);
-  await page.getByRole('button', { name: 'Save campaign · 3 sizes' }).click();
-  await expect(page.getByText('Campaign saved — 3 sizes')).toBeVisible();
-  await expect(page).toHaveURL(/\/create\/campaign\/mcp_/);
-  await expect(page.locator('.ch-status')).toHaveCount(3);
-  await page.goto('/library');
-  await expect(page.getByRole('link', { name: new RegExp(name) })).toBeVisible();
+  await page.goto('/community?sort=presets');
+  await page.getByRole('button', { name: /Curious buddy/ }).first().click();
+  await expect(page.getByRole('heading', { name: 'Curious buddy' })).toBeVisible();
+  await expect(page.locator('.widget', { hasText: 'Look X' })).toContainText('Follows the pointer');
+  await page.mouse.move(10, 10);
+  await page.mouse.move(1300, 800, { steps: 8 });
+  await page.getByRole('button', { name: 'Press' }).click();
+  await expect(page.locator('.log')).toContainText('Happy jump');
+  await page.getByRole('button', { name: /Remix into my files/ }).click();
+  await expect(page).toHaveURL(/\/edit\/prj_/);
+  await expect(page.locator('.ed-top')).toContainText('Curious buddy remix');
 });
 
-test('Journey B: marketing customises a template and exports a valid MP4', async ({ page }) => {
-  await login(page, 'mia@motion.os');
-  await page.goto('/explore?channel=instagram-story');
-  await page.getByRole('button', { name: 'Open Aurora Flow' }).click();
-  await expect(page).toHaveURL(/\/play\//);
-  const headline = page.locator('#param-headline');
-  await headline.fill('Spring\nLight');
-  await page.getByRole('radio', { name: 'Dusk' }).click();
-  await expect(page.getByText('locked').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Export' }).first().click();
-  const dur = page.getByRole('textbox', { name: 'Duration', exact: true });
-  await dur.fill('2');
-  await dur.press('Enter');
+test('Export: one move as MP4 at the file size', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await login(page, 'dana@motion.os');
+  await openFile(page, 'Day & night');
   const started = new Date().toISOString();
-  await page.getByRole('button', { name: /Export MP4/ }).click();
-  // Wait for this run's job (the shared dev database keeps earlier exports in the queue).
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  await page.locator('.modal').getByRole('button', { name: 'Export', exact: true }).click();
   const latest = () => page.evaluate(async (since) => {
     const s = await fetch('/api/session').then((r) => r.json());
     const jobs = (await fetch('/api/exports', { headers: { 'x-workspace-id': s.workspaces[0].id } }).then((r) => r.json())).jobs;
     return jobs.find((x: any) => x.format === 'mp4' && x.createdAt >= since) ?? null;
   }, started);
   await expect.poll(async () => (await latest())?.status, { timeout: 60_000 }).toBe('completed');
-  await expect(page.getByLabel('Export queue').getByText('completed').first()).toBeVisible();
   const job = await latest();
   const info = await page.evaluate(async (j) => {
     const v = document.createElement('video');
     v.muted = true; v.src = j.result.url;
-    await new Promise((r) => (v.onloadeddata = r));
-    v.currentTime = 1.8; await new Promise((r) => (v.onseeked = r));
-    const c = new OffscreenCanvas(108, 192); const x = c.getContext('2d')!; x.drawImage(v, 0, 0, 108, 192);
-    const px = x.getImageData(0, 0, 108, 192).data; let max = 0;
-    for (let i = 0; i < px.length; i += 4) max = Math.max(max, Math.min(px[i], px[i + 1], px[i + 2]));
-    return { w: v.videoWidth, h: v.videoHeight, d: v.duration, expected: j.settings.duration * j.settings.loops, brightest: max };
+    await new Promise((r) => (v.onloadedmetadata = r));
+    return { w: v.videoWidth, h: v.videoHeight, d: v.duration };
   }, job);
-  expect(info).toMatchObject({ w: 1080, h: 1920 });
-  expect(info.d).toBeCloseTo(info.expected, 1);
-  expect(info.brightest).toBeGreaterThan(200); // headline text present in the encoded frame
-});
-
-test('Studio: playback continues while editing and the scene autosaves', async ({ page }) => {
-  await login(page, 'dana@motion.os');
-  await page.goto('/studio');
-  await page.getByRole('button', { name: 'Open Kinetic Typography' }).click();
-  await page.getByRole('treeitem').filter({ hasText: 'Headline' }).click();
-  const t0 = await page.locator('.tl-time').textContent();
-  await page.getByLabel('Text content').fill('FLOW');
-  await page.waitForTimeout(600);
-  expect(await page.locator('.tl-time').textContent()).not.toBe(t0);
-  await expect(page.locator('.save-pill')).toHaveText('Saved', { timeout: 8000 });
-  await page.reload();
-  await page.getByRole('treeitem').filter({ hasText: 'Headline' }).click();
-  await expect(page.getByLabel('Text content')).toHaveValue('FLOW');
+  expect(info).toMatchObject({ w: 1080, h: 1080 });
+  expect(info.d).toBeCloseTo(1.6, 1); // the "Sunset" move
 });
 
 test.describe('visual regression', () => {
-  for (const name of ['Aurora Flow', 'Liquid Mesh', 'Organic Blobs', 'Particle Field', 'Kinetic Typography']) {
+  for (const name of ['Aurora Flow', 'Liquid Mesh', 'Organic Blobs', 'Particle Field', 'Kinetic Typography', 'Curious buddy', 'Traffic light']) {
     test(`${name} renders deterministically`, async ({ page }) => {
       await login(page, 'dana@motion.os');
       const png = await page.evaluate(async (presetName) => {
@@ -119,9 +116,11 @@ test.describe('visual regression', () => {
         const { GPUContext } = await load('/src/engine/gpu.ts');
         const { SceneRenderer } = await load('/src/engine/renderer.ts');
         const presets = await load('/shared/scene/presets.ts');
+        const motion = await load('/shared/motion/presets.ts');
         const { nullResolver } = await load('/src/engine/assets.ts');
-        const build = presets.LAUNCH_PRESETS.find((p: any) => p.build().meta.name === presetName)!.build;
-        const doc = build('scn_visual');
+        // Effect presets render their timeline; interactive presets render their designed resting state.
+        const fx = presets.LAUNCH_PRESETS.find((p: any) => p.build().meta.name === presetName);
+        const doc = fx ? fx.build('scn_visual') : motion.MOTION_PRESETS.find((p: any) => p.name === presetName).build();
         const c = new OffscreenCanvas(432, 540);
         const gpu = new GPUContext(c, { preserveDrawingBuffer: true });
         gpu.renderer.setSize(432, 540, false);

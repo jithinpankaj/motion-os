@@ -6,6 +6,7 @@ import { localStorage } from './storage';
 import { createApp } from './app';
 import { ensureGlobals } from './services/workspace';
 import { seedDemo } from './seed';
+import { ensurePresetPosts } from './routes/community';
 
 const dataDir = path.resolve(process.env.DATA_DIR ?? '.data');
 mkdirSync(dataDir, { recursive: true });
@@ -17,6 +18,7 @@ const isProd = process.env.NODE_ENV === 'production';
 const db = await openDb(path.join(dataDir, 'pg'));
 const storage = localStorage(path.join(dataDir, 'objects'), secret);
 await ensureGlobals(db);
+await ensurePresetPosts(db);
 if (!isProd || process.env.SEED_DEMO === '1') await seedDemo(db, storage);
 
 const port = Number(process.env.PORT ?? 8787);

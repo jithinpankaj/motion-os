@@ -4,7 +4,7 @@ import { useCan, useSession } from '../../lib/session';
 import { Avatar, EmptyState, Field, Modal, Tabs, timeAgo, toast } from '../../ui/controls';
 import { Icon } from '../../ui/Icon';
 import { Link } from 'react-router-dom';
-import { FigmaConnect } from '../create/Create';
+import { FigmaConnect } from '../../components/FigmaConnect';
 
 type Tab = 'profile' | 'members' | 'roles' | 'connections' | 'audit';
 

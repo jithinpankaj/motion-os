@@ -1,20 +1,18 @@
 # API reference
 
 Base path `/api`. JSON bodies unless noted. Errors: `{ "error": { "code", "message", "details?" } }`.
-Authentication: `mos_session` httpOnly cookie (or `Authorization: Bearer`). Tenant routes require
-`X-Workspace-Id`; membership and permissions are re-checked on every request (permission changes apply
-immediately, including in open editors). Permission keys are listed in `shared/permissions.ts`.
+Authentication: `mos_session` httpOnly cookie. Workspace routes require `X-Workspace-Id`; membership and
+permissions are re-checked on every request. Community browsing only needs a signed-in user (the gallery
+is shared by everyone on the server); publishing and remixing act on a workspace.
 
-Notable status codes: `401 unauthenticated`, `403 forbidden | workspace_access_lost`, `409 conflict`
-(stale scene revision — `details` carries the server document), `413 too_large`, `422 format_unavailable |
-connector_unavailable`, `429 rate_limited | quota`.
+Notable status codes: `401 unauthenticated`, `403 forbidden | workspace_access_lost`, `409 conflict` (stale
+scene revision — `details` carries the server document), `413 too_large`, `422 format_unavailable |
+figma_not_connected`, `429 rate_limited | quota`.
 
 ## Routes
 
 | Method | Path | Permission |
 |---|---|---|
-| GET | `/api/approvals` | workspace.view |
-| POST | `/api/approvals/:id/decide` | template.approve or campaign.approve (checked in handler; no self-approval unless owner/admin) |
 | GET | `/api/assets` | asset.view |
 | POST | `/api/assets` | asset.upload |
 | DELETE | `/api/assets/:id` | asset.manage |
@@ -23,32 +21,28 @@ connector_unavailable`, `429 rate_limited | quota`.
 | POST | `/api/assets/:id/references/:refId/follow` | asset.upload |
 | POST | `/api/assets/:id/replace` | asset.upload |
 | POST | `/api/assets/resolve` | asset.view |
-| POST | `/api/assistant` | library.view |
 | GET | `/api/audit` | audit.view |
-| POST | `/api/auth/login` | session / public |
-| POST | `/api/auth/logout` | session / public |
-| POST | `/api/auth/password` | session / public |
-| POST | `/api/auth/register` | session / public |
-| POST | `/api/auth/reset/confirm` | session / public |
-| POST | `/api/auth/reset/request` | session / public |
-| GET | `/api/auth/sessions` | session / public |
-| DELETE | `/api/auth/sessions/:prefix` | session / public |
-| GET | `/api/brands/:id/tokens` | brand.view |
-| PUT | `/api/brands/:id/tokens` | brand.edit |
-| GET | `/api/brands/:id/versions` | brand.view |
-| POST | `/api/brands/:id/versions/:version/restore` | brand.edit |
-| GET | `/api/campaigns` | campaign.view |
-| POST | `/api/campaigns` | campaign.edit |
-| GET | `/api/campaigns/:id` | campaign.view |
-| PUT | `/api/campaigns/:id/master` | campaign.edit |
-| POST | `/api/campaigns/:id/publish` | campaign.approve |
-| POST | `/api/campaigns/:id/submit` | campaign.edit |
-| POST | `/api/campaigns/:id/upgrade` | campaign.edit |
-| POST | `/api/campaigns/:id/variations` | campaign.edit |
-| DELETE | `/api/campaigns/:id/variations/:vid` | campaign.edit |
-| DELETE | `/api/campaigns/:id/variations/:vid/overrides/:key` | campaign.edit |
-| PUT | `/api/campaigns/:id/variations/:vid/overrides/:key` | campaign.edit |
-| GET | `/api/dev/mailbox` | session / public |
+| POST | `/api/auth/dev-login` | development only, loopback |
+| POST | `/api/auth/login` | public (rate limited where relevant) |
+| POST | `/api/auth/logout` | public (rate limited where relevant) |
+| POST | `/api/auth/password` | signed in |
+| POST | `/api/auth/register` | public (rate limited where relevant) |
+| POST | `/api/auth/reset/confirm` | public (rate limited where relevant) |
+| POST | `/api/auth/reset/request` | public (rate limited where relevant) |
+| GET | `/api/auth/sessions` | signed in |
+| DELETE | `/api/auth/sessions/:prefix` | signed in |
+| GET | `/api/community` | signed in |
+| POST | `/api/community` | community.publish |
+| DELETE | `/api/community/:id` | scene.view |
+| GET | `/api/community/:id` | signed in |
+| POST | `/api/community/:id/like` | signed in |
+| POST | `/api/community/:id/remix` | scene.create |
+| DELETE | `/api/connections/figma` | integration.manage |
+| GET | `/api/connections/figma` | asset.view |
+| PUT | `/api/connections/figma` | integration.manage |
+| POST | `/api/design-import/figma` | asset.upload |
+| GET | `/api/dev/accounts` | development only, loopback |
+| GET | `/api/dev/mailbox` | development only, loopback |
 | GET | `/api/exports` | export.create |
 | POST | `/api/exports` | export.create |
 | PATCH | `/api/exports/:id` | export.create |
@@ -56,16 +50,8 @@ connector_unavailable`, `429 rate_limited | quota`.
 | PUT | `/api/exports/:id/result` | export.create |
 | POST | `/api/exports/:id/retry` | export.create |
 | GET | `/api/exports/:id/scene` | export.create |
-| GET | `/files/*` | signed URL |
-| GET | `/api/home` | workspace.view |
-| GET | `/api/integrations` | integration.view |
-| POST | `/api/integrations/:provider/connect` | integration.manage |
-| DELETE | `/api/integrations/connections/:id` | integration.manage |
-| POST | `/api/integrations/connections/:id/publish` | integration.manage |
-| POST | `/api/integrations/package` | export.create |
-| GET | `/api/invitations/:token` | session / public |
-| POST | `/api/invitations/:token/accept` | session / public |
-| GET | `/api/library` | library.view |
+| GET | `/api/invitations/:token` | public (rate limited where relevant) |
+| POST | `/api/invitations/:token/accept` | signed in |
 | GET | `/api/projects` | scene.view |
 | POST | `/api/projects` | scene.create |
 | DELETE | `/api/projects/:id` | scene.delete |
@@ -73,19 +59,12 @@ connector_unavailable`, `429 rate_limited | quota`.
 | PATCH | `/api/projects/:id` | scene.edit |
 | POST | `/api/projects/:id/duplicate` | scene.create |
 | PUT | `/api/projects/:id/scene` | scene.edit |
-| POST | `/api/projects/:id/submit` | template.submit |
 | GET | `/api/projects/:id/versions` | scene.view |
 | POST | `/api/projects/:id/versions` | scene.edit |
 | GET | `/api/projects/:id/versions/:vid` | scene.view |
 | POST | `/api/projects/:id/versions/:vid/branch` | scene.create |
 | POST | `/api/projects/:id/versions/:vid/restore` | scene.edit |
-| GET | `/api/session` | session / public |
-| DELETE | `/api/templates/:id` | template.deprecate |
-| GET | `/api/templates/:id` | library.view |
-| GET | `/api/templates/:id/delivery` | template.code |
-| POST | `/api/templates/:id/publish` | template.publish |
-| POST | `/api/templates/:id/resolve` | template.use |
-| POST | `/api/templates/:id/status` | per transition (`TEMPLATE_TRANSITIONS`) |
+| GET | `/api/session` | public (rate limited where relevant) |
 | GET | `/api/workspace` | workspace.view |
 | POST | `/api/workspace/invitations` | members.manage |
 | DELETE | `/api/workspace/invitations/:id` | members.manage |
@@ -95,44 +74,18 @@ connector_unavailable`, `429 rate_limited | quota`.
 | POST | `/api/workspace/roles` | roles.manage |
 | PUT | `/api/workspace/roles/:roleId/permissions` | roles.manage |
 | POST | `/api/workspace/teams` | members.manage |
+| GET | `/files/*key` | public (rate limited where relevant) |
 
-Binary uploads (`POST /assets`, `POST /assets/:id/replace`, `PUT /exports/:id/result`) take the raw file
-as the request body; metadata goes in the query string. Files are classified by magic bytes; active SVG
-content is rejected. Downloads use `/files/<key>?exp=&sig=` signed URLs (HMAC, expiring, Range-capable).
+## Notes
 
-### Simple flows (Create, Brand kit import, Analytics)
-
-| Method | Path | Permission |
-|---|---|---|
-| POST | `/api/projects` (with `recipe`) | scene.create — saves the Create settings with the scene |
-| PUT | `/api/projects/:id/recipe` | scene.edit — rebuilt scene + recipe, same revision check (409 on conflict) |
-| POST | `/api/brand-import/website` | brand.edit — `{ url }` → findings (colours, fonts, logos, copy tone); nothing saved |
-| POST | `/api/brand-import/remote-asset` | asset.upload — server fetches a logo/image URL into the asset library |
-| GET / PUT / DELETE | `/api/connections/figma` | asset.view / integration.manage — token checked with Figma `/v1/me` before saving |
-| POST | `/api/design-import/figma` | asset.upload — `{ link }` → one PNG asset per top-level frame child + positions |
-| GET | `/api/analytics/connections` | analytics.view |
-| POST | `/api/analytics/connections/:provider` | analytics.manage — `ga4 \| meta \| linkedin`; credentials verified with the provider first |
-| DELETE | `/api/analytics/connections/:id` | analytics.manage |
-| POST | `/api/analytics/links` | analytics.manage — `{ projectId, kind: ga4 \| instagram \| facebook \| linkedin, ref? }` |
-| DELETE | `/api/analytics/links/:id` | analytics.manage |
-| POST | `/api/analytics/links/:id/refresh` | analytics.view — fetches live numbers; failures are stored and shown |
-| GET | `/api/analytics/dashboard` | analytics.view — latest snapshot per link, last good numbers kept on failure |
-| GET | `/api/analytics/utm/:projectId` | analytics.view — `utm_content` (per size) and `utm_campaign` (per campaign) |
-| GET | `/api/motion-campaigns` | scene.view — campaigns with their sizes and brand |
-| POST | `/api/motion-campaigns` | scene.create — `{ name, brandId, recipe, items: [{ format, doc, projectId?, baseRevision? }] }`; each doc must match its channel size; `projectId` adopts an existing motion (scene.edit) |
-| GET | `/api/motion-campaigns/:id` | scene.view — sizes with recipe, revision and latest export (`upToDate`) |
-| PUT | `/api/motion-campaigns/:id` | scene.edit — updates sizes (revision-checked, 409 lists stale sizes), adds new ones, moves removed ones to the bin |
-| GET | `/api/motion-campaigns/:id/package` | export.create — zip of up-to-date exports per size + manifest (409 when none) |
-| DELETE | `/api/motion-campaigns/:id` | scene.delete — soft-deletes the campaign and its sizes |
-
-Outbound requests for user-supplied URLs (`safeFetch`) allow only http(s), resolve DNS and refuse private,
-loopback and link-local addresses on every redirect hop, and cap size and time. Third-party credentials are
-stored AES-256-GCM encrypted (`secret_enc`) and never returned.
-
-## Export job lifecycle
-
-`POST /exports { source, format, settings, channel? }` → server resolves the scene (project draft, or
-template version + `applyParameters(values)` with the caller's roles, or campaign variation), adapts it to
-the channel, stores a snapshot → `queued`. The client worker `PATCH`es `processing` + progress, renders,
-then `PUT /exports/:id/result` (validated against format and dimensions) → `completed`. `scene-json` and
-`embed` complete on the server immediately. `POST /exports/:id/cancel | retry`.
+- `POST /api/projects` takes `{ name, width?, height?, background? }` for a blank file, `{ name, preset }` for a
+  built-in preset (see `shared/motion/presets.ts`) or `{ name, scene }` to import a motion file (migrated and
+  validated before it is stored).
+- `POST /api/exports` takes `{ source: { kind: 'project', id, animationId? }, format, settings }`. With an
+  `animationId` that one move is rendered as a plain timeline; `scene-json` always exports the whole file
+  including controls, moves, rules and slider links.
+- `POST /api/community` publishes (or, if the file already has a live post, updates) a copy of a file. Images
+  are copied into community storage; the post never references the author's workspace. `POST
+  /api/community/:id/remix` copies the post (and its images) into the caller's workspace.
+- Outbound requests for user-supplied URLs (Figma) allow only http(s), refuse private, loopback and link-local
+  addresses on every redirect hop, and cap size and time. Third-party tokens are stored AES-256-GCM encrypted.

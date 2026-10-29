@@ -1,145 +1,45 @@
-# Status by milestone
+# Status
 
-Everything listed as **Built** was exercised in the running app or by automated tests. Items under
-**Not built / limitations** are deliberately not represented as working in the UI.
+The product is an interactive motion editor with a community gallery. Campaigns, brand kit, analytics,
+templates/approvals and the old playground were removed (their history is in git).
 
-## Verification performed
+## Built and verified
 
-| Journey | How it was verified | Result |
-|---|---|---|
-| A — Designer creates motion | Browser: new scene from Aurora preset → edit → keyframe → shader error recovery → submit (self-approval blocked) → owner approves on Home → publish; library visibility checked per role | Pass — template visible to Marketing only, hidden from Engineering as configured |
-| B — Marketing Instagram content | Browser: Explore (Story) → Playground → headline + Dusk palette → MP4 export; file decoded in browser | Pass — H.264, 1080×1920, 240 frames, 8.000 s, headline present in frames |
-| C — Multi-channel campaign | Browser: campaign with IG / LinkedIn / Web → master accent change → LinkedIn headline override → export | Pass — three MP4s at 1080×1350, 1200×1200, 1920×1080; only LinkedIn shows the override; all share the master accent |
-| D — Engineering | Browser: Developer tab → version-pinned config → local embed example (WebGL, reduced-motion, no-WebGL fallback) | Pass |
-| Continuous playback | Studio: edited text while playing; frame counter kept advancing (f51→f54→f57), autosave completed | Pass (also an e2e test) |
-| Determinism | Visual regression baselines re-rendered identically on a second run | Pass |
+| Area | How it was verified |
+|---|---|
+| Editor — Design | Browser: added a star, dragged it (position matched pointer distance), resized from a corner; inspector values updated; autosaved and survived reload |
+| Editor — Animate | Browser: one-click Spin created its own move “Star · Spin”; timeline rows and keyframes shown; scrubbing and playback |
+| Editor — Interact | Browser: hover recipe produced two sentence rules; changing an action to “stop” took effect |
+| Editor — Try it | Browser: clicking the toggle switch on the canvas flipped “On”, played “Turn on”; the widget played it backwards |
+| Pointer following | Unit test: Curious buddy’s pupils ease (not snap) to a 40 px / 32 px shift, clamp at the canvas edge, move more than the eye whites, stay out of the log, and return to centre when the pointer leaves; e2e moves the mouse on the post page |
+| Community | Browser + API tests: publish with image copied into community storage, open as another user, play with it, like, remix into another workspace (image copied there), unpublish (remixes survive), presets can’t be unpublished, republishing updates the same post |
+| Export | e2e: “Sunset” move exported as MP4 at 1080×1080, 1.6 s, decoded in the browser; API tests for single-move timelines and full motion-file export |
+| Rendering | Visual-regression baselines for five effect presets and two shape presets |
 
-Automated: `npm test` 68/68, `npm run e2e` 10/10, `tsc --noEmit` clean, `vite build` succeeds.
+Automated: `npm test` 55/55, `npm run e2e` 11/11, `tsc --noEmit` clean, `vite build` succeeds.
 
-Bugs found and fixed during verification: canvas context reuse under React StrictMode; Playground header
-grid-area collision; text-field remount mid-typing; modal initial focus; card grid sizing; missing HTTP
-Range support (exported videos could not be seeked); export frames now snapshot via
-`transferToImageBitmap` before encoding; invalid scene imports returned 500 instead of 400; Liquid Mesh
-silhouette artifacts; Particle Field attractor too weak to read.
+## How it works
 
-## Simple campaigns in Create
-
-**Built and verified in the browser**: picking several channels in Create turns a motion into a campaign —
-one project per size, saved together under the selected brand (`motion_campaigns`, projects carry
-`motion_campaign_id`). Verified: poster → Instagram Feed / Story / LinkedIn saved as one campaign; “Export all”
-produced three MP4s at exactly 1080×1350, 1080×1920 and 1200×1200 (8 s); the zip held all three in per-channel
-folders plus a manifest (campaign, brand). Reopening restored every size; removing Story and adding Website Hero
-moved Story to the bin, added Hero, and marked the edited sizes “changed since export” so stale files are left
-out of the zip. Library shows campaigns as grouped cards with their brand. An existing single motion can be
-turned into a campaign. Analytics filters by campaign, groups rows with subtotals, and the link dialog can link
-every size at once (one tagged GA4 link per size sharing `utm_campaign`).
-
-**Limitations**: the design is fitted into each size and its background stretched to fill the frame; parts are
-not re-arranged per channel (check each size in the strip, or adjust in the advanced editor). Linking a
-campaign in Analytics was verified through the API tests only, since no live analytics account is connected.
-
-## Brand-team release — simplified product
-
-**Built and verified in the browser**
-- Navigation reduced to Home, Create, Brand kit, Library, Analytics; power tools moved to an Advanced menu.
-  Marketing (the brand team) can now create motion, edit the brand kit and manage analytics.
-- **Create** (3 steps): layered SVG → 5 parts; Photoshop → 3 positioned pixel layers; layered PDF/Illustrator
-  (PDF-compatible, optional content groups) → 4 named layers; raster images → one piece. Six motion styles
-  (build in, gentle float, brand backdrop, pop & sparkle, slow zoom, headline focus) × four personalities.
-  Headline and new elements are placed in the emptiest area of the design. A saved motion exported to MP4
-  (1536×1920, 8.000 s) with the uploaded parts and transparency intact.
-- **Brand kit import**: guidelines PDF → HEX/RGB codes, font names, “calm” tone; real website (stripe.com) →
-  palette, Söhne/Source Code Pro mapped to available fonts, inline SVG logo + touch icon, “energetic” tone.
-  Review before save; saves a new token version (previous versions restorable).
-- **Elements**: shape maker in brand colours and element upload, added to motions from Create.
-- **Analytics**: connect screens for GA4 (service account), Meta and LinkedIn; real calls with invalid
-  credentials to Figma, Meta, LinkedIn and Google were rejected with the provider’s reason and nothing was saved.
-
-**Bugs found and fixed while verifying**: image layers ignored PNG transparency (black boxes) — the shader now
-uses texture alpha with premultiplied upload; pdf.js layer API mismatch; PDF text lines merged (font names
-ran together); duplicate voice words; preview canvas had zero height; sticky preview covered controls on
-narrow screens; raw CSS font identifiers (`sohne-var`) shown to users.
-
-**Not verified / limitations**
-- GA4, Meta and LinkedIn metrics were verified against a fake network (request shapes, signed JWT, parsing,
-  failure handling), **not against live accounts** — that needs your credentials. LinkedIn also requires an
-  app with Community Management API approval; Meta needs `instagram_manage_insights` / `read_insights`.
-- Figma import was tested for token rejection and link parsing only; a live frame import needs a token.
-- Illustrator files must be saved with PDF compatibility; layers come through only when the PDF part has
-  optional content groups. Photoshop layer styles (shadows, strokes) and adjustment layers are not applied.
-- Brand fonts that aren’t bundled are mapped to the closest bundled font; uploading custom font files into
-  scenes from the simple flow is not built yet.
-- Elements are placed automatically; there is no drag-to-position in the simple flow (use the advanced editor).
-- Simple-flow motions aren’t grouped into campaigns yet; Advanced → Campaigns works from approved templates.
-- Website import reads the server-rendered HTML and up to six stylesheets; sites that render everything with
-  JavaScript return fewer findings. DNS is checked before each request but not pinned for the connection.
-
-## M1 Foundation — Built
-App shell with permission-adaptive rail, workspace + brand switcher always visible, ⌘K palette. Email/password
-auth (scrypt, hashed session tokens, httpOnly cookies), password reset (dev mailbox), sessions list/revoke,
-invitations, multi-team / multi-role membership, configurable role→permission matrix, audit log. PostgreSQL
-schema (all Part 13 tables + `dev_mailbox`, `invitations`, `password_resets`, `template_versions`,
-`membership_roles`). Object storage adapter with HMAC-signed, expiring URLs and byte ranges.
-
-## M2 Engine — Built
-Three.js/WebGL 2 renderer with per-layer views; gradient engine (linear, radial, mesh, aurora, noise, organic)
-with OKLab/smooth/linear interpolation, noise, distortion, flow, grain; seamless loops (circular noise phase,
-integer cycles, quantised particle lifetimes). Versioned Zod schema, migrations (v1→v2), canonical
-serialisation. Central clock; edits never touch time; structural keys rebuild only what changed.
-Performance: DPR control, adaptive quality, overload warning, texture/geometry caches, program reuse,
-disposal, visibility pausing, context-loss recovery (with a "simulate" button), per-layer render error
-boundary, metrics inspector (FPS, frame ms, draw calls, triangles, points, texture MB, compile ms).
-
-## M3 Studio — Built
-Hierarchy (add/remove/duplicate/rename/group/ungroup/reorder by drag/hide/lock/multi-select), contextual
-inspector for all layer types, expert shader panel (validated snippet, compile errors auto-revert), timeline
-(play/pause/scrub/loop/speed/duration/frame step, keyframes with drag + easing curve editor, reveal clips),
-direct manipulation (drag text/images, orbit camera), zoom/pan/fit/1:1/fullscreen, grid/guides/safe areas,
-preview-as-format, reduced/static motion preview, undo/redo with coalescing, autosave, offline queue,
-local draft recovery after refresh, optimistic concurrency with conflict dialog, versions (save, restore,
-branch, compare).
-
-## M4 Library & governance — Built
-Exposed parameters (all 10 types) with ranges, options, max length, locks + reasons, role restrictions,
-token binding; publish flow draft → review → approved → published (+ deprecated/archived); immutable
-template versions with asset pins; separation of duties; team visibility; brand token editor with versions
-and restore; faceted library (category, team, brand, channel, format, colour, interaction, export, status).
-
-## M5 Playground — Built
-Governed controls with inline explanations, undo/redo, 8 realistic channel frames, side-by-side compare on
-one shared WebGL context, safe-area overlays, assistant suggestions validated against template rules,
-developer delivery tab.
-
-## M6 Export — Built
-Background worker (OffscreenCanvas + WebGL 2), fixed-time frame stepping, PNG/WebP exact frames
-(transparent option), MP4 via WebCodecs H.264 + mp4-muxer (size, fps, duration, start, loops, quality,
-background), server-side Scene JSON and embed config, job queue with progress, cancel, retry, quotas,
-result validation by magic bytes and dimensions, exports registered as library assets, compatibility
-analysis (native / vector / raster / fallback classes, interactivity loss, flashing).
-
-## M7 Campaigns — Built
-Campaigns pinned to a template version; master values; per-variation overrides with source badges and
-reset; master edits never touch overrides; publish snapshots (published outputs never change silently;
-"unpublished changes" indicator); upgrade to newer template versions with a report of dropped values;
-approvals; campaign export of every channel at native size; zip export package with manifest.
+- Scene format v3 (`shared/scene/schema.ts`) adds vector **shape** layers (SDF-rendered: rectangle, ellipse,
+  polygon, star; solid/linear/radial fills; outline) and a **machine**: controls (toggle, button, slider — a
+  slider can follow the pointer with adjustable lag), moves (keyframe timelines that play once, loop or go back
+  and forth), rules (when → only if → do) and slider links (set or shift a property). v2 files migrate on read.
+- `shared/motion/runtime.ts` runs a file deterministically: holds control values, plays moves (newest wins per
+  property, with a short cross-blend), fires edge-triggered rules, applies slider links, and settles resting
+  states instantly at start. The editor preview, Try it, community posts and tests all use it.
+- Validation rejects rules that point at missing layers, controls or moves; deleting any of those prunes the
+  rules that referenced them.
 
 ## Not built / limitations
-- **Export formats** WebM, GIF, SVG, Lottie, dotLottie, React SDK and glTF are listed as unavailable in the UI
-  and rejected by the API (422). No format is faked.
-- **Rendering location**: exports render in the client's worker; the server validates the job, resolves the
-  scene from pinned versions and validates the returned bytes (format + dimensions), but does not re-render.
-  A headless render farm is the next step for full output trust.
-- **Integrations**: Instagram / Facebook / LinkedIn show capability matrices but are unavailable (they need
-  registered apps and platform review). The signed webhook connector and export packages are fully
-  functional; a local test receiver (`/api/dev/receiver/accept|reject`) demonstrates confirmation and
-  rejection handling. Hosted embed delivery (CDN) is a later phase; configs + local runtime work today.
-- **Email**: invitations and resets are written to a development mailbox, not sent.
-- **Assistant**: deterministic, local and rule-based (search, tuning suggestions, channel advice, export
-  explanations). An LLM provider can be added behind the same validation; not implemented.
-- **Real-time co-editing**: concurrent edits are detected and resolved via a conflict dialog (no silent
-  overwrite); live multi-cursor collaboration is not implemented.
-- **Blend modes** limited to normal / add / screen / multiply. Image crop is numeric (no on-canvas crop handles).
-  Rotation/scale handles are visual only; move is interactive.
-- **Billing** settings are not implemented.
-- Font licences are recorded and surfaced, but export blocking on licence scope is a warning, not enforcement.
+
+- **AI “describe it and it builds”** — planned for phase 2; not started.
+- **Embedding** interactive files on websites (a runtime script with a control API) is not built; exports are
+  video, stills or the motion file.
+- **Video export of interactions** renders one move at a time, not a recorded interactive session.
+- The editor needs a window about 1000 px wide or more; it isn’t laid out for phones.
+- No grouping/ungrouping in the editor UI (groups from presets and imports are kept and shown).
+- Vector paths (pen tool, boolean shapes) aren’t available; imported SVG/AI/PSD parts become images.
+- Text content can’t be changed by rules or sliders.
+- Figma import is tested for token rejection and link parsing only; a live import needs a token.
+- Community has no comments, reporting or moderation tools yet; anyone signed in on the server can see posts.
 - Rate limiting is in-memory (single instance).

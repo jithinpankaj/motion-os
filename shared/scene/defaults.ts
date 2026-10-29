@@ -1,5 +1,5 @@
 import { uid } from '../util/random';
-import type { Layer, LayerType, SceneDocument, GradientProps, MeshProps, ParticleProps, TextProps, ImageProps } from './schema';
+import type { Layer, LayerType, SceneDocument, GradientProps, MeshProps, ParticleProps, TextProps, ImageProps, ShapeProps } from './schema';
 import { SCHEMA_VERSION } from './schema';
 
 export const defaultGradient = (): GradientProps => ({
@@ -81,7 +81,18 @@ export const defaultImage = (): ImageProps => ({
   reveal: { preset: 'fade', start: 0, duration: 1, easing: 'easeOut' },
 });
 
-const NAMES: Record<LayerType, string> = { group: 'Group', gradient: 'Gradient', mesh: 'Mesh', particles: 'Particles', text: 'Text', image: 'Image' };
+export const defaultShape = (kind: ShapeProps['kind'] = 'rect'): ShapeProps => ({
+  kind,
+  width: 240,
+  height: 240,
+  radius: kind === 'rect' ? 32 : 0,
+  sides: 6,
+  innerRadius: 0.45,
+  fill: { type: 'solid', color: '#6b8cff', color2: '#ff6ad5', angle: 135 },
+  stroke: { color: '#ffffff', width: 0 },
+});
+
+const NAMES: Record<LayerType, string> = { group: 'Group', gradient: 'Gradient', mesh: 'Mesh', particles: 'Particles', text: 'Text', image: 'Image', shape: 'Shape' };
 
 export function createLayer<T extends LayerType>(type: T, patch: Partial<Layer> = {}): Extract<Layer, { type: T }> {
   const props =
@@ -89,7 +100,8 @@ export function createLayer<T extends LayerType>(type: T, patch: Partial<Layer> 
     type === 'mesh' ? defaultMesh() :
     type === 'particles' ? defaultParticles() :
     type === 'text' ? defaultText() :
-    type === 'image' ? defaultImage() : {};
+    type === 'image' ? defaultImage() :
+    type === 'shape' ? defaultShape() : {};
   return {
     id: uid('ly'),
     name: NAMES[type],
@@ -120,6 +132,7 @@ export function createScene(patch: Partial<SceneDocument> = {}): SceneDocument {
     interactions: [],
     fallback: { staticFrame: 2.5, reducedMotion: 'static' },
     export: { posterTime: 2.5 },
+    machine: { inputs: [], animations: [], rules: [], bindings: [] },
     ...patch,
   };
 }

@@ -354,3 +354,66 @@ export function validateShadeSnippet(src: string): string | null {
   if (open !== close) return 'Unbalanced braces';
   return null;
 }
+
+/** Vector shapes as signed distance fields in pixel space: crisp at any zoom, animatable without rebuilds. */
+export const SHAPE_FRAG = /* glsl */ `
+precision highp float;
+uniform vec2 uSize;        // shape box in px
+uniform vec2 uQuad;        // quad size in px (box + stroke + antialias margin)
+uniform int uKind;         // 0 rect, 1 ellipse, 2 polygon, 3 star
+uniform float uRadius, uInner, uStrokeW, uOpacity, uAngle;
+uniform float uSides;
+uniform int uFill;         // 0 solid, 1 linear, 2 radial, 3 none
+uniform vec3 uColor, uColor2, uStroke;
+varying vec2 vUv;
+const float PI = 3.14159265;
+float sdRoundBox(vec2 p, vec2 b, float r){ r = min(r, min(b.x, b.y)); vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
+float sdEllipse(vec2 p, vec2 r){ float k = length(p / r); return (k - 1.0) * min(r.x, r.y); }
+float sdPolygon(vec2 p, float r, float n){
+  float an = PI / n; float a = atan(p.x, p.y);
+  float bn = mod(a + an, 2.0 * an) - an;
+  return length(p) * cos(bn) - r * cos(an);
+}
+float sdStar(vec2 p, float r, float n, float inner){
+  float an = PI / n; float a = atan(p.x, p.y);
+  float bn = mod(a + an, 2.0 * an) - an;
+  vec2 q = length(p) * vec2(cos(bn), abs(sin(bn)));
+  vec2 A = vec2(r, 0.0), B = vec2(r * inner * cos(an), r * inner * sin(an));
+  vec2 e = B - A; vec2 w = q - A;
+  float h = clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
+  float d = length(w - e * h);
+  float s = sign(e.x * w.y - e.y * w.x);
+  return d * -s;
+}
+void main(){
+  vec2 p = (vec2(vUv.x, 1.0 - vUv.y) - 0.5) * uQuad;   // px from centre, y down
+  vec2 h = uSize * 0.5;
+  float d;
+  if (uKind == 0) d = sdRoundBox(p, h, uRadius);
+  else if (uKind == 1) d = sdEllipse(p, h);
+  else {
+    // Regular shapes are drawn in a unit circle and stretched to the box.
+    float m = min(h.x, h.y);
+    vec2 q = p * vec2(m / h.x, m / h.y);
+    vec2 qq = vec2(q.x, -q.y);
+    d = uKind == 2 ? sdPolygon(qq, m, uSides) : sdStar(qq, m, uSides, uInner);
+  }
+  float aa = max(fwidth(d), 0.0001);
+  float fillA = uFill == 3 ? 0.0 : clamp(0.5 - d / aa, 0.0, 1.0);
+  float strokeA = uStrokeW > 0.0 ? clamp(0.5 - (abs(d) - uStrokeW * 0.5) / aa, 0.0, 1.0) : 0.0;
+  vec3 fill = uColor;
+  if (uFill == 1) {
+    float r = radians(uAngle);
+    vec2 dir = vec2(cos(r), sin(r));
+    float ext = abs(dir.x) * h.x + abs(dir.y) * h.y;
+    fill = mix(uColor, uColor2, clamp(dot(p, dir) / (2.0 * ext) + 0.5, 0.0, 1.0));
+  } else if (uFill == 2) {
+    fill = mix(uColor, uColor2, clamp(length(p / h), 0.0, 1.0));
+  }
+  // Stroke sits over the fill, centred on the edge.
+  vec3 col = mix(fill, uStroke, strokeA);
+  float a = max(fillA, strokeA);
+  if (a <= 0.002) discard;
+  gl_FragColor = vec4(col, a * uOpacity);
+}
+`;

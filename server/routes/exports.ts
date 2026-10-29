@@ -4,12 +4,10 @@ import { z } from 'zod';
 import { has, requirePerm } from '../auth';
 import { HttpError, badRequest, conflict, forbidden, notFound, parse, rateLimit } from '../http';
 import { audit, usage } from '../audit';
-import { loadTemplateVersion } from '../services/templates';
 import { sniff } from '../services/sniff';
 import { sceneAssetIds } from '../services/assets';
 import { deserializeScene, serializeScene } from '../../shared/scene/serialize';
-import { applyParameters } from '../../shared/params';
-import { resolveVariation } from '../../shared/inheritance';
+import { docForAnimation, previewDoc } from '../../shared/motion/runtime';
 import { adaptScene } from '../../shared/adapt';
 import { formatById } from '../../shared/formats';
 import { EXPORT_FORMATS, analyzeCompatibility } from '../../shared/compat';
@@ -30,52 +28,24 @@ export const SettingsSchemas = {
   embed: z.object({}).passthrough(),
 } as const;
 
-const SourceSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('project'), id: z.string() }),
-  z.object({ kind: z.literal('template'), templateId: z.string(), versionId: z.string(), values: z.record(z.string(), z.unknown()).default({}) }),
-  z.object({ kind: z.literal('variation'), campaignId: z.string(), variationId: z.string(), published: z.boolean().default(false) }),
-]);
+const SourceSchema = z.object({ kind: z.literal('project'), id: z.string(), animationId: z.string().max(64).optional() });
 
-/** Resolve the exact scene to render. Consumers never supply scene JSON; values are re-applied here. */
-async function resolveSource(req: Request, source: z.infer<typeof SourceSchema>): Promise<{ scene: SceneDocument; pins: Record<string, string>; sceneVersionId: string | null; channel?: string }> {
+/** Resolve the exact scene to render from the stored project (clients never upload scene JSON). */
+async function resolveSource(req: Request, source: z.infer<typeof SourceSchema>, format: string): Promise<{ scene: SceneDocument; pins: Record<string, string>; sceneVersionId: string | null; channel?: string }> {
   const { db } = req.ctx, ws = req.ws!.id;
-  if (source.kind === 'project') {
-    if (!has(req, 'scene.view')) throw forbidden('Exporting projects requires scene.view');
-    const s = await db.one(`SELECT s.id, s.doc FROM motion_scenes s JOIN motion_projects p ON p.id = s.project_id WHERE p.id = $1 AND p.workspace_id = $2 AND p.deleted_at IS NULL`, [source.id, ws]);
-    if (!s) throw notFound('Project');
-    const scene = deserializeScene(s.doc);
-    const refs = await db.query(`SELECT a.id, coalesce(r.asset_version_id, a.current_version_id) AS v FROM media_assets a LEFT JOIN asset_references r ON r.asset_id = a.id AND r.ref_type = 'scene' AND r.ref_id = $3 AND r.pinned WHERE a.workspace_id = $1 AND a.id = ANY($2::text[])`, [ws, sceneAssetIds(scene), s.id]);
-    return { scene, pins: Object.fromEntries(refs.map((r) => [r.id, r.v])), sceneVersionId: null };
-  }
-  if (source.kind === 'template') {
-    if (!has(req, 'template.use') && !has(req, 'scene.view')) throw forbidden('Requires template.use');
-    const tv = await loadTemplateVersion(db, ws, source.versionId);
-    if (!tv || tv.template_id !== source.templateId) throw notFound('Template version');
-    if (tv.status !== 'published' && !has(req, 'scene.view')) throw forbidden('Only published versions can be exported');
-    const out = applyParameters(tv.doc, source.values, { roles: req.ws!.roles });
-    if (out.errors.length) throw badRequest(out.errors.map((e) => e.message).join('; '), out.errors);
-    const sv = await db.one(`SELECT scene_version_id FROM template_versions WHERE id = $1`, [tv.id]);
-    return { scene: out.scene, pins: tv.asset_pins, sceneVersionId: sv!.scene_version_id };
-  }
-  if (!has(req, 'campaign.view')) throw forbidden('Requires campaign.view');
-  const c = await db.one(`SELECT * FROM campaigns WHERE id = $1 AND workspace_id = $2`, [source.campaignId, ws]);
-  const v = c && (await db.one(`SELECT * FROM campaign_variations WHERE id = $1 AND campaign_id = $2`, [source.variationId, c.id]));
-  if (!c || !v) throw notFound('Campaign variation');
-  let versionId = c.template_version_id, values: Record<string, unknown>;
-  if (source.published) {
-    if (!v.published_snapshot) throw conflict('This variation has not been published yet');
-    versionId = v.published_snapshot.templateVersionId;
-    values = v.published_snapshot.values;
-  } else {
-    const ov = await db.query(`SELECT param_key, value FROM content_overrides WHERE variation_id = $1`, [v.id]);
-    const tvTmp = await loadTemplateVersion(db, ws, versionId);
-    values = resolveVariation(tvTmp!.doc.exposed, c.master_values, Object.fromEntries(ov.map((o) => [o.param_key, o.value]))).values;
-  }
-  const tv = await loadTemplateVersion(db, ws, versionId);
-  const out = applyParameters(tv!.doc, values, { roles: req.ws!.roles, ignoreLocks: false });
-  if (out.errors.length) throw badRequest(out.errors.map((e) => e.message).join('; '), out.errors);
-  const sv = await db.one(`SELECT scene_version_id FROM template_versions WHERE id = $1`, [tv!.id]);
-  return { scene: out.scene, pins: tv!.asset_pins, sceneVersionId: sv!.scene_version_id, channel: v.channel_preset_id };
+  if (!has(req, 'scene.view')) throw forbidden('Exporting requires scene.view');
+  const s = await db.one(`SELECT s.id, s.doc FROM motion_scenes s JOIN motion_projects p ON p.id = s.project_id WHERE p.id = $1 AND p.workspace_id = $2 AND p.deleted_at IS NULL`, [source.id, ws]);
+  if (!s) throw notFound('Project');
+  let scene = deserializeScene(s.doc);
+  // Interactive files export one move at a time; without one, their starting moves are rendered.
+  const fileFormat = format === 'scene-json' || format === 'embed';
+  if (fileFormat) { /* the motion file keeps its interactions intact */ }
+  else if (source.animationId) {
+    if (!scene.machine.animations.some((a) => a.id === source.animationId)) throw notFound('Move');
+    scene = docForAnimation(scene, source.animationId);
+  } else if (scene.machine.rules.length) scene = previewDoc(scene);
+  const refs = await db.query(`SELECT a.id, coalesce(r.asset_version_id, a.current_version_id) AS v FROM media_assets a LEFT JOIN asset_references r ON r.asset_id = a.id AND r.ref_type = 'scene' AND r.ref_id = $3 AND r.pinned WHERE a.workspace_id = $1 AND a.id = ANY($2::text[])`, [ws, sceneAssetIds(scene), s.id]);
+  return { scene, pins: Object.fromEntries(refs.map((r) => [r.id, r.v])), sceneVersionId: null };
 }
 
 const jobRow = (req: Request, j: any) => ({
@@ -105,7 +75,7 @@ export function exportRoutes() {
     const today = await db.one(`SELECT count(*)::int AS n FROM export_jobs WHERE workspace_id = $1 AND user_id = $2 AND created_at > now() - interval '1 day'`, [req.ws!.id, req.user!.id]);
     if (today!.n >= MAX_PER_DAY) throw new HttpError(429, 'quota', `Daily export quota reached (${MAX_PER_DAY}).`);
 
-    const resolved = await resolveSource(req, body.source);
+    const resolved = await resolveSource(req, body.source, body.format);
     const channel = body.channel ?? resolved.channel;
     const f = channel ? formatById(channel) : undefined;
     let scene = resolved.scene;
@@ -123,7 +93,7 @@ export function exportRoutes() {
         : Buffer.from(JSON.stringify({ schema: 'motion-os/embed@1', source: { ...source, pins: undefined }, accessibility: scene.fallback, scene }, null, 2));
       await completeJob(req, id, data, 'application/json', `${slug(source.name)}${body.format === 'embed' ? '.embed' : ''}.json`);
     }
-    await usage(db, req, 'export.create', 'templateId' in body.source ? body.source.templateId : null, { format: body.format });
+    await usage(db, req, 'export.create', body.source.id, { format: body.format });
     const j = await db.one(`SELECT j.*, f.storage_key, f.filename, f.bytes, f.mime FROM export_jobs j LEFT JOIN exported_files f ON f.id = j.result_file_id WHERE j.id = $1`, [id]);
     res.status(201).json({ job: jobRow(req, j), compatibility: analyzeCompatibility(scene, body.format as any) });
   });

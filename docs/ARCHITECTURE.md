@@ -1,5 +1,7 @@
 # MOTION OS — Architecture & Implementation Plan
 
+> **Historical.** This is the original design brief (templates, campaigns, brand governance). The product has since become an interactive motion editor with a community gallery — see `STATUS.md` for what exists now and `SCENE_SPEC.md` for the current file format.
+
 > Create once. Adapt everywhere. Stay on brand.
 
 This document is the pre-implementation deliverable (Part 23). It is kept in sync with the code;

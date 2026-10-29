@@ -8,17 +8,11 @@ import { loadUser, requireWorkspace } from './auth';
 import { errorHandler } from './http';
 import { authRoutes } from './routes/auth';
 import { workspaceRoutes } from './routes/workspace';
-import { brandRoutes } from './routes/brand';
 import { projectRoutes } from './routes/projects';
-import { templateRoutes } from './routes/templates';
-import { campaignRoutes } from './routes/campaigns';
 import { assetRoutes, fileRoutes } from './routes/assets';
 import { exportRoutes } from './routes/exports';
-import { integrationRoutes, devReceiver } from './routes/integrations';
-import { homeRoutes } from './routes/home';
 import { importRoutes } from './routes/imports';
-import { analyticsRoutes } from './routes/analytics';
-import { motionCampaignRoutes } from './routes/motionCampaigns';
+import { communityRoutes, publicCommunityRoutes } from './routes/community';
 
 export function createApp(ctx: AppContext) {
   const app = express();
@@ -38,10 +32,10 @@ export function createApp(ctx: AppContext) {
 
   const api = Router();
   api.use(authRoutes());
-  api.use(devReceiver());
+  api.use(publicCommunityRoutes());
   const tenant = Router();
   tenant.use(requireWorkspace);
-  for (const r of [workspaceRoutes, brandRoutes, projectRoutes, templateRoutes, campaignRoutes, assetRoutes, exportRoutes, integrationRoutes, homeRoutes, importRoutes, analyticsRoutes, motionCampaignRoutes]) tenant.use(r());
+  for (const r of [workspaceRoutes, projectRoutes, assetRoutes, exportRoutes, importRoutes, communityRoutes]) tenant.use(r());
   api.use(tenant);
   app.use('/api', api);
   app.use('/api', (_req, res) => { res.status(404).json({ error: { code: 'not_found', message: 'Unknown API route' } }); });

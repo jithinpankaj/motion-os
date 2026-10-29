@@ -41,3 +41,21 @@ documents newer than the supported schema version rejected.
 ## Migrations
 `MIGRATIONS` in `shared/scene/serialize.ts`. v1 → v2 renames `canvas.bg`, converts `hidden` to `visible`,
 and fills responsive / fallback / export / interactions / tokens sections.
+
+
+## v3: shapes and interactions
+
+v3 adds a `shape` layer (`props.kind`: rect | ellipse | polygon | star; `width`/`height` in canvas pixels;
+`radius`, `sides`, `innerRadius`; `fill` { type: solid | linear | radial | none, color, color2, angle };
+`stroke` { color, width }) and a top-level `machine`:
+
+- `inputs` — `{ id, name, type: boolean | trigger | number, default, min?, max?, follow?: pointerX | pointerY, smoothing? }`
+- `animations` (“moves”) — `{ id, name, duration, loop: once | loop | pingpong, tracks }`; tracks use the same
+  keyframe format as scene-level tracks, with times relative to the move.
+- `rules` — `{ id, when, only: Condition[], do: Action[] }`. `when`: start | trigger | boolean (turns on/off) |
+  number (crosses a threshold with > < = >= <=) | pointer (click, enter, leave, down, up on a layer) | finished
+  (a move ends). Actions: play (forward/reverse, from start/current) | stop | setBoolean (on/off/toggle) | fire |
+  setNumber (set/add).
+- `bindings` (“slider links”) — `{ id, inputId, layerId, path, from: [a, b], to: [c, d], relative? }`.
+
+Every reference must resolve (validation rejects dangling ids). Migration v2→v3 adds an empty machine.

@@ -7,21 +7,10 @@ import { Toaster } from './ui/controls';
 import { AuthPage, InvitePage, ResetPage } from './features/auth/Auth';
 
 const Home = lazy(() => import('./features/home/Home'));
-const Explore = lazy(() => import('./features/explore/Explore'));
-const Projects = lazy(() => import('./features/studio/Projects'));
-const Studio = lazy(() => import('./features/studio/Studio'));
-const Playground = lazy(() => import('./features/playground/Playground'));
-const Campaigns = lazy(() => import('./features/campaigns/Campaigns'));
-const Campaign = lazy(() => import('./features/campaigns/Campaign'));
-const Brand = lazy(() => import('./features/brand/Brand'));
-const BrandKit = lazy(() => import('./features/brand/BrandKit'));
-const Create = lazy(() => import('./features/create/Create'));
-const Library = lazy(() => import('./features/library/Library'));
-const Analytics = lazy(() => import('./features/analytics/Analytics'));
-const Assets = lazy(() => import('./features/assets/Assets'));
-const Integrations = lazy(() => import('./features/integrations/Integrations'));
+const Editor = lazy(() => import('./features/editor/Editor'));
+const Community = lazy(() => import('./features/community/Community'));
+const Post = lazy(() => import('./features/community/Post'));
 const Settings = lazy(() => import('./features/settings/Settings'));
-const EmbedExample = lazy(() => import('./features/embed/EmbedExample'));
 
 function Loading() {
   return <div style={{ display: 'grid', placeItems: 'center', height: '100%' }} role="status" aria-label="Loading"><div className="spinner" /></div>;
@@ -46,33 +35,20 @@ export function App() {
   if (!user) return <>{publicRoutes}<Toaster /></>;
   if (!wsId) return <div className="empty" style={{ height: '100%' }}><div className="h2">No workspace access</div><div>You are not a member of any workspace. Ask an admin for an invitation.</div><button className="btn" onClick={() => useSession.getState().logout()}>Sign out</button></div>;
 
-  const editor = loc.pathname.startsWith('/studio/') || loc.pathname.startsWith('/play/');
+  const editor = loc.pathname.startsWith('/edit/');
   return (
     <>
       <AppShell bare={editor}>
         <Suspense fallback={<Loading />}>
           <Routes key={wsId}>
             <Route path="/" element={<Home />} />
-            <Route path="/create" element={<Create />} />
-            <Route path="/create/:id" element={<Create />} />
-            <Route path="/create/campaign/:campaignId" element={<Create />} />
-            <Route path="/library" element={<Library />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/explore" element={<Explore />} />
-            <Route path="/studio" element={<Projects />} />
-            <Route path="/studio/:id" element={<Studio />} />
-            <Route path="/play/:templateId" element={<Playground />} />
-            <Route path="/campaigns" element={<Campaigns />} />
-            <Route path="/campaigns/:id" element={<Campaign />} />
-            <Route path="/brand" element={<BrandKit />} />
-            <Route path="/brand/advanced" element={<Brand />} />
-            <Route path="/assets" element={<Assets />} />
-            <Route path="/integrations" element={<Integrations />} />
+            <Route path="/edit/:id" element={<Editor />} />
+            <Route path="/community" element={<Community />} />
+            <Route path="/community/:id" element={<Post />} />
             <Route path="/settings" element={<Settings />} />
-            <Route path="/embed-example" element={<EmbedExample />} />
             <Route path="/invite/:token" element={<InvitePage />} />
             <Route path="/login" element={<Navigate to={new URLSearchParams(loc.search).get('next') || '/'} replace />} />
-            <Route path="*" element={<div className="empty" style={{ height: '100%' }}><div className="h2">Not found</div></div>} />
+            <Route path="*" element={<div className="empty" style={{ height: '100%' }}><div className="h2">Not found</div><a className="btn" href="/">Go home</a></div>} />
           </Routes>
         </Suspense>
       </AppShell>

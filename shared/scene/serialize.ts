@@ -45,6 +45,12 @@ export const MIGRATIONS: Migration[] = [
       };
     },
   },
+  {
+    // v3 adds vector shapes and the interaction model; existing timelines keep playing as before.
+    from: 2,
+    to: 3,
+    up: (d) => ({ ...d, schemaVersion: 3, machine: d.machine ?? { inputs: [], animations: [], rules: [], bindings: [] } }),
+  },
 ];
 
 export function detectVersion(doc: any): number {
@@ -95,6 +101,19 @@ export function validateScene(input: unknown): { ok: true; scene: SceneDocument 
     keys.add(p.key);
     p.targets.forEach((t, j) => { if (!ids.has(t.layerId)) issues.push({ path: `exposed.${i}.targets.${j}`, message: 'parameter targets unknown layer' }); });
   });
+  // Interaction references must point at things that exist, so rules never silently do nothing.
+  const m = scene.machine;
+  const inputIds = new Set(m.inputs.map((x) => x.id)), animIds = new Set(m.animations.map((x) => x.id));
+  const names = new Set<string>();
+  m.inputs.forEach((x, i) => { if (names.has(x.name.toLowerCase())) issues.push({ path: `machine.inputs.${i}.name`, message: 'duplicate control name' }); names.add(x.name.toLowerCase()); });
+  m.animations.forEach((a, i) => a.tracks.forEach((t, j) => { if (!ids.has(t.layerId)) issues.push({ path: `machine.animations.${i}.tracks.${j}`, message: 'move targets unknown layer' }); }));
+  const refs = (o: any, path: string) => {
+    if (o.inputId && !inputIds.has(o.inputId)) issues.push({ path, message: 'refers to a missing control' });
+    if (o.animationId && !animIds.has(o.animationId)) issues.push({ path, message: 'refers to a missing move' });
+    if (o.layerId && !ids.has(o.layerId)) issues.push({ path, message: 'refers to a missing layer' });
+  };
+  m.rules.forEach((r, i) => { refs(r.when, `machine.rules.${i}.when`); r.only.forEach((c, j) => refs(c, `machine.rules.${i}.only.${j}`)); r.do.forEach((a, j) => refs(a, `machine.rules.${i}.do.${j}`)); });
+  m.bindings.forEach((b, i) => refs(b, `machine.bindings.${i}`));
   if (issues.length) return { ok: false, issues };
   return { ok: true, scene };
 }

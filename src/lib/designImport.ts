@@ -1,6 +1,8 @@
 import { api } from './api';
 import { invalidateAssets } from './assets';
-import type { Design, DesignLayer } from '../../shared/motionStyles';
+/** A positioned part of an imported design: centre as a fraction of the design, size as a fraction of its shorter side. */
+export type DesignLayer = { assetId: string; name: string; x: number; y: number; w: number; h: number };
+export type Design = { name: string; width: number; height: number; background: string | null; layers: DesignLayer[] };
 
 /**
  * Turns an uploaded design into positioned layers so each part can move on its own.

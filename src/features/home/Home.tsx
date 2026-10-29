@@ -1,106 +1,112 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { api, errorMessage } from '../../lib/api';
 import { apiResolver } from '../../lib/assets';
-import { useBrandKit } from '../../lib/brand';
 import { useCan, useSession } from '../../lib/session';
 import { heroNavigate, preload } from '../../lib/transition';
 import { MotionTile } from '../../components/MotionTile';
-import { EmptyState, StatusBadge, timeAgo, toast } from '../../ui/controls';
+import { EmptyState, Modal, timeAgo, toast } from '../../ui/controls';
 import { Icon } from '../../ui/Icon';
 import { deserializeScene } from '../../../shared/scene/serialize';
+import { previewDoc } from '../../../shared/motion/runtime';
+import { PostCard, type Post } from '../community/Community';
 
+const SIZES = [
+  { label: 'Square', w: 1080, h: 1080, hint: 'Posts, icons, cards' },
+  { label: 'Portrait', w: 1080, h: 1350, hint: 'Feed posts' },
+  { label: 'Story', w: 1080, h: 1920, hint: 'Stories, phone screens' },
+  { label: 'Wide', w: 1920, h: 1080, hint: 'Web banners, slides' },
+  { label: 'UI element', w: 800, h: 600, hint: 'Buttons, toggles, loaders' },
+];
+
+/** Your files, plus the two ways to start: from scratch or from a preset. */
 export default function Home() {
-  const [data, setData] = useState<any>(null);
-  const [approvals, setApprovals] = useState<any[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const user = useSession((s) => s.user);
   const can = useCan();
   const nav = useNavigate();
-  const load = () => {
-    api('/home').then((d) => setData({ ...d, templates: d.templates.map((t: any) => ({ ...t, doc: deserializeScene(t.doc) })), projects: d.projects.map((p: any) => ({ ...p, doc: deserializeScene(p.doc) })), campaigns: d.campaigns.map((c: any) => ({ ...c, doc: deserializeScene(c.doc) })) })).catch((e) => setError(errorMessage(e)));
-    api('/approvals').then((r) => setApprovals(r.approvals)).catch(() => {});
-  };
-  useEffect(load, []);
-  const decide = async (id: string, decision: 'approved' | 'rejected') => {
-    try { await api(`/approvals/${id}/decide`, { body: { decision } }); toast('ok', decision === 'approved' ? 'Approved' : 'Rejected'); load(); } catch (e) { toast('danger', 'Could not record decision', errorMessage(e)); }
-  };
-  const hour = new Date().getHours();
-  const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const [files, setFiles] = useState<any[] | null>(null);
+  const [presets, setPresets] = useState<Post[]>([]);
+  const [recent, setRecent] = useState<Post[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [blank, setBlank] = useState(false);
+  const [q, setQ] = useState('');
   const resolver = apiResolver();
-  const { version: brandVersion, loaded: brandLoaded } = useBrandKit();
-  const brandSetUp = brandLoaded && brandVersion > 1;
-  if (error) return <div className="page-inner"><EmptyState icon="alert" title="Home could not load">{error}</EmptyState></div>;
+  const load = () => {
+    if (can('scene.view')) api('/projects').then((r) => setFiles(r.projects.map((p: any) => ({ ...p, doc: deserializeScene(p.doc) })))).catch((e) => setError(errorMessage(e)));
+    else setFiles([]);
+    api('/community', { noWorkspace: true, query: { sort: 'presets' } }).then((r) => setPresets(r.posts.map((p: Post) => ({ ...p, doc: deserializeScene(p.doc) })))).catch(() => {});
+    api('/community', { noWorkspace: true, query: { sort: 'recent' } }).then((r) => setRecent(r.posts.filter((p: Post) => !p.isPreset).slice(0, 4).map((p: Post) => ({ ...p, doc: deserializeScene(p.doc) })))).catch(() => {});
+  };
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = useMemo(() => (files ?? []).filter((f) => !q || f.name.toLowerCase().includes(q.toLowerCase())), [files, q]);
+
+  const remix = async (p: Post) => {
+    try { const r = await api(`/community/${p.id}/remix`, { method: 'POST' }); nav(`/edit/${r.id}`); } catch (e) { toast('danger', 'Couldn’t start from that preset', errorMessage(e)); }
+  };
+  const create = async (w: number, h: number, label: string) => {
+    try { const r = await api('/projects', { body: { name: `Untitled ${label.toLowerCase()}`, width: w, height: h } }); nav(`/edit/${r.id}`); } catch (e) { toast('danger', 'Couldn’t create a file', errorMessage(e)); }
+  };
+  const del = async (id: string, name: string) => {
+    if (!confirm(`Move “${name}” to the bin?`)) return;
+    try { await api(`/projects/${id}`, { method: 'DELETE' }); setFiles((f) => f?.filter((x) => x.id !== id) ?? null); } catch (e) { toast('danger', 'Couldn’t delete', errorMessage(e)); }
+  };
 
   return (
     <div className="page-inner">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.2, 0, 0, 1] }}>
-        <div className="eyebrow">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-        <h1 className="display" style={{ marginTop: 10 }}>{greet}, {user?.name.split(' ')[0]}.</h1>
-        <p className="lead">What would you like to do?</p>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.2, 0, 0, 1] }} className="row between wrap" style={{ alignItems: 'flex-end', gap: 16 }}>
+        <div>
+          <h1 className="display" style={{ fontSize: 'clamp(30px, 3.4vw, 44px)' }}>Hi {user?.name.split(' ')[0]}, what are we animating?</h1>
+          <p className="lead">Draw something, give it moves, and make it react to clicks, toggles and sliders.</p>
+        </div>
+        {can('scene.create') && <button className="btn primary lg" onClick={() => setBlank(true)}><Icon name="plus" />New file</button>}
       </motion.div>
 
-      <div className="actions3" style={{ marginTop: 24 }}>
-        {can('scene.create') ? (
-          <Link to="/create" className="action-card"><span className="ic"><Icon name="wand" /></span><span className="t">Animate a design</span><span className="d">Upload a post, poster or Figma frame and choose how it moves.</span><span className="go">Start <Icon name="chevronRight" size={13} /></span></Link>
-        ) : (
-          <Link to="/library?tab=templates" className="action-card"><span className="ic"><Icon name="library" /></span><span className="t">Use a brand template</span><span className="d">Change the words and colours of approved motion, then export.</span><span className="go">Browse <Icon name="chevronRight" size={13} /></span></Link>
-        )}
-        {can('brand.view') && (
-          <Link to={can('brand.edit') && !brandSetUp ? '/brand?import=1' : '/brand'} className={`action-card ${brandSetUp ? 'done' : ''}`}><span className="ic"><Icon name={brandSetUp ? 'check' : 'brand'} /></span><span className="t">{brandSetUp ? 'Your brand kit' : 'Import your brand'}</span><span className="d">{brandSetUp ? 'Colours, fonts, logo and personality used by every motion.' : 'Pull colours, fonts, logo and tone from your website, logo or guidelines.'}</span><span className="go">{brandSetUp ? 'Open' : 'Import'} <Icon name="chevronRight" size={13} /></span></Link>
-        )}
-        {can('analytics.view') && (
-          <Link to="/analytics" className="action-card"><span className="ic"><Icon name="chart" /></span><span className="t">See how it’s doing</span><span className="d">Connect Instagram, LinkedIn or Google Analytics and track each motion.</span><span className="go">Open analytics <Icon name="chevronRight" size={13} /></span></Link>
-        )}
-      </div>
-
-      {approvals.length > 0 && (
-        <section className="section">
-          <div className="section-h"><h2 className="h2">Waiting for your approval</h2><span className="faint">{approvals.length} waiting</span></div>
-          <div className="panel" style={{ padding: 4 }}>
-            {approvals.map((a) => (
-              <div key={a.id} className="row" style={{ padding: '10px 12px', gap: 12, borderBottom: '1px solid var(--line)' }}>
-                <Icon name={a.subject_type === 'campaign' ? 'campaigns' : 'sparkles'} />
-                <div className="grow">
-                  <div style={{ fontWeight: 540 }}>{a.subject_name}{a.version ? ` · v${a.version}` : ''}</div>
-                  <div className="faint" style={{ fontSize: 12 }}>{a.requested_by_name} requested {timeAgo(a.created_at)}{a.note ? ` — “${a.note}”` : ''}</div>
-                </div>
-                {a.project_id && can('scene.view') && <Link className="btn sm ghost" to={`/studio/${a.project_id}`}>Review</Link>}
-                {a.subject_type === 'campaign' && <Link className="btn sm ghost" to={`/campaigns/${a.subject_id}`}>Review</Link>}
-                {a.canDecide ? (
-                  <>
-                    <button className="btn sm" onClick={() => decide(a.id, 'rejected')}>Reject</button>
-                    <button className="btn sm primary" onClick={() => decide(a.id, 'approved')}><Icon name="check" size={13} />Approve</button>
-                  </>
-                ) : <StatusBadge status="pending" label={a.requested_by === user?.id ? 'awaiting another approver' : 'pending'} />}
-              </div>
-            ))}
+      {can('scene.create') && presets.length > 0 && (
+        <section className="section" style={{ marginTop: 30 }}>
+          <div className="section-h"><h2 className="h2">Start from a preset</h2><Link to="/community?sort=presets" className="muted">All presets →</Link></div>
+          <div className="mgrid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+            {presets.slice(0, 6).map((p) => <PostCard key={p.id} p={p} onOpen={() => remix(p)} />)}
           </div>
-        </section>
-      )}
-
-      {data?.projects?.length > 0 && (
-        <section className="section">
-          <div className="section-h"><h2 className="h2">Your recent motion</h2><Link to="/library" className="muted">Library →</Link></div>
-          <div className="mgrid">
-            {data.projects.slice(0, 4).map((p: any) => (
-              <MotionTile key={p.id} id={p.id} doc={p.doc} assets={resolver} title={p.name} subtitle={`${p.updated_by ?? ''} · ${timeAgo(p.updated_at)}`} onHover={p.has_recipe ? undefined : preload.studio} onOpen={(f) => (p.has_recipe ? nav(`/create/${p.id}`) : heroNavigate(nav, `/studio/${p.id}`, f))} />
-            ))}
-          </div>
+          <div className="faint" style={{ fontSize: 12, marginTop: 10 }}>Clicking a preset makes your own copy to edit. Want to try it first? Open it in the <Link to="/community?sort=presets">Community</Link>.</div>
         </section>
       )}
 
       <section className="section">
-        <div className="section-h"><h2 className="h2">Brand templates</h2><Link to="/library?tab=templates" className="muted">All templates →</Link></div>
-        {!data ? <div className="mgrid">{[0, 1, 2, 3].map((i) => <div key={i} className="skel" style={{ aspectRatio: '4/5' }} />)}</div> : data.templates.length ? (
-          <div className="mgrid">
-            {data.templates.slice(0, 4).map((t: any) => (
-              <MotionTile key={t.id} id={t.id} doc={t.doc} assets={resolver} title={t.name} subtitle={t.category} onHover={preload.playground} onOpen={(f) => heroNavigate(nav, `/play/${t.id}`, f)} />
-            ))}
-          </div>
-        ) : <EmptyState icon="sparkles" title="No templates yet">Designers publish reusable templates from the advanced editor. Once approved they appear here.</EmptyState>}
+        <div className="section-h"><h2 className="h2">Your files</h2>{files && files.length > 6 && <input className="input" style={{ width: 220 }} placeholder="Search files" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search files" />}</div>
+        {error && <EmptyState icon="alert" title="Couldn’t load your files">{error}</EmptyState>}
+        {!files && !error && <div className="mgrid">{[0, 1, 2, 3].map((i) => <div key={i} className="skel" style={{ aspectRatio: '1' }} />)}</div>}
+        {files && !files.length && <EmptyState icon="sparkles" title="No files yet" action={can('scene.create') && <button className="btn primary" onClick={() => setBlank(true)}>Start from scratch</button>}>Start from scratch or pick a preset above.</EmptyState>}
+        <div className="mgrid">
+          {shown.map((f) => (
+            <div key={f.id} style={{ position: 'relative' }}>
+              <MotionTile id={f.id} doc={previewDoc(f.doc)} assets={resolver} aspect={`${f.doc.canvas.width} / ${f.doc.canvas.height}`} title={f.name}
+                subtitle={`${f.owner ?? ''} · ${timeAgo(f.updated_at)}`}
+                badges={<>{f.community_id ? <span className="badge info">shared</span> : <span />}{f.doc.machine.rules.length ? <span className="badge">interactive</span> : <span />}</>}
+                onHover={preload.editor} onOpen={(from) => heroNavigate(nav, `/edit/${f.id}`, from)} />
+              {can('scene.delete') && <button className="icon-btn sm" style={{ position: 'absolute', right: 4, bottom: 4 }} aria-label={`Delete ${f.name}`} onClick={() => del(f.id, f.name)}><Icon name="trash" size={12} /></button>}
+            </div>
+          ))}
+        </div>
       </section>
+
+      {recent.length > 0 && (
+        <section className="section">
+          <div className="section-h"><h2 className="h2">New in the community</h2><Link to="/community" className="muted">Community →</Link></div>
+          <div className="mgrid">{recent.map((p) => <PostCard key={p.id} p={p} onOpen={(from) => heroNavigate(nav, `/community/${p.id}`, from)} />)}</div>
+        </section>
+      )}
+
+      <Modal open={blank} onClose={() => setBlank(false)} title="New file" subtitle="Pick a size — you can change it later.">
+        <div className="col" style={{ gap: 8 }}>
+          {SIZES.map((s) => (
+            <button key={s.label} className="move" style={{ padding: 12 }} onClick={() => { setBlank(false); create(s.w, s.h, s.label); }}>
+              <span style={{ width: 34, display: 'grid', placeItems: 'center' }}><span style={{ display: 'block', width: 30 * Math.min(1, s.w / s.h), height: 30 * Math.min(1, s.h / s.w), border: '1.5px solid var(--text-2)', borderRadius: 3 }} /></span>
+              <span className="grow">{s.label}<small>{s.hint} · {s.w}×{s.h}</small></span>
+            </button>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }

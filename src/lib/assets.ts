@@ -1,7 +1,7 @@
 import type { AssetResolver, ResolvedAsset } from '../engine/assets';
 import { api } from './api';
 
-type Ctx = { type: 'scene' | 'template_version' | 'campaign' | 'export'; id: string } | undefined;
+type Ctx = { type: 'scene' | 'export'; id: string } | undefined;
 const resolvers = new Map<string, AssetResolver>();
 
 /** Batched, cached resolver against /api/assets/resolve honouring the context's version pins. */

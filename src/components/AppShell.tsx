@@ -8,14 +8,10 @@ import { useExports, download } from '../lib/exports';
 import { usePrefs } from '../lib/prefs';
 import { api, errorMessage } from '../lib/api';
 import type { PermissionKey } from '../../shared/permissions';
-import type { AssistantAnswer } from '../../shared/assistant';
 
 const NAV: { to: string; label: string; icon: string; perm?: PermissionKey; kbd: string }[] = [
   { to: '/', label: 'Home', icon: 'home', kbd: 'G H' },
-  { to: '/create', label: 'Create', icon: 'wand', perm: 'scene.create', kbd: 'G C' },
-  { to: '/brand', label: 'Brand kit', icon: 'brand', perm: 'brand.view', kbd: 'G B' },
-  { to: '/library', label: 'Library', icon: 'library', perm: 'library.view', kbd: 'G L' },
-  { to: '/analytics', label: 'Analytics', icon: 'chart', perm: 'analytics.view', kbd: 'G A' },
+  { to: '/community', label: 'Community', icon: 'globe', kbd: 'G C' },
 ];
 
 export function AppShell({ children, bare }: { children: ReactNode; bare?: boolean }) {
@@ -57,7 +53,6 @@ export function AppShell({ children, bare }: { children: ReactNode; bare?: boole
           ))}
         </LayoutGroup>
         <div className="rail-spacer" />
-        <AdvancedMenu active={['/studio', '/campaigns', '/assets', '/integrations', '/explore', '/brand/advanced'].some((p) => loc.pathname.startsWith(p))} />
         <Tip label="Settings" side="right">
           <NavLink to="/settings" className="rail-item" aria-current={active('/settings') ? 'page' : undefined}>
             {active('/settings') && <motion.span layoutId="rail-ind" className="rail-ind" transition={spring} />}
@@ -79,28 +74,23 @@ export function AppShell({ children, bare }: { children: ReactNode; bare?: boole
 }
 
 function Header({ onSearch }: { onSearch: () => void }) {
-  const { workspaces, user, switchWorkspace, setBrand, brandId, logout } = useSession();
+  const { workspaces, user, switchWorkspace, logout } = useSession();
   const ws = useWorkspace();
   const [wsOpen, setWsOpen] = useState(false), [userOpen, setUserOpen] = useState(false);
   const wsRef = useRef<HTMLButtonElement>(null), userRef = useRef<HTMLButtonElement>(null);
-  const brand = ws?.brands.find((b) => b.id === brandId);
   const nav = useNavigate();
   const { motion: motionPref, set: setMotion } = usePrefs();
   return (
     <header className="header">
-      <button ref={wsRef} className="ws-switch" onClick={() => setWsOpen(true)} aria-label={`Workspace: ${ws?.name}. Switch workspace or brand`}>
+      <button ref={wsRef} className="ws-switch" onClick={() => setWsOpen(true)} aria-label={`Workspace: ${ws?.name}. Switch workspace`}>
         <span className="ws-mark">{ws?.name?.[0]}</span>
         <span style={{ fontWeight: 560 }}>{ws?.name}</span>
         <Icon name="chevronDown" size={12} />
       </button>
-      <span className="brand-pill" title="Active brand — tokens and governance apply from this brand">
-        <span className="bdots"><span style={{ background: '#6b8cff' }} /><span style={{ background: '#ff6ad5' }} /><span style={{ background: '#16a3a0' }} /></span>
-        {brand?.name ?? 'No brand'}
-      </span>
       <span className="faint mono" style={{ fontSize: 10.5 }}>{ws?.roles.join(' · ')}</span>
       <div className="grow" />
-      <button className="search-trigger" onClick={onSearch} aria-label="Search and ask (Command K)">
-        <Icon name="search" size={14} /><span className="st-label grow" style={{ textAlign: 'left' }}>Search motion, ask the assistant…</span><span className="kbd">⌘K</span>
+      <button className="search-trigger" onClick={onSearch} aria-label="Search files (Command K)">
+        <Icon name="search" size={14} /><span className="st-label grow" style={{ textAlign: 'left' }}>Search your files…</span><span className="kbd">⌘K</span>
       </button>
       <ExportTrayButton />
       <button ref={userRef} className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setUserOpen(true)} aria-label="Account menu"><Avatar name={user?.name} /></button>
@@ -112,11 +102,6 @@ function Header({ onSearch }: { onSearch: () => void }) {
               <span className="ws-mark" style={{ width: 18, height: 18, fontSize: 10 }}>{w.name[0]}</span>{w.name}
               {w.id === ws?.id && <span className="faint" style={{ marginLeft: 'auto' }}><Icon name="check" size={13} /></span>}
             </button>
-          ))}
-          <div className="menu-sep" />
-          <div className="eyebrow" style={{ padding: '8px 9px 6px' }}>Brand</div>
-          {ws?.brands.map((b) => (
-            <button key={b.id} className="menu-item" onClick={() => { setBrand(b.id); setWsOpen(false); }}>{b.name}{b.id === brandId && <span className="faint" style={{ marginLeft: 'auto' }}><Icon name="check" size={13} /></span>}</button>
           ))}
         </div>
       </Popover>
@@ -204,86 +189,38 @@ function SessionNotice() {
   return null;
 }
 
-/** ⌘K: navigation + assistant (natural-language template search, suggestions, explanations). */
+/** ⌘K: jump to a place or open one of your files. */
 function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState('');
-  const [ans, setAns] = useState<AssistantAnswer | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [templates, setTemplates] = useState<Record<string, string>>({});
+  const [files, setFiles] = useState<{ id: string; name: string }[]>([]);
   const nav = useNavigate();
   const can = useCan();
   const input = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (open) { setTimeout(() => input.current?.focus(), 20); setAns(null); setQ(''); } }, [open]);
+  useEffect(() => { if (open) { setTimeout(() => input.current?.focus(), 20); setQ(''); } }, [open]);
   useEffect(() => {
-    if (!open || !can('library.view')) return;
-    api('/library').then((r) => setTemplates(Object.fromEntries(r.templates.map((t: any) => [t.id, t.name])))).catch(() => {});
+    if (!open || !can('scene.view')) return;
+    api('/projects').then((r) => setFiles(r.projects.map((p: any) => ({ id: p.id, name: p.name })))).catch((e) => toast('danger', 'Couldn’t load files', errorMessage(e)));
   }, [open, can]);
-  const routes = NAV.filter((n) => !n.perm || can(n.perm)).filter((n) => !q || n.label.toLowerCase().includes(q.toLowerCase()));
-  const ask = async () => {
-    if (!q.trim()) return;
-    setBusy(true);
-    try { setAns(await api('/assistant', { body: { query: q } })); } catch (e) { setAns({ intent: 'help', text: errorMessage(e) }); } finally { setBusy(false); }
-  };
+  const match = (s: string) => !q || s.toLowerCase().includes(q.toLowerCase());
+  const routes = NAV.filter((n) => match(n.label));
+  const found = files.filter((f) => match(f.name)).slice(0, 8);
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="modal-backdrop" style={{ placeItems: 'start center', paddingTop: '12vh' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onPointerDown={(e) => e.target === e.currentTarget && onClose()} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-          <motion.div role="dialog" aria-label="Command palette" className="modal" style={{ width: 'min(620px, 100%)' }} initial={{ opacity: 0, y: -10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} transition={spring}>
+        <motion.div className="modal-backdrop" style={{ placeItems: 'start center', paddingTop: '12vh' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+          <motion.div role="dialog" aria-label="Command palette" className="modal" style={{ width: 'min(560px, 100%)' }} initial={{ opacity: 0, y: -10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6 }} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
             <div className="row" style={{ padding: '12px 14px', borderBottom: '1px solid var(--line)' }}>
               <Icon name="search" />
-              <input ref={input} className="grow" style={{ border: 0, background: 'none', outline: 'none', fontSize: 15 }} placeholder="Go to… or ask: “calm template for a story”" value={q} onChange={(e) => { setQ(e.target.value); setAns(null); }} onKeyDown={(e) => { if (e.key === 'Enter') ask(); }} aria-label="Search or ask" />
-              {busy ? <div className="spinner" /> : <span className="kbd">↵ ask</span>}
+              <input ref={input} className="grow" style={{ border: 0, background: 'none', outline: 'none', fontSize: 15 }} placeholder="Go to… or find a file" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && found[0]) { onClose(); nav(`/edit/${found[0].id}`); } }} />
             </div>
             <div className="scroll" style={{ maxHeight: 420, padding: 6 }}>
-              {ans && (
-                <div style={{ padding: '8px 10px 12px' }} className="col">
-                  <div className="row"><Icon name="wand" size={14} /><span style={{ fontWeight: 540 }}>{ans.text}</span></div>
-                  {ans.templates?.map((t) => (
-                    <button key={t.id} className="menu-item" onClick={() => { onClose(); nav(`/play/${t.id}`); }}>
-                      <Icon name="sparkles" />{templates[t.id] ?? t.id}<span className="faint">{t.why}</span>
-                    </button>
-                  ))}
-                  {ans.notes?.map((n, i) => <div key={i} className="muted" style={{ paddingLeft: 22 }}>• {n}</div>)}
-                  <div className="faint" style={{ fontSize: 11, paddingLeft: 22 }}>Local assistant · results limited to templates your team can use.</div>
-                </div>
-              )}
-              {!ans && routes.map((r) => (
-                <button key={r.to} className="menu-item" onClick={() => { onClose(); nav(r.to); }}><Icon name={r.icon} />{r.label}<span className="faint mono">{r.kbd}</span></button>
-              ))}
+              {routes.map((r) => <button key={r.to} className="menu-item" onClick={() => { onClose(); nav(r.to); }}><Icon name={r.icon as any} />{r.label}<span className="faint mono">{r.kbd}</span></button>)}
+              {found.length > 0 && <div className="eyebrow" style={{ padding: '10px 9px 4px' }}>Files</div>}
+              {found.map((f) => <button key={f.id} className="menu-item" onClick={() => { onClose(); nav(`/edit/${f.id}`); }}><Icon name="layers" />{f.name}</button>)}
             </div>
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
-  );
-}
-
-/** Power tools kept out of the main navigation: the full editor, campaigns, asset library and publishing. */
-function AdvancedMenu({ active }: { active: boolean }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLButtonElement>(null);
-  const can = useCan();
-  const nav = useNavigate();
-  const items = [
-    can('scene.view') && { label: 'Motion Studio (full editor)', icon: 'studio', onSelect: () => nav('/studio') },
-    can('campaign.view') && { label: 'Template campaigns', icon: 'campaigns', onSelect: () => nav('/campaigns') },
-    can('asset.view') && { label: 'All assets', icon: 'assets', onSelect: () => nav('/assets') },
-    can('integration.view') && { label: 'Publishing & integrations', icon: 'integrations', onSelect: () => nav('/integrations') },
-    can('brand.view') && { label: 'Brand tokens', icon: 'brand', onSelect: () => nav('/brand/advanced') },
-  ].filter(Boolean) as { label: string; icon: string; onSelect: () => void }[];
-  if (!items.length) return null;
-  return (
-    <>
-      <Tip label="Advanced" side="right">
-        <button ref={ref} className="rail-item" aria-label="Advanced tools" aria-haspopup="menu" aria-expanded={open} aria-current={active ? 'page' : undefined} onClick={() => setOpen((v) => !v)}>
-          {active && <motion.span layoutId="rail-ind" className="rail-ind" transition={spring} />}
-          <Icon name="layers" />
-        </button>
-      </Tip>
-      <Popover anchor={ref} open={open} onClose={() => setOpen(false)} placement="top-start">
-        <div style={{ padding: '8px 10px 4px' }} className="eyebrow">Advanced</div>
-        <Menu items={items} onClose={() => setOpen(false)} />
-      </Popover>
-    </>
   );
 }

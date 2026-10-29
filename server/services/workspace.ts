@@ -1,16 +1,19 @@
 import type { Db } from '../db';
 import { uid } from '../../shared/util/random';
 import { PERMISSIONS, SYSTEM_ROLES } from '../../shared/permissions';
-import { DEFAULT_BRAND_TOKENS } from '../../shared/brand';
 import { CHANNEL_FORMATS } from '../../shared/formats';
 
 /** Permission keys introduced after rollout tracking began; everything older counts as already applied. */
-const ROLLOUT_TRACKED_SINCE = ['analytics.view', 'analytics.manage'];
+const ROLLOUT_TRACKED_SINCE = ['community.publish'];
 
 export async function ensureGlobals(db: Db) {
   for (const [key, description] of Object.entries(PERMISSIONS)) {
     await db.query(`INSERT INTO permissions (key, description) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET description = EXCLUDED.description`, [key, description]);
   }
+  // Keys for features that no longer exist (templates, campaigns, brand kit, analytics) are retired.
+  const keys = Object.keys(PERMISSIONS);
+  await db.query(`DELETE FROM role_permissions WHERE NOT (permission_key = ANY($1::text[]))`, [keys]);
+  await db.query(`DELETE FROM permissions WHERE NOT (key = ANY($1::text[]))`, [keys]);
   // Roll out permissions added after a workspace was created to its system roles, once per workspace,
   // so later edits an admin makes to the role matrix are never overwritten.
   // Workspaces created before rollouts were tracked already had every older key applied.
@@ -44,7 +47,7 @@ export async function ensureGlobals(db: Db) {
 
 export const TEAM_NAMES = ['Design', 'Marketing', 'Engineering', 'Operations'];
 
-/** Create organisation + workspace with system roles, default teams and a default brand. */
+/** Create organisation + workspace with system roles, default teams and a default brand record. */
 export async function provisionWorkspace(db: Db, ownerId: string, name: string) {
   return db.tx(async (tx) => {
     const orgId = uid('org'), wsId = uid('ws');
@@ -63,10 +66,6 @@ export async function provisionWorkspace(db: Db, ownerId: string, name: string) 
     }
     const brandId = uid('brand');
     await tx.query(`INSERT INTO brands (id, workspace_id, name, slug) VALUES ($1, $2, $3, $4)`, [brandId, wsId, `${name} Brand`, 'primary']);
-    for (const t of DEFAULT_BRAND_TOKENS) {
-      await tx.query(`INSERT INTO brand_tokens (id, brand_id, workspace_id, key, category, value, description) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [uid('tok'), brandId, wsId, t.key, t.category, JSON.stringify(t.value), t.description]);
-    }
-    await tx.query(`INSERT INTO token_versions (id, brand_id, workspace_id, version, snapshot, note, created_by) VALUES ($1, $2, $3, 1, $4, 'Initial brand tokens', $5)`, [uid('tv'), brandId, wsId, JSON.stringify(DEFAULT_BRAND_TOKENS), ownerId]);
     await addMember(tx, wsId, ownerId, ['owner'], [teamIds.Design]);
     return { workspaceId: wsId, brandId, teamIds };
   });

@@ -1,14 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requirePerm } from '../auth';
-import { HttpError, badRequest, parse, rateLimit } from '../http';
+import { HttpError, parse, rateLimit } from '../http';
 import { audit } from '../audit';
-import { importFromWebsite } from '../services/webImport';
-import { safeFetch } from '../services/safeFetch';
 import { importFigmaFrame, verifyFigmaToken } from '../services/figma';
 import { mask, seal, unseal } from '../services/secrets';
 import { storeAssetVersion } from './assets';
-import { sniff } from '../services/sniff';
 import { uid } from '../../shared/util/random';
 import type { Request } from 'express';
 
@@ -29,25 +26,6 @@ export async function createAsset(req: Request, body: Buffer, o: { name: string;
 
 export function importRoutes() {
   const r = Router();
-
-  // ----- brand import -----
-  r.post('/brand-import/website', requirePerm('brand.edit'), importLimit, async (req, res) => {
-    const body = parse(z.object({ url: z.string().trim().min(3).max(500) }), req.body);
-    const findings = await importFromWebsite(body.url);
-    await audit(req.ctx.db, req, 'brand.import.website', 'brand', req.ws!.id, { url: body.url, colors: findings.colors.length, fonts: findings.fonts.length });
-    res.json({ findings });
-  });
-
-  /** Pull a remote logo/image (from a website import) into the asset library. */
-  r.post('/brand-import/remote-asset', requirePerm('asset.upload'), importLimit, async (req, res) => {
-    const body = parse(z.object({ url: z.string().url().max(1000), name: z.string().trim().min(1).max(160), kind: z.enum(['logo', 'image']).default('logo') }), req.body);
-    const f = await safeFetch(body.url, { accept: 'image/*', maxBytes: 8e6 });
-    if (!f.ok) throw new HttpError(502, 'fetch_failed', `The image answered with HTTP ${f.status}`);
-    const s = sniff(f.body);
-    if (!s || (s.family !== 'image' && s.family !== 'svg')) throw badRequest('That link is not a PNG, JPEG, WebP, GIF or SVG image');
-    const out = await createAsset(req, f.body, { name: body.name, kind: s.family === 'svg' ? (body.kind === 'logo' ? 'logo' : 'svg') : body.kind, category: body.kind === 'logo' ? 'logo' : 'brand', tags: ['brand-import'] });
-    res.status(201).json(out);
-  });
 
   // ----- Figma -----
   r.get('/connections/figma', requirePerm('asset.view'), async (req, res) => {

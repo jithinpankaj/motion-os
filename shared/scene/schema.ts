@@ -4,7 +4,7 @@ import { z } from 'zod';
  * Native Motion Scene format. This schema is the single source of truth for scene documents:
  * the studio, playground, export worker and server all validate against it.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const finite = z.number().refine(Number.isFinite, 'must be a finite number');
 const num = (min: number, max: number) => finite.min(min).max(max);
@@ -119,6 +119,20 @@ export const ImagePropsSchema = z.object({
   reveal: z.object({ preset: z.enum(['none', 'fade', 'wipe', 'scale', 'iris']), start: num(0, 600), duration: num(0.05, 60), easing: EasingSchema }),
 });
 
+export const SHAPE_KINDS = ['rect', 'ellipse', 'polygon', 'star'] as const;
+export const FILL_TYPES = ['solid', 'linear', 'radial', 'none'] as const;
+/** Vector shape drawn with a signed-distance shader. Sizes are in canvas pixels. */
+export const ShapePropsSchema = z.object({
+  kind: z.enum(SHAPE_KINDS),
+  width: num(1, 8000),
+  height: num(1, 8000),
+  radius: num(0, 4000),
+  sides: z.number().int().min(3).max(12),
+  innerRadius: num(0.05, 0.95),
+  fill: z.object({ type: z.enum(FILL_TYPES), color: ColorSchema, color2: ColorSchema, angle: num(-360, 360) }),
+  stroke: z.object({ color: ColorSchema, width: num(0, 400) }),
+});
+
 const base = {
   id,
   name: z.string().min(1).max(120),
@@ -137,6 +151,7 @@ export const LayerSchema = z.discriminatedUnion('type', [
   z.object({ ...base, type: z.literal('particles'), props: ParticlePropsSchema }),
   z.object({ ...base, type: z.literal('text'), props: TextPropsSchema }),
   z.object({ ...base, type: z.literal('image'), props: ImagePropsSchema }),
+  z.object({ ...base, type: z.literal('shape'), props: ShapePropsSchema }),
 ]);
 
 export const KeyframeSchema = z.object({
@@ -150,6 +165,66 @@ export const TrackSchema = z.object({
   layerId: id,
   path: z.string().min(1).max(120).regex(/^[A-Za-z0-9_.]+$/),
   keyframes: z.array(KeyframeSchema).max(500),
+});
+
+/**
+ * Interactive motion (v3). Plain-language model for non-specialists:
+ *  - inputs ("controls"): toggles (boolean), buttons (trigger) and sliders (number)
+ *  - animations ("moves"): named keyframe timelines that play once, loop or ping-pong
+ *  - rules: WHEN something happens (start, a control changes, someone clicks/hovers a layer)
+ *           AND optional conditions hold, DO actions (play/stop a move, change a control)
+ *  - bindings: a slider drives a property directly across a range
+ */
+export const InputSchema = z.object({
+  id,
+  name: z.string().trim().min(1).max(40),
+  type: z.enum(['boolean', 'trigger', 'number']),
+  default: z.union([z.boolean(), finite]),
+  min: finite.optional(),
+  max: finite.optional(),
+  /** Sliders can follow the pointer: across (x) or up and down (y), eased by `smoothing` (0 snappy … 1 lazy). */
+  follow: z.enum(['pointerX', 'pointerY']).optional(),
+  smoothing: num(0, 0.98).optional(),
+});
+export const AnimationSchema = z.object({
+  id,
+  name: z.string().trim().min(1).max(60),
+  duration: num(0.05, 120),
+  loop: z.enum(['once', 'loop', 'pingpong']),
+  tracks: z.array(TrackSchema).max(400),
+});
+const CompareSchema = z.enum(['>', '<', '=', '>=', '<=']);
+export const WhenSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('start') }),
+  z.object({ type: z.literal('trigger'), inputId: id }),
+  z.object({ type: z.literal('boolean'), inputId: id, value: z.boolean() }),
+  z.object({ type: z.literal('number'), inputId: id, op: CompareSchema, value: finite }),
+  z.object({ type: z.literal('pointer'), event: z.enum(['click', 'enter', 'leave', 'down', 'up']), layerId: id }),
+  z.object({ type: z.literal('finished'), animationId: id }),
+]);
+export const ConditionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('boolean'), inputId: id, value: z.boolean() }),
+  z.object({ type: z.literal('number'), inputId: id, op: CompareSchema, value: finite }),
+]);
+export const ActionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('play'), animationId: id, direction: z.enum(['forward', 'reverse']), from: z.enum(['start', 'current']) }),
+  z.object({ type: z.literal('stop'), animationId: id }),
+  z.object({ type: z.literal('setBoolean'), inputId: id, value: z.enum(['on', 'off', 'toggle']) }),
+  z.object({ type: z.literal('fire'), inputId: id }),
+  z.object({ type: z.literal('setNumber'), inputId: id, mode: z.enum(['set', 'add']), value: finite }),
+]);
+export const RuleSchema = z.object({ id, when: WhenSchema, only: z.array(ConditionSchema).max(8), do: z.array(ActionSchema).min(1).max(12) });
+export const BindingSchema = z.object({
+  id, inputId: id, layerId: id, path: z.string().min(1).max(120).regex(/^[A-Za-z0-9_.]+$/),
+  from: z.tuple([finite, finite]), to: z.tuple([finite, finite]),
+  /** true: shift the property by the mapped amount from its designed value, instead of setting it. */
+  relative: z.boolean().optional(),
+});
+export const MachineSchema = z.object({
+  inputs: z.array(InputSchema).max(32),
+  animations: z.array(AnimationSchema).max(64),
+  rules: z.array(RuleSchema).max(128),
+  bindings: z.array(BindingSchema).max(64),
 });
 
 export const TargetSchema = z.object({ layerId: id, path: z.string().min(1).max(120).regex(/^[A-Za-z0-9_.]+$/) });
@@ -217,6 +292,7 @@ export const SceneSchema = z.object({
     overrides: z.record(z.string().max(48), z.record(z.string().max(64), LayoutOverrideSchema)),
   }),
   interactions: z.array(z.object({ id, type: z.literal('pointer'), layerId: id, effect: z.enum(['attract', 'repel', 'parallax']), strength: num(0, 4) })).max(32),
+  machine: MachineSchema,
   fallback: z.object({ staticFrame: num(0, 600), reducedMotion: z.enum(['static', 'reduced']) }),
   export: z.object({ posterTime: num(0, 600) }),
 });
@@ -230,6 +306,15 @@ export type MeshProps = z.infer<typeof MeshPropsSchema>;
 export type ParticleProps = z.infer<typeof ParticlePropsSchema>;
 export type TextProps = z.infer<typeof TextPropsSchema>;
 export type ImageProps = z.infer<typeof ImagePropsSchema>;
+export type ShapeProps = z.infer<typeof ShapePropsSchema>;
+export type Machine = z.infer<typeof MachineSchema>;
+export type Input = z.infer<typeof InputSchema>;
+export type Animation = z.infer<typeof AnimationSchema>;
+export type Rule = z.infer<typeof RuleSchema>;
+export type When = z.infer<typeof WhenSchema>;
+export type Condition = z.infer<typeof ConditionSchema>;
+export type Action = z.infer<typeof ActionSchema>;
+export type Binding = z.infer<typeof BindingSchema>;
 export type Track = z.infer<typeof TrackSchema>;
 export type Keyframe = z.infer<typeof KeyframeSchema>;
 export type Easing = z.infer<typeof EasingSchema>;

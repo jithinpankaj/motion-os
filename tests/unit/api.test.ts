@@ -52,58 +52,57 @@ describe('server-enforced permissions', () => {
     expect((await dev({ email: 'mia@motion.os' })).status).toBe(200);
     expect((await dev({ email: 'outsider@example.com' })).status).toBe(400);
   });
-  it('engineers can browse the library but not projects or scene edits', async () => {
-    expect((await call('engineer', 'GET', '/library')).body.templates.length).toBeGreaterThan(0);
-    expect((await call('engineer', 'GET', '/projects')).status).toBe(403);
-    const projects = (await call('designer', 'GET', '/projects')).body.projects;
+  it('engineers can open and export files but not edit them', async () => {
+    const projects = (await call('engineer', 'GET', '/projects')).body.projects;
+    expect(projects.length).toBeGreaterThan(0);
     expect((await call('engineer', 'PUT', `/projects/${projects[0].id}/scene`, { doc: projects[0].doc, baseRevision: 1 })).status).toBe(403);
-    expect((await call('marketing', 'GET', '/projects')).status).toBe(200);
+    expect((await call('engineer', 'POST', '/projects', { name: 'Nope' })).status).toBe(403);
+    expect((await call('marketing', 'POST', '/projects', { name: 'Yes', width: 800, height: 600 })).status).toBe(201);
   });
   it('enforces workspace isolation', async () => {
     const r = await fetch(`${base}/api/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'outsider@example.com', name: 'Out Sider', password: 'outsider-pass-123' }) });
     expect(r.status).toBe(201);
     sessions.outsider = await login('outsider@example.com', 'outsider-pass-123');
     const s = sessions.outsider;
-    const res = await fetch(`${base}/api/library`, { headers: { cookie: s.cookie, 'x-workspace-id': sessions.marketing.ws } });
+    const res = await fetch(`${base}/api/projects`, { headers: { cookie: s.cookie, 'x-workspace-id': sessions.marketing.ws } });
     expect(res.status).toBe(403);
-    expect((await call('outsider', 'GET', '/library')).body.templates).toEqual([]);
+    expect((await call('outsider', 'GET', '/projects')).body.projects).toEqual([]);
   });
   it('viewers cannot export', async () => {
-    const lib = (await call('viewer', 'GET', '/library')).body.templates;
-    const r = await call('viewer', 'POST', '/exports', { source: { kind: 'template', templateId: lib[0].id, versionId: lib[0].version_id, values: {} }, format: 'png', settings: { width: 100, height: 100, time: 0 } });
-    expect(r.status).toBe(403);
+    const p = (await call('viewer', 'GET', '/projects')).body.projects[0];
+    expect((await call('viewer', 'POST', '/exports', { source: { kind: 'project', id: p.id }, format: 'png', settings: { width: 100, height: 100, time: 0 } })).status).toBe(403);
   });
 });
 
-describe('governed exports', () => {
-  it('re-validates parameter values on the server and refuses locked changes', async () => {
-    const aurora = (await call('marketing', 'GET', '/library')).body.templates.find((t: any) => t.name === 'Aurora Flow');
-    const src = (values: object) => ({ source: { kind: 'template', templateId: aurora.id, versionId: aurora.version_id, values }, format: 'mp4', settings: { width: 1080, height: 1350, fps: 30, duration: 2, quality: 'draft' } });
-    const locked = await call('marketing', 'POST', '/exports', src({ headlineColor: '#ff0000' }));
-    expect(locked.status).toBe(400);
-    expect(JSON.stringify(locked.body)).toMatch(/locked|Brand rule/);
-    const ok = await call('marketing', 'POST', '/exports', { ...src({ headline: 'Spring' }), channel: 'instagram-story', settings: { width: 1080, height: 1920, fps: 30, duration: 2, quality: 'draft' } });
+const fileNamed = async (name: string) => (await call('designer', 'GET', '/projects')).body.projects.find((x: any) => x.name === name);
+
+describe('exports', () => {
+  it('exports one move of an interactive file as a timeline', async () => {
+    const p = await fileNamed('Toggle switch');
+    const anim = p.doc.machine.animations[0];
+    const ok = await call('marketing', 'POST', '/exports', { source: { kind: 'project', id: p.id, animationId: anim.id }, format: 'mp4', settings: { width: 1080, height: 1080, fps: 30, duration: 1, quality: 'draft' } });
     expect(ok.status).toBe(201);
     const scene = (await call('marketing', 'GET', `/exports/${ok.body.job.id}/scene`)).body.scene;
-    expect(scene.canvas.height).toBe(1920);
-    expect(scene.layers.find((l: any) => l.id === 'ly_aurora_head').props.text).toBe('Spring');
+    expect(scene.canvas.duration).toBe(anim.duration);
+    expect(scene.tracks.length).toBe(anim.tracks.length);
+    expect((await call('marketing', 'POST', '/exports', { source: { kind: 'project', id: p.id, animationId: 'an_missing' }, format: 'png', settings: { width: 64, height: 64, time: 0 } })).status).toBe(404);
   });
   it('refuses unimplemented formats and odd MP4 sizes', async () => {
-    const t = (await call('marketing', 'GET', '/library')).body.templates[0];
-    const s = { kind: 'template', templateId: t.id, versionId: t.version_id, values: {} };
+    const s = { kind: 'project', id: (await fileNamed('Toggle switch')).id };
     expect((await call('marketing', 'POST', '/exports', { source: s, format: 'lottie', settings: {} })).status).toBe(422);
     expect((await call('marketing', 'POST', '/exports', { source: s, format: 'mp4', settings: { width: 1081, height: 1080, fps: 30, duration: 1 } })).status).toBe(400);
   });
-  it('produces native scene JSON on the server', async () => {
-    const t = (await call('engineer', 'GET', '/library')).body.templates[0];
-    const r = await call('engineer', 'POST', '/exports', { source: { kind: 'template', templateId: t.id, versionId: t.version_id, values: {} }, format: 'scene-json', settings: {} });
+  it('produces the full motion file (with its interactions) on the server', async () => {
+    const p = await fileNamed('Toggle switch');
+    const r = await call('engineer', 'POST', '/exports', { source: { kind: 'project', id: p.id }, format: 'scene-json', settings: {} });
     expect(r.body.job.status).toBe('completed');
-    const file = await fetch(base + r.body.job.result.url);
-    expect((await file.json()).schemaVersion).toBe(2);
+    const file = await (await fetch(base + r.body.job.result.url)).json();
+    expect(file.schemaVersion).toBe(3);
+    expect(file.machine.rules.length).toBeGreaterThan(0);
   });
   it('rejects uploaded results that do not match the job', async () => {
-    const t = (await call('marketing', 'GET', '/library')).body.templates[0];
-    const j = (await call('marketing', 'POST', '/exports', { source: { kind: 'template', templateId: t.id, versionId: t.version_id, values: {} }, format: 'png', settings: { width: 64, height: 64, time: 1 } })).body.job;
+    const p = await fileNamed('Toggle switch');
+    const j = (await call('marketing', 'POST', '/exports', { source: { kind: 'project', id: p.id }, format: 'png', settings: { width: 64, height: 64, time: 1 } })).body.job;
     await call('marketing', 'PATCH', `/exports/${j.id}`, { status: 'processing' });
     expect((await call('marketing', 'PUT', `/exports/${j.id}/result`, undefined, Buffer.from('not a png at all'))).status).toBe(400);
     const png = encodePng(64, 64, () => [10, 20, 30]);
@@ -112,19 +111,15 @@ describe('governed exports', () => {
   });
 });
 
-describe('template lifecycle', () => {
-  it('submit → no self-approval → approve → publish creates an immutable new version', async () => {
-    const p = (await call('designer', 'GET', '/projects')).body.projects.find((x: any) => x.name === 'Aurora Flow');
-    const sub = await call('designer', 'POST', `/projects/${p.id}/submit`, { name: 'Aurora Flow', changelog: 'v2 tweaks' });
-    expect(sub.status).toBe(201);
-    expect(sub.body.version).toBe(2);
-    expect((await call('designer', 'POST', `/approvals/${sub.body.approvalRequestId}/decide`, { decision: 'approved' })).status).toBe(403);
-    expect((await call('owner', 'POST', `/approvals/${sub.body.approvalRequestId}/decide`, { decision: 'approved' })).status).toBe(200);
-    expect((await call('designer', 'POST', `/templates/${sub.body.templateId}/publish`, { versionId: sub.body.versionId })).status).toBe(200);
-    const lib = (await call('marketing', 'GET', '/library')).body.templates.find((t: any) => t.id === sub.body.templateId);
-    expect(lib.version).toBe(2);
-    const audit = (await call('owner', 'GET', '/audit')).body.events.map((e: any) => e.action);
-    expect(audit).toEqual(expect.arrayContaining(['template.submit', 'approval.decision', 'asset.publish']));
+describe('files', () => {
+  it('creates files from scratch or a preset', async () => {
+    const blank = await call('designer', 'POST', '/projects', { name: 'Blank story', width: 1080, height: 1920, background: '#112233' });
+    const b = (await call('designer', 'GET', `/projects/${blank.body.id}`)).body;
+    expect(b.scene.doc.canvas).toMatchObject({ width: 1080, height: 1920, background: '#112233' });
+    const preset = await call('designer', 'POST', '/projects', { name: 'Buddy', preset: 'curious-buddy' });
+    const d = (await call('designer', 'GET', `/projects/${preset.body.id}`)).body.scene.doc;
+    expect(d.machine.inputs.some((i: any) => i.follow === 'pointerX')).toBe(true);
+    expect((await call('designer', 'POST', '/projects', { name: 'X', preset: 'nope' })).status).toBe(400);
   });
   it('detects concurrent edits instead of silently overwriting', async () => {
     const p = (await call('designer', 'GET', '/projects')).body.projects[0];
@@ -136,27 +131,56 @@ describe('template lifecycle', () => {
     expect(second.body.error.details.revision).toBe(first.body.revision);
   });
   it('rejects invalid scene documents', async () => {
-    const r = await call('designer', 'POST', '/projects', { name: 'Bad', scene: { schemaVersion: 2, layers: 'nope' } });
-    expect(r.status).toBe(400);
+    expect((await call('designer', 'POST', '/projects', { name: 'Bad', scene: { schemaVersion: 2, layers: 'nope' } })).status).toBe(400);
   });
 });
 
-describe('campaign inheritance on the server', () => {
-  it('master changes flow to variations except local overrides', async () => {
-    const t = (await call('marketing', 'GET', '/library')).body.templates.find((x: any) => x.name === 'Kinetic Typography');
-    const c = await call('marketing', 'POST', '/campaigns', { name: 'Launch', templateId: t.id, channels: ['instagram-feed', 'linkedin-feed', 'website-hero'] });
-    expect(c.status).toBe(201);
-    let d = (await call('marketing', 'GET', `/campaigns/${c.body.id}`)).body;
-    const li = d.variations.find((v: any) => v.channel === 'linkedin-feed');
-    expect((await call('marketing', 'PUT', `/campaigns/${c.body.id}/variations/${li.id}/overrides/headline`, { value: 'HIRE' })).status).toBe(200);
-    expect((await call('marketing', 'PUT', `/campaigns/${c.body.id}/master`, { values: { headline: 'LAUNCH', accent: '#d4ff3a' } })).status).toBe(200);
-    d = (await call('marketing', 'GET', `/campaigns/${c.body.id}`)).body;
-    const by = (ch: string) => d.variations.find((v: any) => v.channel === ch);
-    expect(by('linkedin-feed').values.headline).toBe('HIRE');
-    expect(by('linkedin-feed').sources.headline).toBe('override');
-    expect(by('instagram-feed').values.headline).toBe('LAUNCH');
-    expect(by('linkedin-feed').values.accent).toBe('#d4ff3a');
-    expect((await call('marketing', 'PUT', `/campaigns/${c.body.id}/master`, { values: { accent: '#123456' } })).status).toBe(400);
+describe('community', () => {
+  const noWs = async (who: string, method: string, url: string) => {
+    const r = await fetch(`${base}/api${url}`, { method, headers: { cookie: sessions[who].cookie } });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  it('lists the presets for every signed-in user, in order, and requires sign-in', async () => {
+    expect((await fetch(`${base}/api/community`)).status).toBe(401);
+    const r = await noWs('outsider', 'GET', '/community?sort=presets');
+    expect(r.status).toBe(200);
+    expect(r.body.posts[0].title).toBe('Curious buddy');
+    expect(r.body.posts.every((p: any) => p.isPreset)).toBe(true);
+  });
+  it('publishes with images copied, lets another workspace remix, and keeps posts independent', async () => {
+    const p = await fileNamed('Orb launch card');
+    const pub = await call('designer', 'POST', '/community', { projectId: p.id, title: 'Orb card', description: 'Hover the orb', tags: ['card'] });
+    expect(pub.status, JSON.stringify(pub.body)).toBe(200); // the seed already shared this file, so this updates that post
+    expect(pub.body.updated).toBe(true);
+    const post = (await noWs('outsider', 'GET', `/community/${pub.body.id}`)).body;
+    expect(post.post.title).toBe('Orb card');
+    const imgId = post.post.doc.layers.find((l: any) => l.type === 'image').props.assetId;
+    expect(imgId).toMatch(/^ca_/); // a community copy, not the workspace asset
+    expect((await fetch(base + post.assets[imgId].url)).status).toBe(200);
+    expect((await call('viewer', 'POST', '/community', { projectId: p.id, title: 'No' })).status).toBe(403);
+    // Another workspace remixes it; the image is copied into their workspace.
+    const remix = await call('outsider', 'POST', `/community/${pub.body.id}/remix`);
+    expect(remix.status, JSON.stringify(remix.body)).toBe(201);
+    const mine = (await call('outsider', 'GET', `/projects/${remix.body.id}`)).body;
+    expect(mine.project.remixOf).toBe(pub.body.id);
+    const newImg = mine.scene.doc.layers.find((l: any) => l.type === 'image').props.assetId;
+    expect((await call('outsider', 'GET', `/assets/${newImg}`)).status).toBe(200);
+    expect((await call('designer', 'GET', `/assets/${newImg}`)).status).toBe(404);
+    // Likes toggle; only the author can unpublish; remixes survive unpublishing.
+    expect((await noWs('outsider', 'POST', `/community/${pub.body.id}/like`)).body).toMatchObject({ liked: true, likeCount: 1 });
+    expect((await noWs('outsider', 'POST', `/community/${pub.body.id}/like`)).body).toMatchObject({ liked: false, likeCount: 0 });
+    expect((await call('outsider', 'DELETE', `/community/${pub.body.id}`)).status).toBe(403);
+    expect((await call('designer', 'DELETE', `/community/${pub.body.id}`)).status).toBe(200);
+    expect((await noWs('outsider', 'GET', `/community/${pub.body.id}`)).status).toBe(404);
+    expect((await call('outsider', 'GET', `/projects/${remix.body.id}`)).status).toBe(200);
+  });
+  it('republishing updates the same post, and presets cannot be unpublished', async () => {
+    const p = await fileNamed('Toggle switch');
+    const a = await call('designer', 'POST', '/community', { projectId: p.id, title: 'Switch' });
+    const b = await call('designer', 'POST', '/community', { projectId: p.id, title: 'Switch v2' });
+    expect(b.body).toMatchObject({ id: a.body.id, updated: true });
+    const preset = (await noWs('owner', 'GET', '/community?sort=presets')).body.posts[0];
+    expect((await call('owner', 'DELETE', `/community/${preset.id}`)).status).toBe(403);
   });
 });
 
