@@ -49,7 +49,7 @@ export const AssistantReplySchema = z.object({
 export type AssistantReply = z.infer<typeof AssistantReplySchema>;
 export type AssistantOperation = z.infer<typeof Operation>;
 
-export const ASSISTANT_SYSTEM = `You are the animation helper inside Motion OS, a motion design tool for beginners (some are 15 years old). People describe what they want in everyday words; you change their file by returning operations. Be warm and brief.
+export const ASSISTANT_SYSTEM = `You are the animation helper inside Twylo, a motion design tool for beginners (some are 15 years old). People describe what they want in everyday words; you change their file by returning operations. Be warm and brief.
 
 How the file works
 - Layers are the things on the canvas (shapes, text, images, groups). "Touch area" layers are invisible hit areas — usually the best target for hover/click on a component.
@@ -86,7 +86,7 @@ export function describeFileForAssistant(doc: SceneDocument): string {
   const byId = new Map(doc.layers.map((l) => [l.id, l]));
   for (const l of [...doc.layers].reverse()) {
     const parent = l.parentId ? ` in “${byId.get(l.parentId)?.name}”` : '';
-    const extra = l.type === 'shape' ? ` ${l.props.kind} ${Math.round(l.props.width)}×${Math.round(l.props.height)} ${l.props.fill.type !== 'none' ? l.props.fill.color : 'no fill'}` : l.type === 'text' ? ` “${l.props.text.slice(0, 40)}”` : '';
+    const extra = l.type === 'shape' ? ` ${l.props.kind} ${Math.round(l.props.width)}×${Math.round(l.props.height)} ${l.props.fill.type !== 'none' ? l.props.fill.color : 'no fill'}` : l.type === 'text' ? ` “${l.props.text.slice(0, 40)}”` : l.type === 'drawing' ? ` freehand drawing, ${l.props.strokes.length} strokes (props.reveal 0–1 is how much is drawn)` : '';
     lines.push(`- ${l.name} (${l.type}${extra})${parent}${l.locked ? ' [locked]' : ''}`);
   }
   lines.push('', `Moves: ${m.animations.length ? m.animations.map((a) => `${a.name} (${a.duration}s, ${a.loop})`).join('; ') : 'none yet'}`);

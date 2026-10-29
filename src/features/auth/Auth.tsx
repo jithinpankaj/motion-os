@@ -27,7 +27,7 @@ function Art() {
     <div className="auth-art">
       <MotionCanvas doc={doc} clock={clock} assets={nullResolver} label="Aurora Flow motion preview" motion={reduced ? 'static' : 'full'} interactive={false} style={{ position: 'absolute', inset: 0 }} />
       <div className="auth-copy">
-        <div className="eyebrow" style={{ color: 'rgba(255,255,255,.7)' }}>Motion OS</div>
+        <div className="eyebrow" style={{ color: 'rgba(255,255,255,.7)' }}>Twylo</div>
         <h1 className="display" style={{ marginTop: 12, maxWidth: 560 }}>Create once.<br />Adapt everywhere.<br /><span style={{ opacity: 0.55 }}>Stay on brand.</span></h1>
       </div>
     </div>

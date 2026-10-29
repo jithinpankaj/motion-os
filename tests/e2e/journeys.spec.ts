@@ -84,6 +84,30 @@ test('Editor: try the living button, then design, animate and interact', async (
   await expect(page.locator('.icard', { hasText: 'hovers over Star' })).toHaveCount(1);
 });
 
+test('Drawing: sketch freehand, finish, then replay it with Draw on', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page, 'dana@motion.os');
+  const id = await page.evaluate(async () => {
+    const s = await fetch('/api/session').then((r) => r.json());
+    return (await fetch('/api/projects', { method: 'POST', headers: { 'content-type': 'application/json', 'x-workspace-id': s.workspaces[0].id }, body: JSON.stringify({ name: 'E2E sketch', width: 1080, height: 1080 }) }).then((r) => r.json())).id;
+  });
+  await page.goto(`/edit/${id}`);
+  await page.getByRole('button', { name: 'Draw', exact: true }).click();
+  const st = (await page.locator('.stage-box').boundingBox())!;
+  const line = async (y: number) => { await page.mouse.move(st.x + st.width * 0.25, st.y + st.height * y); await page.mouse.down(); await page.mouse.move(st.x + st.width * 0.75, st.y + st.height * (y + 0.1), { steps: 12 }); await page.mouse.up(); };
+  await line(0.3);
+  await page.getByRole('radio', { name: 'Brush' }).click();
+  await line(0.6);
+  await page.getByRole('button', { name: 'Done' }).click();
+  // One drawing layer, selected, holding both strokes.
+  await expect(page.locator('.layer-row[aria-selected="true"]')).toContainText('Drawing 1');
+  await expect(page.locator('.ed-right')).toContainText('2 strokes');
+  await page.getByRole('button', { name: 'Animate', exact: true }).click();
+  await page.locator('.move', { hasText: 'Draw on' }).click();
+  await expect(page.locator('.tl-head .chip[aria-pressed="true"]')).toContainText('Drawing 1 · Draw on');
+  await expect(page.locator('.tl-names')).toContainText('Drawn');
+});
+
 test('Interactions: a beginner builds one in plain words, then changes a word and adds a condition', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await login(page, 'dana@motion.os');

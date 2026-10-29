@@ -108,13 +108,13 @@ export function kineticType(id = 'scn_kinetic_type'): SceneDocument {
   const tag = createLayer('text', { id: 'ly_kin_tag', name: 'Tagline', transform: { x: 0.5, y: 0.6, rotation: 0, scale: 1 } });
   tag.props = { ...tag.props, text: 'WITH INTENT', fontFamily: 'Geist Mono', weight: 500, size: 0.042, tracking: 0.32, color: '#ff5a36', maxChars: 20, animation: { preset: 'scramble', start: 0.9, duration: 1.4, stagger: 0.4, easing: 'linear', exit: true } };
   const foot = createLayer('text', { id: 'ly_kin_foot', name: 'Footer', transform: { x: 0.5, y: 0.9, rotation: 0, scale: 1 } });
-  foot.props = { ...foot.props, text: 'Motion OS · Launch week', fontFamily: 'Geist', weight: 400, size: 0.026, tracking: 0, color: '#9a9a9a', animation: { preset: 'word', start: 1.6, duration: 0.9, stagger: 0.5, easing: 'easeOut', exit: true } };
+  foot.props = { ...foot.props, text: 'Twylo · Launch week', fontFamily: 'Geist', weight: 400, size: 0.026, tracking: 0, color: '#9a9a9a', animation: { preset: 'word', start: 1.6, duration: 0.9, stagger: 0.5, easing: 'easeOut', exit: true } };
   return scene(id, 'Kinetic Typography', 'Typography', 'Bold staggered type with a scramble tagline on textured paper. Events and launches.', [bg, big, tag, foot], {
     tracks: [{ id: 'tr_kin_scale', layerId: big.id, path: 'transform.scale', keyframes: [{ id: 'k1', t: 0, value: 1, easing: 'easeInOut' }, { id: 'k2', t: 4, value: 1.07, easing: 'easeInOut' }, { id: 'k3', t: 8, value: 1, easing: 'linear' }] }],
     exposed: [
       headlineParam(big.id, 'MOVE', 10),
       { key: 'tagline', label: 'Tagline', description: 'Scrambled accent line.', type: 'text', targets: [{ layerId: tag.id, path: 'props.text' }], default: 'WITH INTENT', maxLength: 20, group: 'Content' },
-      { key: 'footer', label: 'Footer', description: 'Event or campaign line.', type: 'text', targets: [{ layerId: foot.id, path: 'props.text' }], default: 'Motion OS · Launch week', maxLength: 40, group: 'Content' },
+      { key: 'footer', label: 'Footer', description: 'Event or campaign line.', type: 'text', targets: [{ layerId: foot.id, path: 'props.text' }], default: 'Twylo · Launch week', maxLength: 40, group: 'Content' },
       { key: 'accent', label: 'Accent', description: 'Tagline colour from the brand accent set.', type: 'color', targets: [{ layerId: tag.id, path: 'props.color' }], default: '#ff5a36', options: [{ label: 'Signal', value: '#ff5a36' }, { label: 'Volt', value: '#d4ff3a' }, { label: 'Sky', value: '#5ab0ff' }], tokenBinding: 'color.accent', group: 'Style' },
     ],
     responsive: { focalPoint: { x: 0.5, y: 0.45 }, rules: [textRule(big.id), textRule(tag.id), textRule(foot.id)], overrides: { 'website-banner': { [big.id]: { x: 0.28, y: 0.5, size: 0.62 }, [tag.id]: { x: 0.7, y: 0.5, size: 0.11 }, [foot.id]: { visible: false } } } },

@@ -147,7 +147,7 @@ describe('community', () => {
   it('lists the presets for every signed-in user, in order, and requires sign-in', async () => {
     expect((await fetch(`${base}/api/community`)).status).toBe(401);
     // A preset that has left the library disappears from the gallery on the next start.
-    await db.query(`INSERT INTO community_posts (id, author_name, title, description, tags, doc, is_preset, preset_key) VALUES ('cp_retired', 'Motion OS', 'Retired', '', '{}', '{}', true, 'retired')`);
+    await db.query(`INSERT INTO community_posts (id, author_name, title, description, tags, doc, is_preset, preset_key) VALUES ('cp_retired', 'Twylo', 'Retired', '', '{}', '{}', true, 'retired')`);
     await ensurePresetPosts(db);
     const r = await noWs('outsider', 'GET', '/community?sort=presets');
     expect(r.status).toBe(200);
@@ -262,7 +262,7 @@ describe('Ask Claude', () => {
       expect(r.status, JSON.stringify(r.body)).toBe(200);
       expect(r.body.reply).toBe('Added a bounce on click.');
       expect(r.body.operations).toHaveLength(1);
-      expect(seen[0].system).toContain('animation helper inside Motion OS');
+      expect(seen[0].system).toContain('animation helper inside Twylo');
       expect(seen[0].messages.at(-1).content).toContain('The file right now:');
       expect(seen[0].messages.at(-1).content).toContain('What I’d like: Make it bounce when clicked');
       expect((await call('viewer', 'POST', '/assistant', { doc, messages: [{ role: 'user', text: 'hi' }] })).status).toBe(403);

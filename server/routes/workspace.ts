@@ -43,7 +43,7 @@ export function workspaceRoutes() {
     const token = newToken();
     const id = uid('inv');
     await db.query(`INSERT INTO invitations (id, workspace_id, email, role_keys, team_ids, token_hash, invited_by, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7, now() + interval '7 days')`, [id, ws, body.email, body.roles, body.teams, sha256(token), req.user!.id]);
-    await db.query(`INSERT INTO dev_mailbox (to_email, subject, body) VALUES ($1, $2, $3)`, [body.email, `You're invited to Motion OS`, `/invite/${token}`]);
+    await db.query(`INSERT INTO dev_mailbox (to_email, subject, body) VALUES ($1, $2, $3)`, [body.email, `You're invited to Twylo`, `/invite/${token}`]);
     await audit(db, req, 'permission.invite', 'invitation', id, { email: body.email, roles: body.roles });
     res.status(201).json({ id, link: `/invite/${token}`, delivery: 'Email delivery is not configured in this environment; share the link directly.' });
   });

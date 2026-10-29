@@ -14,7 +14,7 @@ export const EASINGS: { value: Easing & string; label: string }[] = [
   { value: 'expoOut', label: 'Snappy' }, { value: 'backOut', label: 'Bouncy' }, { value: 'spring', label: 'Springy' },
   { value: 'linear', label: 'Steady' }, { value: 'step', label: 'Jump' },
 ];
-const PATH_LABEL: Record<string, string> = {
+const PATH_LABEL: Record<string, string> = { 'props.reveal': 'Drawn', 'props.thickness': 'Thickness',
   'transform.x': 'X', 'transform.y': 'Y', 'transform.rotation': 'Rotation', 'transform.scale': 'Scale', 'transform.scaleX': 'Stretch ↔', 'transform.scaleY': 'Stretch ↕', opacity: 'Opacity',
   'props.width': 'Width', 'props.height': 'Height', 'props.radius': 'Corners', 'props.innerRadius': 'Pointiness',
   'props.fill.color': 'Colour', 'props.fill.color2': 'Colour 2', 'props.fill.angle': 'Gradient angle', 'props.stroke.width': 'Outline', 'props.stroke.color': 'Outline colour',
@@ -38,7 +38,7 @@ export function QuickMoves({ layer }: { layer: Layer | null }) {
       ) : null}
       <div className="empty-hint">{into === 'current' && anim ? <>Added to <b style={{ color: 'var(--text)' }}>{anim.name}</b>{anim.tracks.length ? ' at the playhead, so it plays together with what’s already there' : ''}.</> : 'Each move can be played by a rule in Interact. You can fine-tune every keyframe below.'}</div>
       <div className="moves">
-        {MOVES.filter((m) => m.key !== 'colorTo' || colorPath(layer)).map((m) => (
+        {MOVES.filter((m) => (m.key !== 'colorTo' || colorPath(layer)) && (!m.only || m.only.includes(layer.type))).map((m) => (
           <button key={m.key} className="move" onClick={() => applyMove(m.key as MoveKey, layer.id, { color, into, name: m.name })} title={m.hint}>
             <Icon name={m.icon as any} size={14} /><span>{m.name}<small>{m.hint}</small></span>
           </button>

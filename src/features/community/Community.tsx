@@ -14,7 +14,7 @@ export type Post = { id: string; title: string; description: string; tags: strin
 import { LIBRARY_CATEGORIES, categoryTag } from '../../../shared/motion/presets';
 const CATEGORY_TAGS = new Set(LIBRARY_CATEGORIES.map(categoryTag));
 
-/** The shared gallery: presets from the Motion OS team and everything people publish on this server. */
+/** The shared gallery: presets from the Twylo team and everything people publish on this server. */
 export default function Community() {
   const [sp, setSp] = useSearchParams();
   const [data, setData] = useState<{ posts: Post[]; tags: { tag: string; n: number }[] } | null>(null);
@@ -46,7 +46,7 @@ export default function Community() {
       </header>
       <div className="comm-filters">
         <div className="row wrap" style={{ gap: 8 }}>
-          {(['recent', 'popular', 'presets'] as const).map((s) => <button key={s} className="chip" aria-pressed={sort === s} onClick={() => set('sort', s === 'recent' ? null : s)}>{s === 'recent' ? 'Newest' : s === 'popular' ? 'Popular' : 'Motion OS library'}</button>)}
+          {(['recent', 'popular', 'presets'] as const).map((s) => <button key={s} className="chip" aria-pressed={sort === s} onClick={() => set('sort', s === 'recent' ? null : s)}>{s === 'recent' ? 'Newest' : s === 'popular' ? 'Popular' : 'Twylo library'}</button>)}
         </div>
         <div className="row wrap" style={{ gap: 8 }} role="group" aria-label="Categories">
           <button className="chip" aria-pressed={!tag || !CATEGORY_TAGS.has(tag)} onClick={() => set('tag', null)}>All categories</button>
@@ -68,6 +68,6 @@ export function PostCard({ p, onOpen }: { p: Post; onOpen: (f: any) => void }) {
   const view = useMemo(() => previewDoc(p.doc), [p.doc]);
   const assets = useMemo(() => communityResolver(p.id), [p.id]);
   // One quiet line under the title: the category for library pieces, the author for everyone else.
-  const meta = p.isPreset ? (p.doc.meta.category ?? 'Motion OS library') : `by ${p.author}`;
+  const meta = p.isPreset ? (p.doc.meta.category ?? 'Twylo library') : `by ${p.author}`;
   return <MotionTile id={`cp-${p.id}`} doc={view} assets={assets} aspect="1 / 1" title={p.title} subtitle={meta} onHover={preload.community} onOpen={onOpen} />;
 }

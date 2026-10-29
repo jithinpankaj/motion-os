@@ -7,6 +7,7 @@ import { Segmented, Slider } from '../../ui/controls';
 import { Icon } from '../../ui/Icon';
 import { SCENE_FONTS, ensureFont } from '../../engine/fonts';
 import { importDesignFile } from '../../lib/designImport';
+import { startDrawing } from './Draw';
 import { activeAnimation, commit, deleteKeyframe, layersAt, select, setProp, trackFor, useEditor } from './store';
 
 type Spec = ({ path: string; label: string; anim?: boolean; adv?: boolean }) & (
@@ -62,6 +63,14 @@ function specsFor(l: Layer, doc: SceneDocument): { title: string; items: Spec[] 
       { path: 'props.align', label: 'Align', kind: 'select', options: [{ value: 'left', label: 'Left' }, { value: 'center', label: 'Centre' }, { value: 'right', label: 'Right' }] },
       { path: 'props.tracking', label: 'Spacing', kind: 'slider', min: -0.1, max: 0.5, step: 0.01, anim: true },
       { path: 'props.color', label: 'Colour', kind: 'color', anim: true },
+      opacity,
+    ] },
+    transform,
+  ];
+  if (l.type === 'drawing') return [
+    { title: 'Drawing', items: [
+      { path: 'props.reveal', label: 'Drawn', kind: 'slider', min: 0, max: 1, step: 0.01, unit: '%', scale: 100, anim: true },
+      { path: 'props.thickness', label: 'Thickness', kind: 'slider', min: 0.1, max: 4, step: 0.05, anim: true },
       opacity,
     ] },
     transform,
@@ -173,6 +182,7 @@ export function Inspector({ doc, layer }: { doc: SceneDocument; layer: Layer }) 
         <input className="insp-name" value={layer.name} onChange={(e) => setProp(layer.id, 'name', e.target.value, `name:${layer.id}`)} aria-label="Layer name" />
         {layer.type === 'text' && <TextBox layer={layer} />}
         {layer.type === 'image' && <ReplaceImage layer={layer} />}
+        {layer.type === 'drawing' && <DrawingTools layer={layer} />}
       </div>
       {specsFor(shown, doc).map((g) => {
         const row = (sp: Spec) => <PropRow key={sp.path} spec={sp} layer={shown} anim={anim ? { id: anim.id } : null} playhead={playhead} />;
@@ -316,5 +326,24 @@ export function Customise({ doc }: { doc: SceneDocument }) {
         </div>
       ))}
     </Section>
+  );
+}
+
+/** A drawing: keep drawing into it, or recolour every stroke at once. */
+function DrawingTools({ layer }: { layer: Extract<Layer, { type: 'drawing' }> }) {
+  const colours = [...new Set(layer.props.strokes.map((s) => s.color))];
+  return (
+    <div className="draw-tools">
+      <div className="row" style={{ gap: 8 }}>
+        <button className="btn sm" onClick={() => startDrawing(layer.id)} disabled={!!layer.parentId} title={layer.parentId ? 'Move it out of its group to keep drawing into it' : undefined}><Icon name="draw" size={13} />Edit drawing</button>
+        <span className="faint" style={{ fontSize: 12 }}>{layer.props.strokes.length} stroke{layer.props.strokes.length === 1 ? '' : 's'}</span>
+      </div>
+      {colours.length > 0 && (
+        <div className="prop"><span className="lbl">{colours.length > 1 ? 'All strokes' : 'Colour'}</span>
+          <ColorField label="Stroke colour" value={colours[0]} onChange={(c) => commit((d) => ({ ...d, layers: d.layers.map((x) => (x.id === layer.id && x.type === 'drawing' ? { ...x, props: { ...x.props, strokes: x.props.strokes.map((s) => ({ ...s, color: c })) } } : x)) }), `draw-colour:${layer.id}`)} />
+          <span />
+        </div>
+      )}
+    </div>
   );
 }

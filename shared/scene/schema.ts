@@ -88,6 +88,27 @@ export const ParticlePropsSchema = z.object({
 });
 
 export const TEXT_PRESETS = ['none', 'fade', 'stagger', 'word', 'slide', 'scale', 'mask', 'scramble'] as const;
+/**
+ * Freehand drawing. Each stroke is a list of points as flat [x, y, pressure] triplets in pixels,
+ * measured from the drawing box's top-left corner. `reveal` (0–1) draws the strokes in order up to
+ * that share of their total length, so animating it replays the drawing; `thickness` scales every
+ * stroke's width.
+ */
+export const BRUSHES = ['pen', 'marker', 'highlighter', 'pencil', 'brush'] as const;
+export const StrokeSchema = z.object({
+  brush: z.enum(BRUSHES),
+  color: ColorSchema,
+  size: num(0.5, 200),
+  points: z.array(finite).min(3).max(9000).refine((p) => p.length % 3 === 0, 'points come in x, y, pressure triplets'),
+});
+export const DrawingPropsSchema = z.object({
+  width: num(1, 8192),
+  height: num(1, 8192),
+  strokes: z.array(StrokeSchema).max(600),
+  reveal: num(0, 1),
+  thickness: num(0.1, 4),
+});
+
 export const TextPropsSchema = z.object({
   text: z.string().max(2000),
   fontFamily: z.string().min(1).max(80),
@@ -156,6 +177,7 @@ export const LayerSchema = z.discriminatedUnion('type', [
   z.object({ ...base, type: z.literal('text'), props: TextPropsSchema }),
   z.object({ ...base, type: z.literal('image'), props: ImagePropsSchema }),
   z.object({ ...base, type: z.literal('shape'), props: ShapePropsSchema }),
+  z.object({ ...base, type: z.literal('drawing'), props: DrawingPropsSchema }),
 ]);
 
 export const KeyframeSchema = z.object({
@@ -409,6 +431,8 @@ export const SceneSchema = z.object({
 export type SceneDocument = z.infer<typeof SceneSchema>;
 export type Layer = z.infer<typeof LayerSchema>;
 export type LayerType = Layer['type'];
+export type DrawingProps = z.infer<typeof DrawingPropsSchema>;
+export type Stroke = z.infer<typeof StrokeSchema>;
 export type LayerOf<T extends LayerType> = Extract<Layer, { type: T }>;
 export type GradientProps = z.infer<typeof GradientPropsSchema>;
 export type MeshProps = z.infer<typeof MeshPropsSchema>;

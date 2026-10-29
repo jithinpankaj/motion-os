@@ -5,10 +5,11 @@ import { uid } from '../util/random';
  * One-click moves: friendly presets that write ordinary keyframes for a layer, starting from how
  * the layer looks right now. Everything they create stays editable on the timeline.
  */
-export type MoveKey = 'fadeIn' | 'fadeOut' | 'pop' | 'popOut' | 'slideIn' | 'slideUp' | 'spin' | 'bounce' | 'pulse' | 'wiggle' | 'shake' | 'float' | 'grow' | 'squash' | 'colorTo' | 'flip';
-export type MoveDef = { key: MoveKey; name: string; hint: string; icon: string; loop: Animation['loop']; duration: number; needsColor?: boolean };
+export type MoveKey = 'fadeIn' | 'fadeOut' | 'pop' | 'popOut' | 'slideIn' | 'slideUp' | 'spin' | 'bounce' | 'pulse' | 'wiggle' | 'shake' | 'float' | 'grow' | 'squash' | 'colorTo' | 'flip' | 'drawOn';
+export type MoveDef = { key: MoveKey; name: string; hint: string; icon: string; loop: Animation['loop']; duration: number; needsColor?: boolean; only?: Layer['type'][] };
 
 export const MOVES: MoveDef[] = [
+  { key: 'drawOn', name: 'Draw on', hint: 'Replays the drawing stroke by stroke', icon: 'draw', loop: 'once', duration: 1.8, only: ['drawing'] },
   { key: 'fadeIn', name: 'Fade in', hint: 'Appears gently', icon: 'eye', loop: 'once', duration: 0.6 },
   { key: 'fadeOut', name: 'Fade out', hint: 'Disappears gently', icon: 'eyeOff', loop: 'once', duration: 0.6 },
   { key: 'pop', name: 'Pop in', hint: 'Grows in with a little bounce', icon: 'sparkles', loop: 'once', duration: 0.5 },
@@ -84,6 +85,8 @@ export function buildMove(key: MoveKey, layer: Layer, doc: SceneDocument, opts: 
       break;
     }
     case 'flip': t.push(track(id, 'transform.rotation', [kf(0, rotation, 'backOut'), kf(d, rotation + 180)])); break;
+    // Animates how much of the drawing is drawn, so it appears stroke by stroke in the order it was drawn.
+    case 'drawOn': t.push(track(id, 'props.reveal', [kf(0, 0, 'easeInOut'), kf(d, 1)])); break;
   }
   return { tracks: t, duration: +d.toFixed(3), loop: def.loop };
 }

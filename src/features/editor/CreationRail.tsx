@@ -7,6 +7,7 @@ import { ImportDesign, addImageFile } from './LayersPanel';
 import { setLayout, useLayout } from './layout';
 import { addLayer } from './store';
 import { GRADIENTS, TEXTURES, addEffect } from './effects';
+import { finishDrawing, startDrawing } from './Draw';
 
 type Group = 'shapes' | 'gradients' | 'effects';
 
@@ -34,7 +35,7 @@ const ALL = [...SHAPES, ...GRADIENT_TOOLS, ...EFFECTS];
 
 export function CreationRail({ doc }: { doc: SceneDocument }) {
   const can = useCan();
-  const { pins, lastShape, lastEffect, lastGradient } = useLayout();
+  const { pins, lastShape, lastEffect, lastGradient, drawing } = useLayout();
   const [open, setOpen] = useState<Group | null>(null);
   const [importing, setImporting] = useState(false);
   const image = useRef<HTMLInputElement>(null);
@@ -45,11 +46,13 @@ export function CreationRail({ doc }: { doc: SceneDocument }) {
   const use = (t: Tool) => { t.run(); if (SHAPES.includes(t)) setLayout({ lastShape: t.key }); if (EFFECTS.includes(t)) setLayout({ lastEffect: t.key }); if (GRADIENT_TOOLS.includes(t)) setLayout({ lastGradient: t.key }); setOpen(null); };
   const pin = (k: string) => setLayout({ pins: pins.includes(k) ? pins.filter((p) => p !== k) : [...pins, k] });
 
-  // Single-key shortcuts, like most design tools (ignored while typing).
+  // Single-key shortcuts, like most design tools (ignored while typing; only P while drawing).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || /input|textarea|select/i.test((e.target as HTMLElement)?.tagName) || (e.target as HTMLElement)?.isContentEditable) return;
       const k = e.key.toLowerCase();
+      if (k === 'p') { e.preventDefault(); if (useLayout.getState().drawing) finishDrawing(); else startDrawing(); return; }
+      if (useLayout.getState().drawing) return;
       if (k === 'r') use(SHAPES[0]); else if (k === 'o') use(SHAPES[1]); else if (k === 't') use(TEXT);
       else if (k === 'i' && can('asset.upload')) image.current?.click();
       else return;
@@ -97,6 +100,8 @@ export function CreationRail({ doc }: { doc: SceneDocument }) {
 
   return (
     <nav className="ed-rail" aria-label="Create" ref={rail}>
+      <Tip label={drawing ? 'Stop drawing' : 'Draw'} kbd="P" side="right"><button className="rail-tool" aria-label="Draw" aria-pressed={drawing} onClick={() => (drawing ? finishDrawing() : startDrawing())}><Icon name="draw" /></button></Tip>
+      <span className="rail-sep" />
       {group('shapes', shape, SHAPES, 'Shapes')}
       <Tip label="Text" kbd="T" side="right"><button className="rail-tool" aria-label="Add text" onClick={() => use(TEXT)}><Glyph d={TEXT.glyph} /></button></Tip>
       {can('asset.upload') && <Tip label="Image" kbd="I" side="right"><button className="rail-tool" aria-label="Add an image" onClick={() => image.current?.click()}><Icon name="image" /></button></Tip>}

@@ -10,13 +10,14 @@ import { MeshView, meshKey } from './layers/mesh';
 import { ParticleView, particleKey } from './layers/particles';
 import { TextView, textKey } from './layers/text';
 import { ImageView, imageKey } from './layers/image';
+import { DrawingView } from './layers/drawing';
 import { ShapeView } from './layers/shape';
 
 export type Issue = { layerId: string; message: string };
 export type Metrics = { fps: number; frameMs: number; drawCalls: number; triangles: number; points: number; textureMB: number; compileMs: number; views: number; quality: number };
 
 const structuralKey = (l: Layer, ctx: { doc: SceneDocument }) =>
-  l.type === 'gradient' ? gradientKey(l) : l.type === 'mesh' ? meshKey(l) : l.type === 'particles' ? particleKey(l, ctx) : l.type === 'text' ? textKey(l) : l.type === 'image' ? imageKey(l) : l.type === 'shape' ? 'shape' : 'group';
+  l.type === 'gradient' ? gradientKey(l) : l.type === 'mesh' ? meshKey(l) : l.type === 'particles' ? particleKey(l, ctx) : l.type === 'text' ? textKey(l) : l.type === 'image' ? imageKey(l) : l.type === 'shape' ? 'shape' : l.type === 'drawing' ? 'drawing' : 'group';
 
 /** Compose group transforms/visibility/opacity into child layers (2D layers only). */
 export function resolveHierarchy(layers: Layer[]): Layer[] {
@@ -248,6 +249,7 @@ export class SceneRenderer {
       case 'text': return new TextView(layer, ctx);
       case 'image': return new ImageView(layer, ctx);
       case 'shape': return new ShapeView(layer, ctx);
+      case 'drawing': return new DrawingView(layer, ctx);
       default: throw new Error('unknown layer');
     }
   }

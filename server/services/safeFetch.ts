@@ -42,7 +42,7 @@ export async function safeFetch(raw: string, opts: { maxBytes?: number; timeoutM
       await assertPublic(url);
       const res = await impl(url.toString(), {
         method: opts.method ?? 'GET', body: opts.body, redirect: 'manual', signal: ctrl.signal,
-        headers: { 'user-agent': 'MotionOS-BrandImport/1.0 (+https://motion.os)', accept: opts.accept ?? '*/*', ...opts.headers },
+        headers: { 'user-agent': 'Twylo-BrandImport/1.0', accept: opts.accept ?? '*/*', ...opts.headers },
       }).catch((e) => { throw new HttpError(502, 'fetch_failed', e?.name === 'AbortError' ? 'The site took too long to respond' : `Could not reach ${url.hostname}`); });
       if (res.status >= 300 && res.status < 400 && res.headers.get('location')) { url = new URL(res.headers.get('location')!, url); continue; }
       const len = Number(res.headers.get('content-length') ?? 0);

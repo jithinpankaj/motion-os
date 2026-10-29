@@ -20,6 +20,7 @@ const MAP = {
   orbit: 'planet', safe: 'selection', stack: 'rows', chart: 'chart-bar', library: 'books', shapes: 'shapes', globe: 'globe', sun: 'sun', moon: 'moon',
   heart: 'heart', rect: 'square', ellipse: 'circle', polygon: 'hexagon', star: 'star', particles: 'confetti', pin: 'push-pin', text: 'text-t', remix: 'shuffle',
   grain: 'dots-nine', halftone: 'circles-four', noise: 'waves',
+  draw: 'pencil-simple-line', pen: 'pen-nib', marker: 'marker-circle', highlighter: 'highlighter-circle', eraser: 'eraser', drawing: 'scribble', pencil: 'pencil-simple', brush: 'paint-brush',
 };
 // A filled heart for "liked".
 const EXTRA_FILL = { heartFill: 'heart' };

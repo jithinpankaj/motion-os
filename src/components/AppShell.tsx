@@ -44,7 +44,7 @@ export function AppShell({ children, bare }: { children: ReactNode; bare?: boole
     <div className="shell" style={bare ? { gridTemplateColumns: '1fr' } : undefined}>
       {/* The editor has its own back button and creation rail, so the app rail steps aside there. */}
       {!bare && <nav className="rail" aria-label="Primary">
-        <NavLink to="/" className="rail-logo" aria-label="Motion OS home"><Logo size={26} /></NavLink>
+        <NavLink to="/" className="rail-logo" aria-label="Twylo home"><Logo size={26} /></NavLink>
         <LayoutGroup id="rail">
           {items.map((n) => (
             <Tip key={n.to} label={n.label} kbd={n.kbd} side="right">

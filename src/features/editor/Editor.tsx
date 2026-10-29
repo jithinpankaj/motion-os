@@ -12,6 +12,9 @@ import { ControlWidgets } from '../../components/ControlWidgets';
 import { Stage } from './Stage';
 import { LayersPanel } from './LayersPanel';
 import { CreationRail } from './CreationRail';
+import { finishDrawing } from './Draw';
+import { TouchEditor } from './Touch';
+import { useTouchDevice } from '../../lib/device';
 import { clamp, setLayout, toggleFocus, useLayout } from './layout';
 import { CanvasSettings, Customise, Inspector } from './Inspector';
 import { LIBRARY_CATEGORIES } from '../../../shared/motion/presets';
@@ -63,6 +66,7 @@ export default function Editor() {
   const [, bump] = useReducer((x) => x + 1, 0);
   const resolver = apiResolver();
   const readOnly = !can('scene.edit');
+  const touch = useTouchDevice();
 
   useEffect(() => {
     if (!id) return;
@@ -106,6 +110,9 @@ export default function Editor() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Leaving Design (or the file) finishes any drawing in progress.
+  useEffect(() => { if (mode !== 'design' && useLayout.getState().drawing) finishDrawing(); }, [mode]);
+  useEffect(() => () => { if (useLayout.getState().drawing) finishDrawing(); }, []);
   const previewRef = useRef(preview);
   previewRef.current = preview;
   const onRuntimeChange = useCallback(() => bump(), []);
@@ -113,6 +120,26 @@ export default function Editor() {
   if (!doc) return <div style={{ display: 'grid', placeItems: 'center', height: '100%' }}><div className="spinner" /></div>;
   const layer = doc.layers.find((l) => l.id === selection) ?? null;
 
+  const overlays = (
+    <>
+      <Modal open={!!draft} onClose={() => { if (id) clearDraft(id); setDraft(null); }} title="Recover unsaved changes?" subtitle={draft ? `Changes from ${new Date(draft.at).toLocaleString()} weren’t saved to the server.` : ''}
+        footer={<><button className="btn ghost" onClick={() => { if (id) clearDraft(id); setDraft(null); }}>Discard</button><button className="btn primary" onClick={() => { const d = deserializeScene(draft!.doc); useEditor.setState({ doc: d, saveState: 'dirty' }); save(true); setDraft(null); }}>Recover</button></>}><div /></Modal>
+      <Modal open={!!conflict} onClose={() => {}} title="Someone else saved this file" subtitle={`${conflict?.updatedBy ?? 'Another person'} saved a newer version while you were editing.`}
+        footer={<><button className="btn" onClick={() => resolveConflict('theirs')}>Use their version</button><button className="btn primary" onClick={() => resolveConflict('mine')}>Keep mine</button></>}><div className="empty-hint">“Keep mine” saves your version over theirs (theirs stays in the history).</div></Modal>
+      {asking && <AssistantPanel doc={doc} assets={resolver} onClose={() => setAsking(false)} />}
+      {tour && !touch && <Tour onDone={() => setTour(false)} />}
+      {sharing && id && <ShareDialog projectId={id} name={doc.meta.name} category={doc.meta.category} existing={community} onClose={() => setSharing(false)} onDone={(c) => { setCommunity(c); setSharing(false); }} />}
+      {exporting && id && <ExportDialog projectId={id} doc={doc} onClose={() => setExporting(false)} />}
+    </>
+  );
+  // iPad and phones get a focused drawing editor; interactions and panels stay on desktop.
+  if (touch) return (
+    <>
+      <TouchEditor doc={doc} assets={resolver} playerRef={player} onRuntimeChange={onRuntimeChange} saveLabel={saveLabel(saveState)} saveState={saveState} readOnly={readOnly}
+        onBack={() => nav('/')} onExport={can('export.create') ? () => setExporting(true) : undefined} onShare={can('community.publish') ? () => setSharing(true) : undefined} />
+      {overlays}
+    </>
+  );
   const previewing = mode === 'try';
   const showRail = !focus && (mode === 'design' || mode === 'animate');
   const showLeft = !focus && !previewing;
@@ -167,14 +194,7 @@ export default function Editor() {
       {mode === 'animate' && <Timeline doc={doc} />}
       {focus && <button className="focus-exit metal-graphite" onClick={toggleFocus}><Icon name="maximize" size={13} />Exit focus mode<span className="kbd">{'⌘\\'}</span></button>}
 
-      <Modal open={!!draft} onClose={() => { if (id) clearDraft(id); setDraft(null); }} title="Recover unsaved changes?" subtitle={draft ? `Changes from ${new Date(draft.at).toLocaleString()} weren’t saved to the server.` : ''}
-        footer={<><button className="btn ghost" onClick={() => { if (id) clearDraft(id); setDraft(null); }}>Discard</button><button className="btn primary" onClick={() => { const d = deserializeScene(draft!.doc); useEditor.setState({ doc: d, saveState: 'dirty' }); save(true); setDraft(null); }}>Recover</button></>}><div /></Modal>
-      <Modal open={!!conflict} onClose={() => {}} title="Someone else saved this file" subtitle={`${conflict?.updatedBy ?? 'Another person'} saved a newer version while you were editing.`}
-        footer={<><button className="btn" onClick={() => resolveConflict('theirs')}>Use their version</button><button className="btn primary" onClick={() => resolveConflict('mine')}>Keep mine</button></>}><div className="empty-hint">“Keep mine” saves your version over theirs (theirs stays in the history).</div></Modal>
-      {asking && <AssistantPanel doc={doc} assets={resolver} onClose={() => setAsking(false)} />}
-      {tour && <Tour onDone={() => setTour(false)} />}
-      {sharing && id && <ShareDialog projectId={id} name={doc.meta.name} category={doc.meta.category} existing={community} onClose={() => setSharing(false)} onDone={(c) => { setCommunity(c); setSharing(false); }} />}
-      {exporting && id && <ExportDialog projectId={id} doc={doc} onClose={() => setExporting(false)} />}
+      {overlays}
     </div>
   );
 }

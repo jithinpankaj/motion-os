@@ -1,4 +1,4 @@
-# Motion OS
+# Twylo
 
 An interactive motion design tool that's easy to learn: draw something, give it moves, and make it react to
 clicks, hovers, toggles, buttons, sliders — or the pointer itself. Start from scratch or remix a preset from
@@ -29,7 +29,7 @@ the Community.
 - **Learn** — a page for first-timers (the four steps, a five-minute walkthrough, the words the editor uses) and a
   one-minute spotlight tour of the editor that shows on the first visit and replays from the **?** button.
 - **Library & Community** — a gallery shared by everyone on this server, filterable by category (Characters,
-  Interactive UI, Illustrations, Typography, Celebrations, Loaders). The Motion OS library has twelve components
+  Interactive UI, Illustrations, Typography, Celebrations, Loaders). The Twylo library has twelve components
   (Living button, Wandering creature, Slot bird, Mochi, Blooming flower, Morning coffee, Day & night switch, Task
   checkbox, Bouncy headline, Like burst, Reward badge, Inchworm loader), each built only from editor shapes and
   moves, with a note on every move explaining the motion principle. Open any post to play with it, like it, and

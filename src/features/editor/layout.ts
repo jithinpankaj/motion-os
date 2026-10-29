@@ -4,7 +4,7 @@ import { create } from 'zustand';
  * How the editor's workspace is arranged: panel widths, timeline height, focus mode, pinned tools,
  * the canvas grid and zoom. Zoom and the assistant are per visit; the rest is remembered.
  */
-type Saved = Omit<Layout, 'zoom' | 'assistant' | 'askPrompt'>;
+type Saved = Omit<Layout, 'zoom' | 'assistant' | 'askPrompt' | 'drawing' | 'drawLayer' | 'moveSheet'>;
 type Layout = {
   left: number; right: number; timeline: number;
   /** Interact: the share of the space (after Layers) that the logic panel takes; the preview gets the rest. */
@@ -13,14 +13,19 @@ type Layout = {
   zoom: 'fit' | number;
   /** Ask Claude open, and an optional prompt to start it with. Not remembered between visits. */
   assistant: boolean; askPrompt: string | null;
+  /** Draw mode: on/off and the drawing being added to (per visit); the brush is remembered. */
+  drawing: boolean; drawLayer: string | null;
+  /** Touch devices: the Animate sheet is open. */
+  moveSheet: boolean;
+  brush: 'pen' | 'pencil' | 'brush' | 'marker' | 'highlighter' | 'eraser'; brushSize: number; brushColor: string;
 };
 const KEY = 'mos.editor.layout';
-const DEFAULTS: Saved = { left: 248, right: 304, interactSplit: 0.6, timeline: 236, timelineOpen: true, timelineSelectedOnly: false, focus: false, grid: false, pins: [], lastShape: 'rect', lastEffect: 'tFilm', lastGradient: 'gLinear' };
+const DEFAULTS: Saved = { left: 248, right: 304, interactSplit: 0.6, timeline: 236, timelineOpen: true, timelineSelectedOnly: false, focus: false, grid: false, pins: [], lastShape: 'rect', lastEffect: 'tFilm', lastGradient: 'gLinear', brush: 'pen', brushSize: 8, brushColor: '#1d1d1f' };
 const load = (): Saved => { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') }; } catch { return DEFAULTS; } };
 
-export const useLayout = create<Layout>(() => ({ ...load(), zoom: 'fit', assistant: false, askPrompt: null }));
+export const useLayout = create<Layout>(() => ({ ...load(), zoom: 'fit', assistant: false, askPrompt: null, drawing: false, drawLayer: null, moveSheet: false }));
 useLayout.subscribe((s) => {
-  const { zoom: _zoom, assistant: _a, askPrompt: _p, ...keep } = s;
+  const { zoom: _zoom, assistant: _a, askPrompt: _p, drawing: _d, drawLayer: _l, moveSheet: _m, ...keep } = s;
   try { localStorage.setItem(KEY, JSON.stringify(keep)); } catch { /* private mode: still works for this visit */ }
 });
 

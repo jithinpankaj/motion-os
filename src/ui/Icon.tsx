@@ -14,7 +14,7 @@ export function Icon({ name, size, className = '', label }: { name: IconName; si
 export function Logo({ size = 22 }: { size?: number }) {
   // Drawn in currentColor so the mark follows the interface theme.
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-label="Motion OS" role="img">
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-label="Twylo" role="img">
       <circle cx="16" cy="16" r="12.5" fill="none" stroke="currentColor" strokeOpacity="0.55" strokeWidth="2.5" />
       <path d="M9.5 18.5c2.2-5 4.4-5 6.5 0s4.3 5 6.5 0" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
     </svg>

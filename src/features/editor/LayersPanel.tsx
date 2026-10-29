@@ -7,7 +7,7 @@ import { Icon } from '../../ui/Icon';
 import { addLayer, commit, deleteLayer, duplicateLayer, moveLayer, select, setProp, useEditor } from './store';
 import { createLayer } from '../../../shared/scene/defaults';
 
-const ICON: Record<string, string> = { shape: 'shapes', text: 'type', image: 'image', gradient: 'gradient', particles: 'sparkles', mesh: 'sphere', group: 'folder' };
+const ICON: Record<string, string> = { drawing: 'drawing', shape: 'shapes', text: 'type', image: 'image', gradient: 'gradient', particles: 'sparkles', mesh: 'sphere', group: 'folder' };
 
 /** Add one image file as a layer. */
 export async function addImageFile(doc: SceneDocument, file: File) {

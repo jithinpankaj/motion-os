@@ -8,6 +8,7 @@ import type { Bounds } from '../../engine/layers/base';
 import { Icon } from '../../ui/Icon';
 import { Tip } from '../../ui/controls';
 import { useTourImage, type TourImage } from './tourImages';
+import { DrawBar, DrawSurface } from './Draw';
 import { markTipSeen, openAssistant, setLayout, tipSeen, toggleFocus, useLayout, zoomBy } from './layout';
 import { activeAnimation, deleteLayer, duplicateLayer, endCoalesce, layersAt, moveLayer, select, setMode, setPlayhead, setPlaying, setProp, useEditor } from './store';
 
@@ -29,7 +30,7 @@ function useFit(ref: React.RefObject<HTMLDivElement | null>, w: number, h: numbe
 
 export function Stage({ doc, assets, playerRef, onRuntimeChange }: { doc: SceneDocument; assets: AssetResolver; playerRef: React.Ref<MotionPlayerHandle>; onRuntimeChange: () => void }) {
   const mode = useEditor((s) => s.mode);
-  const { zoom, grid, focus } = useLayout();
+  const { zoom, grid, focus, drawing } = useLayout();
   const host = useRef<HTMLDivElement>(null);
   const fit = useFit(host, doc.canvas.width, doc.canvas.height);
   const scale = zoom === 'fit' ? fit : zoom;
@@ -51,17 +52,19 @@ export function Stage({ doc, assets, playerRef, onRuntimeChange }: { doc: SceneD
   }, [fit]);
 
   return (
-    <div className={`ed-stage${grid ? ' grid-on' : ''}`} ref={host}>
+    <div className={`ed-stage${grid ? ' grid-on' : ''}${drawing && !live ? ' drawing-on' : ''}`} ref={host}>
       <div className="stage-scroll">
         {fit > 0 && (
           <div className="stage-box" style={{ width: box.width, height: box.height }}>
             {live
               ? <MotionPlayer ref={playerRef} doc={doc} assets={assets} label={`${doc.meta.name} live preview`} style={{ position: 'absolute', inset: 0 }} onChange={onRuntimeChange} />
               : <EditCanvas doc={doc} assets={assets} />}
+            {drawing && !live && <DrawSurface doc={doc} />}
           </div>
         )}
       </div>
-      <div className="canvas-bar metal-graphite" role="toolbar" aria-label="Canvas">
+      {drawing && !live && <DrawBar />}
+      <div className="canvas-bar metal-graphite" role="toolbar" aria-label="Canvas" hidden={drawing && !live}>
         <Tip label="Zoom out" kbd="⌘−" side="top"><button className="cb-btn" aria-label="Zoom out" onClick={() => zoomBy(-1, fit)}><Icon name="minus" size={14} /></button></Tip>
         <Tip label="Fit to screen" kbd="⇧1" side="top"><button className="cb-zoom" aria-label={`Zoom ${Math.round(scale * 100)}%. Fit to screen`} onClick={() => setLayout({ zoom: 'fit' })}>{Math.round(scale * 100)}%</button></Tip>
         <Tip label="Zoom in" kbd="⌘+" side="top"><button className="cb-btn" aria-label="Zoom in" onClick={() => zoomBy(1, fit)}><Icon name="plus" size={14} /></button></Tip>
@@ -72,7 +75,8 @@ export function Stage({ doc, assets, playerRef, onRuntimeChange }: { doc: SceneD
         <span className="cb-sep" />
         <Tip label={focus ? 'Exit focus mode' : 'Focus mode'} kbd={'⌘\\'} side="top"><button className="cb-btn" aria-label="Focus mode" aria-pressed={focus} onClick={toggleFocus}><Icon name="maximize" size={14} /></button></Tip>
       </div>
-      {mode === 'design' && <FirstTip id="select" img="tip-select" when={!!useEditor.getState().selection}>Drag to move. Pull a corner to resize; the dot on top rotates. Shift snaps.</FirstTip>}
+      {mode === 'design' && drawing && <FirstTip id="draw" img="tip-select" when>Draw with your mouse, finger or Apple Pencil. Each part you want to move on its own should be its own drawing: press New drawing between them.</FirstTip>}
+      {mode === 'design' && !drawing && <FirstTip id="select" img="tip-select" when={!!useEditor.getState().selection}>Drag to move. Pull a corner to resize; the dot on top rotates. Shift snaps.</FirstTip>}
       {mode === 'animate' && <FirstTip id="animate" img="tip-animate" when>Pick a move, put the playhead where you want, then change anything on the canvas. Each change becomes a keyframe.</FirstTip>}
       {mode === 'interact' && <FirstTip id="interact" img="tip-interact" when>Interactions read like sentences: when someone does something, do these steps. Start with New interaction on the right.</FirstTip>}
     </div>

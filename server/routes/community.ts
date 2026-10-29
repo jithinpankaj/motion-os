@@ -25,8 +25,8 @@ export async function ensurePresetPosts(db: Db) {
   for (const p of MOTION_PRESETS) {
     const doc = p.build();
     await db.query(
-      `INSERT INTO community_posts (id, author_name, title, description, tags, doc, is_preset, preset_key) VALUES ($1, 'Motion OS', $2, $3, $4, $5, true, $6)
-       ON CONFLICT (preset_key) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, tags = EXCLUDED.tags, doc = EXCLUDED.doc, unpublished_at = NULL`,
+      `INSERT INTO community_posts (id, author_name, title, description, tags, doc, is_preset, preset_key) VALUES ($1, 'Twylo', $2, $3, $4, $5, true, $6)
+       ON CONFLICT (preset_key) DO UPDATE SET author_name = EXCLUDED.author_name, title = EXCLUDED.title, description = EXCLUDED.description, tags = EXCLUDED.tags, doc = EXCLUDED.doc, unpublished_at = NULL`,
       [uid('cp'), p.name, `${p.description} ${p.tip}`, p.tags, JSON.stringify(doc), p.key],
     );
   }

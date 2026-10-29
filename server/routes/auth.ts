@@ -47,7 +47,7 @@ export function authRoutes() {
     if (u) {
       const token = newToken();
       await req.ctx.db.query(`INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES ($1, $2, now() + interval '30 minutes')`, [sha256(token), u.id]);
-      await req.ctx.db.query(`INSERT INTO dev_mailbox (to_email, subject, body) VALUES ($1, $2, $3)`, [u.email, 'Reset your Motion OS password', `/reset?token=${token}`]);
+      await req.ctx.db.query(`INSERT INTO dev_mailbox (to_email, subject, body) VALUES ($1, $2, $3)`, [u.email, 'Reset your Twylo password', `/reset?token=${token}`]);
     }
     res.json({ ok: true, message: 'If an account exists for that email, a reset link has been sent.' });
   });

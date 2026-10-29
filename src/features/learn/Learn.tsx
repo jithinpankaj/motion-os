@@ -6,12 +6,12 @@ import { toast } from '../../ui/controls';
 import { Icon } from '../../ui/Icon';
 
 /**
- * How it works: a short, friendly explainer for people opening Motion OS for the first time. The
+ * How it works: a short, friendly explainer for people opening Twylo for the first time. The
  * four steps, a five minute walkthrough, how to ask Claude, and the few words the editor uses.
  * It can open a starter file with the guided tour.
  */
 const STEPS = [
-  { title: 'Design', what: 'What it looks like', how: 'Add shapes, text and images, or import a design. Colours and sizes live on the right.' },
+  { title: 'Design', what: 'What it looks like', how: 'Draw by hand (great with an Apple Pencil), add shapes, text and images, or import a design. Colours and sizes live on the right.' },
   { title: 'Animate', what: 'How it moves', how: 'Select a layer and pick a one click move like Pop, Bounce or Spin. Fine tune it on the timeline.' },
   { title: 'Interact', what: 'How it reacts', how: 'Answer three questions: what people do, on what, and what should happen. It reads like a sentence.' },
   { title: 'Preview', what: 'Play with it', how: 'Press Preview and hover or click the canvas like a visitor would. What’s happening explains every result.' },
@@ -33,7 +33,7 @@ const EXAMPLES = [
 const WORDS = [
   ['Layer', 'One thing on the canvas: a shape, text, an image, or a group.'],
   ['Move', 'A short animation, like Bounce or Turn on.'],
-  ['Keyframe', 'A moment where you set how something looks. Motion OS fills in the rest.'],
+  ['Keyframe', 'A moment where you set how something looks. Twylo fills in the rest.'],
   ['Interaction', 'When something happens, and only if a condition holds, do these steps.'],
   ['Switch and value', 'Something the file remembers, like on or off, a number, or a colour.'],
   ['State', 'An optional named pose, like Rest, Hover or Pressed.'],

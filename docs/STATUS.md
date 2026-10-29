@@ -153,3 +153,17 @@ Each move carries a note explaining the motion principle it uses (shown in Anima
 - The gradient layer has four more styles (appended, so saved files keep their meaning): **Conic**, **Diamond**, **Film grain** (transparent light and dark specks over everything below, optionally flickering) and **Halftone** (a printed dot screen).
 - The creation rail has a **Gradients** flyout (Linear, Radial, Conic, Diamond, Mesh, Aurora, Blobs) and a **Texture & effects** flyout (Film grain, Paper grain, Noise field, Halftone, Particles), each with a colour preview. Presets live in `src/features/editor/effects.ts`.
 - The inspector shows the controls each style needs: Amount, Size and Flicker for grain; Dot size, Angle and Unevenness for halftone; Angle and Scale for the shaped gradients.
+
+## Drawing
+
+- **Draw** (top of the creation rail, or `P`) sketches straight onto the canvas with a mouse, finger or Apple Pencil (pressure-sensitive; once a pencil is used, touches are ignored so a resting palm doesn't draw). Strokes: **Pen** (pressure, tapered ends), **Pencil** (thin, grainy), **Brush** (calligraphic), **Marker**, **Highlighter**, plus an **Eraser** (`E`) that removes whole strokes. Size with the slider or `[` `]`, eight colours or any colour. Every stroke is one undo step.
+- Strokes go into a **drawing layer** (`drawing` in the scene format: strokes as x, y, pressure points). **Done** (`Enter`/`Esc`) trims its box to the strokes and selects it; **New drawing** starts a separate one, so parts can move on their own. A drawing moves, scales, fades and reacts to interactions like any layer.
+- In the inspector: **Drawn** (how much of it is drawn, 0–100%) and **Thickness** both animate; **Edit drawing** adds more strokes; one colour field recolours every stroke. The one-click **Draw on** move replays the drawing stroke by stroke.
+- Not built yet: a click-to-place Bézier pen for precise vector paths, and editing individual points.
+
+## iPad and phones
+
+- On touch-first devices (no hover, coarse pointer) the editor is a focused drawing app: the artboard fills the screen and is ready to draw on with the floating toolbar (stroke and colour pickers, size, undo, **New part**, **Animate**). An iPad with a trackpad gets the full editor; `?desktop=1` forces it.
+- **Animate** opens a sheet: pick a drawn part, tap a move (Draw on, Pop in, Fade in, Float, Wiggle, Bounce, Spin, Pulse, Rise up, Shake). Each move plays when the file opens; **Preview** plays it. Moves on a part can be removed there.
+- Interact, Animate's timeline, the side panels and the tour are desktop only. Files keep everything, so a sketch started on iPad can get interactions on a computer.
+- The app header fits phones (theme switch moves to Settings → Appearance), and no page scrolls sideways at 390px.

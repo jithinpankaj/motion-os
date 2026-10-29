@@ -1,5 +1,5 @@
 import { uid } from '../util/random';
-import type { Layer, LayerType, SceneDocument, Transform, GradientProps, MeshProps, ParticleProps, TextProps, ImageProps, ShapeProps } from './schema';
+import type { Layer, LayerType, SceneDocument, Transform, GradientProps, MeshProps, ParticleProps, TextProps, ImageProps, ShapeProps, DrawingProps } from './schema';
 import { SCHEMA_VERSION } from './schema';
 
 export const defaultGradient = (): GradientProps => ({
@@ -92,7 +92,8 @@ export const defaultShape = (kind: ShapeProps['kind'] = 'rect'): ShapeProps => (
   stroke: { color: '#ffffff', width: 0 },
 });
 
-const NAMES: Record<LayerType, string> = { group: 'Group', gradient: 'Gradient', mesh: 'Mesh', particles: 'Particles', text: 'Text', image: 'Image', shape: 'Shape' };
+const NAMES: Record<LayerType, string> = { group: 'Group', gradient: 'Gradient', mesh: 'Mesh', particles: 'Particles', text: 'Text', image: 'Image', shape: 'Shape', drawing: 'Drawing' };
+export const defaultDrawing = (): DrawingProps => ({ width: 1080, height: 1080, strokes: [], reveal: 1, thickness: 1 });
 
 export function createLayer<T extends LayerType>(type: T, patch: Omit<Partial<Layer>, 'transform'> & { transform?: Partial<Transform> } = {}): Extract<Layer, { type: T }> {
   const props =
@@ -101,7 +102,8 @@ export function createLayer<T extends LayerType>(type: T, patch: Omit<Partial<La
     type === 'particles' ? defaultParticles() :
     type === 'text' ? defaultText() :
     type === 'image' ? defaultImage() :
-    type === 'shape' ? defaultShape() : {};
+    type === 'shape' ? defaultShape() :
+    type === 'drawing' ? defaultDrawing() : {};
   return {
     id: uid('ly'),
     name: NAMES[type],
