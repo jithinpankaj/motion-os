@@ -106,7 +106,15 @@ export function buildMotion(o: CreateOptions): SceneDocument {
     layer.props = { ...layer.props, assetId: l.assetId, fit: 'contain', mask: 'none', radius: 0, width: Math.max(0.01, Math.min(4, l.w)), height: Math.max(0.01, Math.min(4, l.h)), reveal: { preset: 'none', start: 0, duration: 1, easing: 'easeOut' } };
     return layer;
   };
-  if (keepBg) for (const l of bgLayers) layers.push(imageLayer(l));
+  // A kept background covers the whole output frame (cropping if the channel's shape differs), so other
+  // sizes never show empty bars; the remaining parts stay where the design put them.
+  if (keepBg) for (const l of bgLayers) {
+    const bg = imageLayer(l);
+    const m = Math.min(W, H);
+    bg.transform = { ...bg.transform, x: 0.5, y: 0.5 };
+    bg.props = { ...bg.props, fit: 'cover', width: Math.min(4, W / m), height: Math.min(4, H / m) };
+    layers.push(bg);
+  }
   // A single flat image (no separate parts) is animated as a whole.
   const animated = parts.length ? parts : keepBg ? [] : bgLayers;
 

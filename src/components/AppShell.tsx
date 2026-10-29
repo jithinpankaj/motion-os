@@ -266,7 +266,7 @@ function AdvancedMenu({ active }: { active: boolean }) {
   const nav = useNavigate();
   const items = [
     can('scene.view') && { label: 'Motion Studio (full editor)', icon: 'studio', onSelect: () => nav('/studio') },
-    can('campaign.view') && { label: 'Campaigns', icon: 'campaigns', onSelect: () => nav('/campaigns') },
+    can('campaign.view') && { label: 'Template campaigns', icon: 'campaigns', onSelect: () => nav('/campaigns') },
     can('asset.view') && { label: 'All assets', icon: 'assets', onSelect: () => nav('/assets') },
     can('integration.view') && { label: 'Publishing & integrations', icon: 'integrations', onSelect: () => nav('/integrations') },
     can('brand.view') && { label: 'Brand tokens', icon: 'brand', onSelect: () => nav('/brand/advanced') },

@@ -190,3 +190,88 @@ describe('create recipes', () => {
     expect((await call('marketing', 'PUT', `/projects/${c.body.id}/recipe`, { recipe, doc, baseRevision: 1 })).status).toBe(409);
   });
 });
+
+describe('simple campaigns', () => {
+  it('saves several channel sizes together, packages exports, and updates as a group', async () => {
+    const { buildMotion } = await import('../../shared/motionStyles');
+    const { kitFromTokens } = await import('../../shared/brandImport');
+    const { DEFAULT_BRAND_TOKENS } = await import('../../shared/brand');
+    const { formatById } = await import('../../shared/formats');
+    const { encodePng } = await import('../../server/services/png');
+    const kit = kitFromTokens(DEFAULT_BRAND_TOKENS);
+    const mk = (f: string) => { const fm = formatById(f)!; return buildMotion({ design: null, brand: kit, style: 'backdrop', headline: 'Spring', width: fm.width, height: fm.height }); };
+    const recipe = { design: null, style: 'backdrop', personality: 'calm', headline: 'Spring', showLogo: false, keepBackground: null, duration: 8, format: 'instagram-feed' };
+    const brandId = (await (await fetch(`${base}/api/session`, { headers: { cookie: who.marketing.cookie } })).json()).workspaces[0].brands[0].id;
+
+    // A doc must match its channel's size.
+    expect((await call('marketing', 'POST', '/motion-campaigns', { name: 'Bad', brandId, recipe, items: [{ format: 'instagram-feed', doc: mk('linkedin-feed') }] })).status).toBe(400);
+    expect((await call('viewer', 'POST', '/motion-campaigns', { name: 'No', brandId, recipe, items: [{ format: 'instagram-feed', doc: mk('instagram-feed') }] })).status).toBe(403);
+
+    const formats = ['instagram-feed', 'instagram-story', 'linkedin-feed'];
+    const c = await call('marketing', 'POST', '/motion-campaigns', { name: 'Spring launch', brandId, recipe, items: formats.map((f) => ({ format: f, doc: mk(f) })) });
+    expect(c.status).toBe(201);
+    expect(c.body.channels.map((x: any) => x.format)).toEqual(formats);
+    const list = (await call('marketing', 'GET', '/motion-campaigns')).body.campaigns.find((x: any) => x.id === c.body.id);
+    expect(list.brand_id).toBe(brandId);
+    expect(list.channels).toHaveLength(3);
+    const projects = (await call('marketing', 'GET', '/projects')).body.projects.filter((p: any) => p.motion_campaign_id === c.body.id);
+    expect(projects).toHaveLength(3);
+
+    // Nothing exported yet → no package.
+    expect((await call('marketing', 'GET', `/motion-campaigns/${c.body.id}/package`)).status).toBe(409);
+    const feed = c.body.channels[0];
+    const job = (await call('marketing', 'POST', '/exports', { source: { kind: 'project', id: feed.projectId }, format: 'png', settings: { width: 108, height: 135, time: 2, background: 'scene' } })).body.job;
+    await call('marketing', 'PATCH', `/exports/${job.id}`, { status: 'processing' });
+    const put = await fetch(`${base}/api/exports/${job.id}/result`, { method: 'PUT', headers: { cookie: who.marketing.cookie, 'x-workspace-id': who.marketing.ws, 'content-type': 'application/octet-stream' }, body: new Uint8Array(encodePng(108, 135, () => [1, 2, 3])) });
+    expect(put.status).toBe(200);
+    const detail = (await call('marketing', 'GET', `/motion-campaigns/${c.body.id}`)).body;
+    expect(detail.channels.find((x: any) => x.id === feed.projectId).export.upToDate).toBe(true);
+    const zipRes = await fetch(`${base}/api/motion-campaigns/${c.body.id}/package`, { headers: { cookie: who.marketing.cookie, 'x-workspace-id': who.marketing.ws } });
+    expect(zipRes.status).toBe(200);
+    const zipBytes = Buffer.from(await zipRes.arrayBuffer());
+    expect(zipBytes.subarray(0, 2).toString()).toBe('PK');
+    expect(zipBytes.includes(Buffer.from('instagram-feed/'))).toBe(true);
+    expect(zipBytes.includes(Buffer.from('"notIncluded"'))).toBe(true);
+
+    // Update: drop the story size; the others update with their revisions; stale revisions conflict.
+    const keep = c.body.channels.filter((x: any) => x.format !== 'instagram-story');
+    const upd = await call('marketing', 'PUT', `/motion-campaigns/${c.body.id}`, { name: 'Spring launch v2', brandId, recipe: { ...recipe, headline: 'Spring v2' }, items: keep.map((x: any) => ({ format: x.format, doc: mk(x.format), projectId: x.projectId, baseRevision: x.revision })) });
+    expect(upd.status).toBe(200);
+    const story = c.body.channels.find((x: any) => x.format === 'instagram-story');
+    expect((await call('marketing', 'GET', `/projects/${story.projectId}`)).status).toBe(404);
+    const after = (await call('marketing', 'GET', `/motion-campaigns/${c.body.id}`)).body;
+    expect(after.campaign.name).toBe('Spring launch v2');
+    expect(after.channels).toHaveLength(2);
+    expect(after.channels[0].recipe.headline).toBe('Spring v2');
+    // The feed export is now older than the scene, so it is reported as out of date.
+    expect(after.channels.find((x: any) => x.id === feed.projectId).export.upToDate).toBe(false);
+    const stale = await call('marketing', 'PUT', `/motion-campaigns/${c.body.id}`, { name: 'x', brandId, recipe, items: keep.map((x: any) => ({ format: x.format, doc: mk(x.format), projectId: x.projectId, baseRevision: x.revision })) });
+    expect(stale.status).toBe(409);
+
+    // GA4 tags group every size under one utm_campaign.
+    const utm = (await call('marketing', 'GET', `/analytics/utm/${feed.projectId}`)).body;
+    expect(utm.utmCampaign).toBe('spring-launch-v2');
+    // Analytics rows carry their campaign and channel so the dashboard can group and subtotal them.
+    const lk = await call('marketing', 'POST', '/analytics/links', { projectId: feed.projectId, kind: 'ga4' });
+    const row = (await call('marketing', 'GET', '/analytics/dashboard')).body.links.find((x: any) => x.id === lk.body.id);
+    expect(row).toMatchObject({ campaign_id: c.body.id, campaign: 'Spring launch v2', channel: 'instagram-feed' });
+  });
+
+  it('turns an existing single motion into a campaign', async () => {
+    const { buildMotion } = await import('../../shared/motionStyles');
+    const { kitFromTokens } = await import('../../shared/brandImport');
+    const { DEFAULT_BRAND_TOKENS } = await import('../../shared/brand');
+    const kit = kitFromTokens(DEFAULT_BRAND_TOKENS);
+    const feedDoc = buildMotion({ design: null, brand: kit, style: 'pop', width: 1080, height: 1350 });
+    const heroDoc = buildMotion({ design: null, brand: kit, style: 'pop', width: 1920, height: 1080 });
+    const recipe = { design: null, style: 'pop', personality: 'playful', headline: '', showLogo: false, keepBackground: null, duration: 8, format: 'instagram-feed' };
+    const single = await call('marketing', 'POST', '/projects', { name: 'Solo', scene: feedDoc, recipe });
+    const out = await call('marketing', 'POST', '/motion-campaigns', { name: 'From solo', recipe, items: [{ format: 'instagram-feed', doc: feedDoc, projectId: single.body.id, baseRevision: 1 }, { format: 'website-hero', doc: heroDoc }] });
+    expect(out.status).toBe(201);
+    expect(out.body.channels[0].projectId).toBe(single.body.id);
+    const p = (await call('marketing', 'GET', '/projects')).body.projects.find((x: any) => x.id === single.body.id);
+    expect(p.motion_campaign_id).toBe(out.body.id);
+    // It can't be claimed by a second campaign.
+    expect((await call('marketing', 'POST', '/motion-campaigns', { name: 'Steal', recipe, items: [{ format: 'instagram-feed', doc: feedDoc, projectId: single.body.id, baseRevision: 2 }] })).status).toBe(400);
+  });
+});

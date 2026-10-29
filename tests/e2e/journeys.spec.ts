@@ -37,6 +37,24 @@ test('Create: a layered SVG becomes a brand motion in three steps', async ({ pag
   await expect(page.getByText(name)).toBeVisible();
 });
 
+test('Create: one design saved as a campaign in three sizes', async ({ page }) => {
+  await login(page, 'mia@motion.os');
+  await page.goto('/create');
+  await page.getByLabel('Upload a design').setInputFiles('tests/e2e/fixtures/poster.svg');
+  await expect(page.getByText(/Found 5 parts in/)).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('radio', { name: /Build in/ }).click();
+  for (const n of ['Instagram Feed', 'Instagram Story', 'LinkedIn Feed']) await page.locator('.tune .chip', { hasText: n }).click();
+  await expect(page.getByRole('radiogroup', { name: 'Preview channel' }).getByRole('radio')).toHaveCount(3);
+  const name = `E2E campaign ${Date.now()}`;
+  await page.getByLabel('Campaign name').fill(name);
+  await page.getByRole('button', { name: 'Save campaign · 3 sizes' }).click();
+  await expect(page.getByText('Campaign saved — 3 sizes')).toBeVisible();
+  await expect(page).toHaveURL(/\/create\/campaign\/mcp_/);
+  await expect(page.locator('.ch-status')).toHaveCount(3);
+  await page.goto('/library');
+  await expect(page.getByRole('link', { name: new RegExp(name) })).toBeVisible();
+});
+
 test('Journey B: marketing customises a template and exports a valid MP4', async ({ page }) => {
   await login(page, 'mia@motion.os');
   await page.goto('/explore?channel=instagram-story');

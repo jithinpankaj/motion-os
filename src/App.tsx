@@ -55,6 +55,7 @@ export function App() {
             <Route path="/" element={<Home />} />
             <Route path="/create" element={<Create />} />
             <Route path="/create/:id" element={<Create />} />
+            <Route path="/create/campaign/:campaignId" element={<Create />} />
             <Route path="/library" element={<Library />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/explore" element={<Explore />} />

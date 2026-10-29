@@ -4,9 +4,10 @@ import { api, errorMessage } from '../../lib/api';
 import { useCan } from '../../lib/session';
 import { EmptyState, Field, Modal, toast, timeAgo } from '../../ui/controls';
 import { Icon } from '../../ui/Icon';
+import { formatById } from '../../../shared/formats';
 
 type Conn = { id: string; provider: 'ga4' | 'meta' | 'linkedin'; status: string; label: string; hint?: string; checkedAt?: string; error?: string | null };
-type LinkRow = { id: string; kind: 'ga4' | 'instagram' | 'facebook' | 'linkedin'; ref: string; label: string; project_id: string; motion: string; fetched_at: string | null; ok: boolean | null; metrics: Record<string, number | undefined> | null; series: { date: string; value: number }[] | null; series_label: string | null; error: string | null; last_success: string | null; connection_status: string };
+type LinkRow = { campaign_id: string | null; campaign: string | null; channel: string | null; id: string; kind: 'ga4' | 'instagram' | 'facebook' | 'linkedin'; ref: string; label: string; project_id: string; motion: string; fetched_at: string | null; ok: boolean | null; metrics: Record<string, number | undefined> | null; series: { date: string; value: number }[] | null; series_label: string | null; error: string | null; last_success: string | null; connection_status: string };
 
 const PROVIDERS: { id: Conn['provider']; name: string; color: string; short: string; covers: string }[] = [
   { id: 'ga4', name: 'Google Analytics 4', short: 'GA', color: '#e37400', covers: 'Website visits, engagement and conversions from links that carry your motion’s tag.' },
@@ -25,6 +26,10 @@ export default function Analytics() {
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<Conn['provider'] | null>(null);
   const [linking, setLinking] = useState<string | null>(sp.get('motion'));
+  const [linkCampaign, setLinkCampaign] = useState<string | null>(null);
+  const [campaignFilter, setCampaignFilter] = useState<string | null>(sp.get('campaign'));
+  const [campaignNames, setCampaignNames] = useState<Record<string, string>>({});
+  useEffect(() => { api('/motion-campaigns').then((r) => setCampaignNames(Object.fromEntries(r.campaigns.map((c: any) => [c.id, c.name])))).catch(() => {}); }, []);
   const [refreshing, setRefreshing] = useState<Set<string>>(new Set());
   const load = () => api('/analytics/dashboard').then(setData).catch((e) => setError(errorMessage(e)));
   useEffect(() => { load(); }, []);
@@ -41,7 +46,16 @@ export default function Analytics() {
 
   const conns = data?.connections ?? [];
   const connOf = (p: Conn['provider']) => conns.find((c) => c.provider === p);
-  const links = data?.links ?? [];
+  const allLinks = data?.links ?? [];
+  const links = campaignFilter ? allLinks.filter((l) => l.campaign_id === campaignFilter) : allLinks;
+  const campaignsInUse = [...new Map(allLinks.filter((l) => l.campaign_id).map((l) => [l.campaign_id!, l.campaign ?? 'Campaign'])).entries()];
+  if (campaignFilter && !campaignsInUse.some(([id]) => id === campaignFilter) && campaignNames[campaignFilter]) campaignsInUse.push([campaignFilter, campaignNames[campaignFilter]]);
+  // Group rows by campaign so a campaign's sizes sit together with a subtotal.
+  const groups = useMemo(() => {
+    const m = new Map<string, { name: string | null; rows: LinkRow[] }>();
+    for (const l of links) { const k = l.campaign_id ?? ''; if (!m.has(k)) m.set(k, { name: l.campaign, rows: [] }); m.get(k)!.rows.push(l); }
+    return [...m.entries()].sort(([a], [b]) => Number(!a) - Number(!b));
+  }, [links]);
   const totals = useMemo(() => {
     const sum = (k: string) => { const v = links.filter((l) => l.metrics?.[k] !== undefined && l.metrics?.[k] !== null); return v.length ? { value: v.reduce((a, l) => a + (l.metrics![k] ?? 0), 0), n: v.length } : null; };
     const reach = (() => { const v = links.map((l) => l.metrics?.reach ?? l.metrics?.impressions ?? l.metrics?.views).filter((x): x is number => typeof x === 'number'); return v.length ? { value: v.reduce((a, b) => a + b, 0), n: v.length } : null; })();
@@ -58,7 +72,7 @@ export default function Analytics() {
         </div>
         <div className="row">
           {links.length > 0 && <button className="btn lg" disabled={refreshing.size > 0} onClick={() => refresh(links.map((l) => l.id))}>{refreshing.size ? <span className="spinner" /> : <Icon name="refresh" />}Refresh all</button>}
-          {can('analytics.manage') && conns.length > 0 && <button className="btn primary lg" onClick={() => setLinking('')}><Icon name="link" />Link a motion</button>}
+          {can('analytics.manage') && conns.length > 0 && <button className="btn primary lg" onClick={() => { setLinkCampaign(campaignFilter); setLinking(''); }}><Icon name="link" />{campaignFilter ? 'Link this campaign' : 'Link a motion'}</button>}
         </div>
       </div>
 
@@ -91,13 +105,19 @@ export default function Analytics() {
       {data && (
         <div className="section">
           <div className="section-h"><h2 className="h2">Results</h2>{links.length > 0 && <span className="faint" style={{ fontSize: 12 }}>{links.length} linked post{links.length > 1 ? 's' : ''}</span>}</div>
+          {campaignsInUse.length > 0 && (
+            <div className="row wrap" style={{ gap: 6, marginBottom: 14 }} role="group" aria-label="Filter by campaign">
+              <button className="chip" aria-pressed={!campaignFilter} onClick={() => { setCampaignFilter(null); setSp({}, { replace: true }); }}>All</button>
+              {campaignsInUse.map(([id, n]) => <button key={id} className="chip" aria-pressed={campaignFilter === id} onClick={() => { setCampaignFilter(id); setSp({ campaign: id }, { replace: true }); }}>{n}</button>)}
+            </div>
+          )}
           {!conns.length ? (
             <EmptyState icon="chart" title="Start by connecting an account">
               Connect Google Analytics, Meta or LinkedIn above. Then link each motion to its post (or to your website link) and its numbers appear here.
             </EmptyState>
           ) : !links.length ? (
-            <EmptyState icon="link" title="No motions linked yet" action={can('analytics.manage') && <button className="btn primary" onClick={() => setLinking('')}>Link a motion</button>}>
-              Pick a motion and paste the post it was published in — or get a tagged website link to track visits in GA4.
+            <EmptyState icon="link" title={campaignFilter ? 'This campaign isn’t linked yet' : 'No motions linked yet'} action={can('analytics.manage') && <button className="btn primary" onClick={() => { setLinkCampaign(campaignFilter); setLinking(''); }}>{campaignFilter ? 'Link this campaign' : 'Link a motion'}</button>}>
+              {campaignFilter ? 'Link each size to the post it went out in, or create tagged website links for every size at once.' : 'Pick a motion and paste the post it was published in — or get a tagged website link to track visits in GA4.'}
             </EmptyState>
           ) : (
             <>
@@ -111,11 +131,13 @@ export default function Analytics() {
                 <table className="tbl">
                   <thead><tr><th>Motion</th><th>Where</th><th className="num">Reach</th><th className="num">Engagements</th><th className="num">Clicks</th><th className="num">Sessions</th><th>Trend</th><th>Updated</th><th /></tr></thead>
                   <tbody>
-                    {links.map((l) => {
+                    {groups.map(([gid, g]) => [
+                      gid && groups.length > 0 ? <GroupRow key={`g${gid}`} name={g.name ?? 'Campaign'} rows={g.rows} /> : null,
+                      ...g.rows.map((l) => {
                       const m = l.metrics ?? {};
                       return (
                         <tr key={l.id}>
-                          <td><Link to={`/create/${l.project_id}`} style={{ fontWeight: 560 }}>{l.motion}</Link>{l.label && <div className="faint" style={{ fontSize: 11.5 }}>{l.label}</div>}</td>
+                          <td style={l.campaign_id ? { paddingLeft: 22 } : undefined}><Link to={l.campaign_id ? `/create/campaign/${l.campaign_id}` : `/create/${l.project_id}`} style={{ fontWeight: 560 }}>{l.campaign_id && l.channel ? formatById(l.channel)?.name ?? l.motion : l.motion}</Link>{l.label && <div className="faint" style={{ fontSize: 11.5 }}>{l.label}</div>}</td>
                           <td><span className="badge">{KIND[l.kind].label}</span><div className="faint mono" style={{ fontSize: 10.5, marginTop: 3, maxWidth: 180 }} title={l.ref}>{l.ref.length > 28 ? l.ref.slice(0, 28) + '…' : l.ref}</div></td>
                           <td className="num">{fmt(m.reach ?? m.impressions ?? m.views)}</td>
                           <td className="num">{fmt(m.engagements)}</td>
@@ -133,7 +155,7 @@ export default function Analytics() {
                           </td>
                         </tr>
                       );
-                    })}
+                    })])}
                   </tbody>
                 </table>
               </div>
@@ -143,8 +165,23 @@ export default function Analytics() {
       )}
 
       {connecting && <ConnectModal provider={connecting} onClose={() => setConnecting(null)} onDone={() => { setConnecting(null); load(); }} />}
-      {linking !== null && <LinkModal initialMotion={linking} conns={conns} onClose={() => { setLinking(null); if (sp.get('motion')) setSp({}, { replace: true }); }} onDone={(id) => { setLinking(null); setSp({}, { replace: true }); load().then(() => refresh([id])); }} onConnect={(p) => { setLinking(null); setConnecting(p); }} />}
+      {linking !== null && <LinkModal initialMotion={linking} initialCampaign={linkCampaign} conns={conns} onClose={() => { setLinking(null); if (sp.get('motion')) setSp({}, { replace: true }); }} onDone={(ids) => { setLinking(null); load().then(() => refresh(ids)); }} onConnect={(p) => { setLinking(null); setConnecting(p); }} />}
     </div>
+  );
+}
+
+function GroupRow({ name, rows }: { name: string; rows: LinkRow[] }) {
+  const sum = (pick: (m: Record<string, number | undefined>) => number | undefined) => { const v = rows.map((r) => pick(r.metrics ?? {})).filter((x): x is number => typeof x === 'number'); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
+  return (
+    <tr style={{ background: 'var(--bg-2)' }}>
+      <td style={{ fontWeight: 600 }}><Icon name="campaigns" size={13} /> {name} <span className="faint" style={{ fontWeight: 400, fontSize: 11.5 }}>· {rows.length} linked</span></td>
+      <td><span className="faint" style={{ fontSize: 11.5 }}>campaign total</span></td>
+      <td className="num" style={{ fontWeight: 600 }}>{fmt(sum((m) => m.reach ?? m.impressions ?? m.views))}</td>
+      <td className="num" style={{ fontWeight: 600 }}>{fmt(sum((m) => m.engagements))}</td>
+      <td className="num" style={{ fontWeight: 600 }}>{fmt(sum((m) => m.clicks))}</td>
+      <td className="num" style={{ fontWeight: 600 }}>{fmt(sum((m) => m.sessions))}</td>
+      <td colSpan={3} />
+    </tr>
   );
 }
 
@@ -209,34 +246,70 @@ function ConnectModal({ provider, onClose, onDone }: { provider: Conn['provider'
   );
 }
 
-function LinkModal({ initialMotion, conns, onClose, onDone, onConnect }: { initialMotion: string; conns: Conn[]; onClose: () => void; onDone: (id: string) => void; onConnect: (p: Conn['provider']) => void }) {
-  const [motions, setMotions] = useState<{ id: string; name: string }[]>([]);
+function LinkModal({ initialMotion, initialCampaign, conns, onClose, onDone, onConnect }: { initialMotion: string; initialCampaign: string | null; conns: Conn[]; onClose: () => void; onDone: (ids: string[]) => void; onConnect: (p: Conn['provider']) => void }) {
+  const [motions, setMotions] = useState<{ id: string; name: string; campaign: string | null }[]>([]);
+  const [campaigns, setCampaigns] = useState<{ id: string; name: string; channels: { id: string; format: string }[] }[]>([]);
+  const [mode, setMode] = useState<'motion' | 'campaign'>(initialCampaign ? 'campaign' : 'motion');
   const [projectId, setProjectId] = useState(initialMotion);
+  const [campaignId, setCampaignId] = useState(initialCampaign ?? '');
   const [kind, setKind] = useState<LinkRow['kind']>(() => (conns.find((c) => c.provider === 'meta') ? 'instagram' : conns.find((c) => c.provider === 'linkedin') ? 'linkedin' : 'ga4'));
   const [ref, setRef] = useState('');
+  const [refs, setRefs] = useState<Record<string, string>>({});
   const [label, setLabel] = useState('');
   const [site, setSite] = useState('https://');
-  const [utm, setUtm] = useState<string | null>(null);
+  const [utm, setUtm] = useState<Record<string, { content: string; campaign: string | null }>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { api('/projects').then((r) => { setMotions(r.projects.map((p: any) => ({ id: p.id, name: p.name }))); if (!projectId && r.projects[0]) setProjectId(r.projects[0].id); }).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (projectId) api(`/analytics/utm/${projectId}`).then((r) => setUtm(r.utmContent)).catch(() => setUtm(null)); }, [projectId]);
+  useEffect(() => {
+    api('/projects').then((r) => { setMotions(r.projects.map((p: any) => ({ id: p.id, name: p.name, campaign: p.motion_campaign_id }))); if (!projectId && r.projects[0]) setProjectId(r.projects[0].id); }).catch(() => {});
+    api('/motion-campaigns').then((r) => { setCampaigns(r.campaigns); if (!campaignId && r.campaigns[0]) setCampaignId(r.campaigns[0].id); }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const camp = campaigns.find((c) => c.id === campaignId);
+  const targets = mode === 'campaign' ? (camp?.channels ?? []).map((c) => ({ id: c.id, label: formatById(c.format)?.name ?? c.format })) : projectId ? [{ id: projectId, label: motions.find((m) => m.id === projectId)?.name ?? '' }] : [];
+  const targetKey = targets.map((t) => t.id).join();
+  useEffect(() => {
+    for (const t of targets) if (!utm[t.id]) api(`/analytics/utm/${t.id}`).then((r) => setUtm((u) => ({ ...u, [t.id]: { content: r.utmContent, campaign: r.utmCampaign } }))).catch(() => {});
+  }, [targetKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const connected = !!conns.find((c) => c.provider === KIND[kind].provider);
-  const tagged = (() => {
-    try { const u = new URL(site); u.searchParams.set('utm_source', 'motion-os'); u.searchParams.set('utm_medium', 'social'); u.searchParams.set('utm_content', utm ?? ''); return utm && u.hostname ? u.toString() : ''; } catch { return ''; }
-  })();
+  const tagged = (id: string) => {
+    const t = utm[id];
+    try { const u = new URL(site); if (!u.hostname || !t) return ''; u.searchParams.set('utm_source', 'motion-os'); u.searchParams.set('utm_medium', 'social'); if (t.campaign) u.searchParams.set('utm_campaign', t.campaign); u.searchParams.set('utm_content', t.content); return u.toString(); } catch { return ''; }
+  };
+  const refFor = (id: string) => (mode === 'campaign' ? refs[id] ?? '' : ref);
+  const toLink = kind === 'ga4' ? targets : targets.filter((t) => refFor(t.id).trim());
   const go = async () => {
     setBusy(true); setErr(null);
-    try { const r = await api('/analytics/links', { body: { projectId, kind, ref: kind === 'ga4' ? undefined : ref, label } }); toast('ok', 'Linked', 'Fetching the first numbers…'); onDone(r.id); }
-    catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
+    const ids: string[] = [];
+    try {
+      for (const t of toLink) {
+        const r = await api('/analytics/links', { body: { projectId: t.id, kind, ref: kind === 'ga4' ? undefined : refFor(t.id), label } });
+        ids.push(r.id);
+      }
+      toast('ok', ids.length > 1 ? `${ids.length} sizes linked` : 'Linked', 'Fetching the first numbers…');
+      onDone(ids);
+    } catch (e) {
+      setErr(`${errorMessage(e)}${ids.length ? ` (${ids.length} linked before this error)` : ''}`);
+      if (ids.length) onDone(ids);
+    } finally { setBusy(false); }
   };
+  const refLabel = kind === 'instagram' ? 'Instagram media ID' : kind === 'facebook' ? 'Facebook post ID' : 'LinkedIn post link';
+  const refHint = kind === 'instagram' ? 'In Meta Business Suite open the post → “…” → copy ID. It’s a long number.' : kind === 'facebook' ? 'Looks like 123456789_987654321 (page ID _ post ID).' : 'Open the post’s “…” menu → Embed this post, and paste the address from the embed code (contains urn:li:share or urn:li:ugcPost).';
+  const placeholder = kind === 'linkedin' ? 'https://www.linkedin.com/embed/feed/update/urn:li:share:…' : '17895695668004550';
   return (
-    <Modal open onClose={onClose} title="Link a motion" subtitle="Tell us where this motion was published so its results can be fetched." wide
-      footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || !projectId || !connected || (kind !== 'ga4' && !ref.trim())} onClick={go}>{busy ? <span className="spinner" /> : 'Link'}</button></>}>
+    <Modal open onClose={onClose} title={mode === 'campaign' ? 'Link a campaign' : 'Link a motion'} subtitle="Tell us where it was published so its results can be fetched." wide
+      footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || !targets.length || !connected || !toLink.length} onClick={go}>{busy ? <span className="spinner" /> : toLink.length > 1 ? `Link ${toLink.length} sizes` : 'Link'}</button></>}>
       <div className="col" style={{ gap: 14 }}>
-        <Field label="Motion">
-          <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>{motions.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
-        </Field>
+        {campaigns.length > 0 && <Field label="What are you tracking?">
+          <div className="row wrap" style={{ gap: 6 }}>
+            <button className="chip" aria-pressed={mode === 'motion'} onClick={() => setMode('motion')}>One motion</button>
+            <button className="chip" aria-pressed={mode === 'campaign'} onClick={() => setMode('campaign')}>A whole campaign</button>
+          </div>
+        </Field>}
+        {mode === 'campaign' ? (
+          <Field label="Campaign"><select className="input" value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.channels.length} sizes</option>)}</select></Field>
+        ) : (
+          <Field label="Motion"><select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>{motions.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>
+        )}
         <Field label="Published on">
           <div className="row wrap" style={{ gap: 6 }}>{(Object.keys(KIND) as LinkRow['kind'][]).map((k) => <button key={k} className="chip" aria-pressed={kind === k} onClick={() => setKind(k)}>{KIND[k].label}</button>)}</div>
         </Field>
@@ -244,15 +317,29 @@ function LinkModal({ initialMotion, conns, onClose, onDone, onConnect }: { initi
           <div className="callout"><Icon name="alert" /><div className="grow">{PROVIDERS.find((p) => p.id === KIND[kind].provider)!.name} isn’t connected yet.</div><button className="btn" onClick={() => onConnect(KIND[kind].provider)}>Connect</button></div>
         ) : kind === 'ga4' ? (
           <div className="col" style={{ gap: 10 }}>
-            <div className="note">Use this tagged link wherever the motion is posted (bio link, ad, email). GA4 counts visits that arrive through it.</div>
+            <div className="note">Use {targets.length > 1 ? 'each size’s' : 'this'} tagged link wherever it’s posted (bio link, ad, email). GA4 counts visits that arrive through it{targets.length > 1 ? '; every size shares one utm_campaign so the campaign adds up' : ''}.</div>
             <Field label="Your landing page"><input className="input" value={site} onChange={(e) => setSite(e.target.value)} placeholder="https://yourbrand.com/spring" /></Field>
-            <div className="copy-row"><input className="input" readOnly value={tagged} aria-label="Tagged link" /><button className="btn" disabled={!tagged} onClick={() => { navigator.clipboard.writeText(tagged); toast('ok', 'Link copied'); }}><Icon name="copy" />Copy</button></div>
-            <div className="note">Tag: <span className="mono-s">utm_content={utm ?? '…'}</span>. Visits appear in GA4 within a day.</div>
+            {targets.map((t) => (
+              <div key={t.id} className="col" style={{ gap: 4 }}>
+                {targets.length > 1 && <span className="label" style={{ fontSize: 11.5 }}>{t.label}</span>}
+                <div className="copy-row"><input className="input" readOnly value={tagged(t.id)} aria-label={`Tagged link ${t.label}`} /><button className="btn" disabled={!tagged(t.id)} onClick={() => { navigator.clipboard.writeText(tagged(t.id)); toast('ok', 'Link copied'); }}><Icon name="copy" />Copy</button></div>
+              </div>
+            ))}
+            <div className="note">Visits appear in GA4 within a day.</div>
+          </div>
+        ) : mode === 'campaign' ? (
+          <div className="col" style={{ gap: 10 }}>
+            <div className="note">{refHint} Leave a size empty if it wasn’t posted there.</div>
+            {targets.map((t) => (
+              <div key={t.id} className="found-row" style={{ gridTemplateColumns: '130px minmax(0,1fr)' }}>
+                <span className="label">{t.label}</span>
+                <input className="input" value={refs[t.id] ?? ''} onChange={(e) => setRefs((r) => ({ ...r, [t.id]: e.target.value }))} placeholder={placeholder} aria-label={`${refLabel} for ${t.label}`} />
+              </div>
+            ))}
           </div>
         ) : (
-          <Field label={kind === 'instagram' ? 'Instagram media ID' : kind === 'facebook' ? 'Facebook post ID' : 'LinkedIn post link'}
-            hint={kind === 'instagram' ? 'In Meta Business Suite open the post → “…” → copy ID. It’s a long number.' : kind === 'facebook' ? 'Looks like 123456789_987654321 (page ID _ post ID).' : 'Open the post’s “…” menu → Embed this post, and paste the address from the embed code (contains urn:li:share or urn:li:ugcPost).'}>
-            <input className="input" value={ref} onChange={(e) => setRef(e.target.value)} placeholder={kind === 'linkedin' ? 'https://www.linkedin.com/embed/feed/update/urn:li:share:…' : '17895695668004550'} />
+          <Field label={refLabel} hint={refHint}>
+            <input className="input" value={ref} onChange={(e) => setRef(e.target.value)} placeholder={placeholder} />
           </Field>
         )}
         <Field label="Note" hint="Optional — e.g. “Spring launch, paid boost”"><input className="input" value={label} onChange={(e) => setLabel(e.target.value)} /></Field>

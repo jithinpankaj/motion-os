@@ -14,13 +14,29 @@ Everything listed as **Built** was exercised in the running app or by automated 
 | Continuous playback | Studio: edited text while playing; frame counter kept advancing (f51→f54→f57), autosave completed | Pass (also an e2e test) |
 | Determinism | Visual regression baselines re-rendered identically on a second run | Pass |
 
-Automated: `npm test` 66/66, `npm run e2e` 9/9, `tsc --noEmit` clean, `vite build` succeeds.
+Automated: `npm test` 68/68, `npm run e2e` 10/10, `tsc --noEmit` clean, `vite build` succeeds.
 
 Bugs found and fixed during verification: canvas context reuse under React StrictMode; Playground header
 grid-area collision; text-field remount mid-typing; modal initial focus; card grid sizing; missing HTTP
 Range support (exported videos could not be seeked); export frames now snapshot via
 `transferToImageBitmap` before encoding; invalid scene imports returned 500 instead of 400; Liquid Mesh
 silhouette artifacts; Particle Field attractor too weak to read.
+
+## Simple campaigns in Create
+
+**Built and verified in the browser**: picking several channels in Create turns a motion into a campaign —
+one project per size, saved together under the selected brand (`motion_campaigns`, projects carry
+`motion_campaign_id`). Verified: poster → Instagram Feed / Story / LinkedIn saved as one campaign; “Export all”
+produced three MP4s at exactly 1080×1350, 1080×1920 and 1200×1200 (8 s); the zip held all three in per-channel
+folders plus a manifest (campaign, brand). Reopening restored every size; removing Story and adding Website Hero
+moved Story to the bin, added Hero, and marked the edited sizes “changed since export” so stale files are left
+out of the zip. Library shows campaigns as grouped cards with their brand. An existing single motion can be
+turned into a campaign. Analytics filters by campaign, groups rows with subtotals, and the link dialog can link
+every size at once (one tagged GA4 link per size sharing `utm_campaign`).
+
+**Limitations**: the design is fitted into each size and its background stretched to fill the frame; parts are
+not re-arranged per channel (check each size in the strip, or adjust in the advanced editor). Linking a
+campaign in Analytics was verified through the API tests only, since no live analytics account is connected.
 
 ## Brand-team release — simplified product
 

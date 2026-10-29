@@ -39,7 +39,7 @@ export function projectRoutes() {
 
   r.get('/projects', requirePerm('scene.view'), async (req, res) => {
     const rows = await req.ctx.db.query(
-      `SELECT p.id, p.name, p.description, p.updated_at, p.created_at, u.name AS owner, s.doc, t.id AS template_id, t.status AS template_status, (p.recipe IS NOT NULL) AS has_recipe
+      `SELECT p.id, p.name, p.description, p.updated_at, p.created_at, u.name AS owner, s.doc, t.id AS template_id, t.status AS template_status, (p.recipe IS NOT NULL) AS has_recipe, p.motion_campaign_id
          FROM motion_projects p JOIN motion_scenes s ON s.project_id = p.id LEFT JOIN users u ON u.id = p.owner_id
          LEFT JOIN motion_templates t ON t.project_id = p.id AND t.status <> 'archived'
         WHERE p.workspace_id = $1 AND p.deleted_at IS NULL ORDER BY p.updated_at DESC LIMIT 200`,

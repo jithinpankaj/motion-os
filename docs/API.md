@@ -117,7 +117,13 @@ content is rejected. Downloads use `/files/<key>?exp=&sig=` signed URLs (HMAC, e
 | DELETE | `/api/analytics/links/:id` | analytics.manage |
 | POST | `/api/analytics/links/:id/refresh` | analytics.view — fetches live numbers; failures are stored and shown |
 | GET | `/api/analytics/dashboard` | analytics.view — latest snapshot per link, last good numbers kept on failure |
-| GET | `/api/analytics/utm/:projectId` | analytics.view — the `utm_content` value GA4 filters on |
+| GET | `/api/analytics/utm/:projectId` | analytics.view — `utm_content` (per size) and `utm_campaign` (per campaign) |
+| GET | `/api/motion-campaigns` | scene.view — campaigns with their sizes and brand |
+| POST | `/api/motion-campaigns` | scene.create — `{ name, brandId, recipe, items: [{ format, doc, projectId?, baseRevision? }] }`; each doc must match its channel size; `projectId` adopts an existing motion (scene.edit) |
+| GET | `/api/motion-campaigns/:id` | scene.view — sizes with recipe, revision and latest export (`upToDate`) |
+| PUT | `/api/motion-campaigns/:id` | scene.edit — updates sizes (revision-checked, 409 lists stale sizes), adds new ones, moves removed ones to the bin |
+| GET | `/api/motion-campaigns/:id/package` | export.create — zip of up-to-date exports per size + manifest (409 when none) |
+| DELETE | `/api/motion-campaigns/:id` | scene.delete — soft-deletes the campaign and its sizes |
 
 Outbound requests for user-supplied URLs (`safeFetch`) allow only http(s), resolve DNS and refuse private,
 loopback and link-local addresses on every redirect hop, and cap size and time. Third-party credentials are

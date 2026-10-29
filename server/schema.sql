@@ -550,3 +550,18 @@ CREATE TABLE IF NOT EXISTS permission_rollouts (
 -- scene revision the recipe produced; a newer scene revision means it was edited in the advanced editor.
 ALTER TABLE motion_projects ADD COLUMN IF NOT EXISTS recipe jsonb;
 ALTER TABLE motion_projects ADD COLUMN IF NOT EXISTS recipe_revision integer;
+
+-- Simple campaigns from Create: one design adapted to several channel sizes, saved together under a brand.
+-- Each channel is an ordinary motion project (with its own recipe and scene) that points at its campaign.
+CREATE TABLE IF NOT EXISTS motion_campaigns (
+  id text PRIMARY KEY,
+  workspace_id text NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  brand_id text REFERENCES brands(id) ON DELETE SET NULL,
+  name text NOT NULL,
+  created_by text REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS motion_campaigns_ws ON motion_campaigns (workspace_id, updated_at DESC) WHERE deleted_at IS NULL;
+ALTER TABLE motion_projects ADD COLUMN IF NOT EXISTS motion_campaign_id text REFERENCES motion_campaigns(id) ON DELETE SET NULL;

@@ -114,9 +114,11 @@ export function analyticsRoutes() {
     const { db } = req.ctx;
     const links = await db.query(
       `SELECT l.id, l.kind, l.ref, l.label, l.project_id, l.created_at, p.name AS motion, c.status AS connection_status,
+              p.motion_campaign_id AS campaign_id, mc.name AS campaign, p.recipe->>'format' AS channel,
               s.fetched_at, s.ok, s.metrics, s.series, s.series_label, s.error,
               (SELECT fetched_at FROM analytics_snapshots x WHERE x.link_id = l.id AND x.ok ORDER BY fetched_at DESC LIMIT 1) AS last_success
          FROM analytics_links l JOIN motion_projects p ON p.id = l.project_id JOIN integration_connections c ON c.id = l.connection_id
+         LEFT JOIN motion_campaigns mc ON mc.id = p.motion_campaign_id AND mc.deleted_at IS NULL
          LEFT JOIN LATERAL (SELECT * FROM analytics_snapshots s WHERE s.link_id = l.id ORDER BY fetched_at DESC LIMIT 1) s ON true
         WHERE l.workspace_id = $1 AND p.deleted_at IS NULL ORDER BY l.created_at DESC`,
       [req.ws!.id],
@@ -132,9 +134,11 @@ export function analyticsRoutes() {
   });
 
   r.get('/analytics/utm/:projectId', requirePerm('analytics.view'), async (req, res) => {
-    const p = await req.ctx.db.one(`SELECT id, name FROM motion_projects WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL`, [req.params.projectId, req.ws!.id]);
+    const p = await req.ctx.db.one(`SELECT p.id, p.name, c.name AS campaign FROM motion_projects p LEFT JOIN motion_campaigns c ON c.id = p.motion_campaign_id AND c.deleted_at IS NULL WHERE p.id = $1 AND p.workspace_id = $2 AND p.deleted_at IS NULL`, [req.params.projectId, req.ws!.id]);
     if (!p) throw notFound('Motion');
-    res.json({ utmContent: utmContent(p.id), name: p.name });
+    // utm_campaign groups every size of a campaign in GA4; utm_content still tells the sizes apart.
+    const slug = (p.campaign ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+    res.json({ utmContent: utmContent(p.id), utmCampaign: slug || null, name: p.name });
   });
 
   return r;

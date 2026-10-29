@@ -5,7 +5,7 @@ A unified motion design system, creative studio and distribution platform.
 
 Five places, no jargon:
 
-- **Create** — upload a finished design (PNG, JPG, WebP, layered SVG, PDF, Illustrator `.ai`, Photoshop `.psd`, or a Figma frame link). Layered files are split into parts so each part moves on its own. Pick a motion style, adjust the message, format and length, save, download MP4/PNG.
+- **Create** — upload a finished design (PNG, JPG, WebP, layered SVG, PDF, Illustrator `.ai`, Photoshop `.psd`, or a Figma frame link). Layered files are split into parts so each part moves on its own. Pick a motion style, adjust the message, format and length, save, download MP4/PNG. Pick several channels to make a **campaign**: every size saved together under the current brand, exported in one go (zip with manifest) and tracked as a group in Analytics.
 - **Brand kit** — import colours, fonts, logo and tone from your website, a logo/image, a guidelines PDF or pasted codes; review before saving. Tone sets a *motion personality* (calm, balanced, energetic, playful) that every new motion uses. Create reusable elements (shapes in brand colours) or upload your own.
 - **Library** — your team's motions and the approved brand templates.
 - **Analytics** — connect Google Analytics 4, Meta (Instagram/Facebook) or a LinkedIn Page, link each motion to its post or tagged link, and see reach, engagement, clicks and sessions in one dashboard.
@@ -46,13 +46,13 @@ To use a real PostgreSQL server instead of PGlite set `DATABASE_URL`. To reset, 
 npm test
 ```
 
-66 unit/integration tests: scene serialization & migration, timeline evaluation, parameter validation, campaign inheritance, permissions & status machine, compatibility/flash detection, brand-import parsing (colours, fonts, roles, tone), every motion style producing a valid scene, outbound-request safety, plus in-process API suites (permissions, workspace isolation, governed exports, template lifecycle, concurrency conflicts, upload validation, signed URLs, byte ranges, website import and GA4/Meta/LinkedIn connectors against a fake network, Create recipes).
+68 unit/integration tests: scene serialization & migration, timeline evaluation, parameter validation, campaign inheritance, permissions & status machine, compatibility/flash detection, brand-import parsing (colours, fonts, roles, tone), every motion style producing a valid scene, outbound-request safety, plus in-process API suites (permissions, workspace isolation, governed exports, template lifecycle, concurrency conflicts, upload validation, signed URLs, byte ranges, website import and GA4/Meta/LinkedIn connectors against a fake network, Create recipes, simple campaigns).
 
 ```bash
 npm run e2e
 ```
 
-9 Playwright tests in your installed Chrome: the five-place navigation per role, the Create flow (layered SVG → style → save → Library), Journey B end-to-end (customise → export MP4 → decode the file and verify size, duration and that the headline is in the frame), Studio playback-through-edits + autosave + reload, and visual regression for all five launch presets.
+10 Playwright tests in your installed Chrome: the five-place navigation per role, the Create flow (layered SVG → style → save → Library), a three-size campaign, Journey B end-to-end (customise → export MP4 → decode the file and verify size, duration and that the headline is in the frame), Studio playback-through-edits + autosave + reload, and visual regression for all five launch presets.
 
 ## Layout
 
