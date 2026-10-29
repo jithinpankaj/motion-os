@@ -76,3 +76,31 @@ Every reference must resolve (validation rejects dangling ids). Migration v2→v
   and before the viewer has interacted with the page (browser autoplay rules). Video exports are silent.
 - `exposed[]` parameters of type color / text / number appear as **Customise** settings; each writes to all of
   its targets.
+
+### Interaction model: states, conditions, transitions, steps (additive, backward compatible)
+
+One model serves the simple view, Advanced Controls and the Logic Canvas.
+
+- `machine.states[]` — `{ id, name, animationId | null, x, y }` (x/y are kept for layout tools; the editor
+  doesn’t show a state diagram) and `machine.initialState`. Entering a state plays its move. Files without states work as before.
+- Rules double as **connections**: `from` (a state; missing = any state) and `to` (a state; missing = no state
+  change). Only one connection changes the state per event — the highest priority, then the earliest.
+- `rule.only` items may be nested groups `{ type: 'group', op: 'all' | 'any' | 'none', items }`; `rule.match`
+  sets how the top level combines (default all). Conditions: boolean, number (`> < = >= <= !=`), text
+  (`is / isNot / contains / startsWith`), range, compare (two variables), vector (`x`/`y`), state, playing (a
+  move), event (the triggering event's `key / name / value / x / y`).
+- Triggers add `key` (or `any`), `event` (a named event), `stateEnter` and `changed` (any variable). Pointer
+  triggers without a `layerId` fire for the canvas as a whole.
+- `rule.transition` — `duration` (blend seconds), `delay`, `easing` (named or a cubic Bézier tuple),
+  `playback` (restart / continue / reverse), `loop` (default / once / loop / pingpong), `interruption` (allow /
+  wait / queue / ignore), `priority` (low / normal / high / critical), `blend` (crossfade / replace / additive),
+  `playStateMove`. `machine.defaults` is what new connections start with (copied onto each, never applied
+  silently). A lower-priority connection can’t interrupt a running higher-priority transition; critical always can.
+- `rule.do` (On enter) and `rule.exit` (On exit, before the state changes) are ordered steps. New steps: pause,
+  setVar, setState, visibility (show / hide / toggle), emit (a named event, also delivered to the host page),
+  wait (seconds), waitFor (a move to finish), parallel (`actions`, continues when all finish) and branch (`if`
+  group, `then`, `else`). Steps run in order until a wait; the runtime resumes them as time passes.
+- Variables add `string` (`maxLength`), `enum` (`options`), `vector2` (`min`/`max` per axis) and `color`; the
+  runtime keeps every value within its limits and validation rejects starting values of the wrong kind.
+- Conditions can also be written as text (`Coins >= 1 and not IsSpinning and (Mode is "hard" or event.key =
+  "Enter")`). The text is parsed into the same groups — nothing is ever executed as code.

@@ -4,6 +4,8 @@ import type { MotionRuntime } from '../../shared/motion/runtime';
 import { Slider, Switch } from '../ui/controls';
 import { Icon } from '../ui/Icon';
 import { useSound } from '../lib/sound';
+import { VAR_LABEL } from '../../shared/motion/logic';
+import { ValueInput } from '../features/editor/interact/Actions';
 
 /** Live controls for a running motion: toggles, buttons and sliders, plus what just happened. */
 export function ControlWidgets({ doc, runtime, onReset, showLog = true }: { doc: SceneDocument; runtime: MotionRuntime | null; onReset?: () => void; showLog?: boolean }) {
@@ -19,10 +21,15 @@ export function ControlWidgets({ doc, runtime, onReset, showLog = true }: { doc:
       {!inputs.length && <div className="empty-hint">{pointerRules.length ? 'This motion has no controls — interact with it directly on the canvas.' : 'No controls yet. Add toggles, buttons or sliders in Interact.'}</div>}
       {inputs.map((i) => (
         <div key={i.id} className="widget">
-          <span className="wn">{i.name}<span className="wt">{i.type === 'boolean' ? 'Toggle' : i.type === 'trigger' ? 'Button' : i.follow ? `${i.dragLayer ? 'Follows while you drag' : 'Follows the pointer'} ${i.follow === 'pointerX' ? 'left ↔ right' : 'up ↕ down'}` : `Slider · ${i.min ?? 0}–${i.max ?? 100}`}</span></span>
+          <span className="wn">{i.name}<span className="wt">{i.type === 'boolean' ? 'Toggle' : i.type === 'trigger' ? 'Button' : i.type !== 'number' ? VAR_LABEL[i.type] : i.follow ? `${i.dragLayer ? 'Follows while you drag' : 'Follows the pointer'} ${i.follow === 'pointerX' ? 'left ↔ right' : 'up ↕ down'}` : `Slider · ${i.min ?? 0}–${i.max ?? 100}`}</span></span>
           {i.type === 'boolean' && <Switch checked={!!runtime.values[i.id]} onChange={(v) => runtime.setBoolean(i.id, v)} label={i.name} />}
           {i.type === 'trigger' && <button className="fire" onClick={() => runtime.fire(i.id)}>Press</button>}
           {i.type === 'number' && i.follow && <span className="badge"><Icon name={i.dragLayer ? 'drag' : 'crosshair'} size={11} /> {i.dragLayer ? 'drag on the canvas' : 'move your pointer'}</span>}
+          {(i.type === 'string' || i.type === 'enum' || i.type === 'vector2' || i.type === 'color') && (
+            <span className="rule" style={{ padding: 0, border: 0, background: 'none', display: 'flex', gap: 4, alignItems: 'center' }}>
+              <ValueInput type={i.type} options={i.options} min={i.min} max={i.max} value={runtime.values[i.id] ?? i.default} onChange={(v) => runtime.setVar(i.id, v)} />
+            </span>
+          )}
           {i.type === 'number' && !i.follow && (
             <div style={{ width: 150 }} className="row">
               <Slider value={Number(runtime.values[i.id] ?? 0)} min={i.min ?? 0} max={i.max ?? 100} step={(i.max ?? 100) - (i.min ?? 0) <= 2 ? 0.01 : 1} onChange={(v) => runtime.setNumber(i.id, v)} label={i.name} />

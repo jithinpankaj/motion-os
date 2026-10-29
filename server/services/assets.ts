@@ -1,3 +1,5 @@
+import { forEachAction, mapActions } from '../../shared/motion/logic';
+import type { Action } from '../../shared/scene/schema';
 import type { Db } from '../db';
 import type { SceneDocument } from '../../shared/scene/schema';
 import { uid } from '../../shared/util/random';
@@ -10,7 +12,7 @@ export function sceneAssetIds(doc: SceneDocument): string[] {
     if (l.type === 'mesh' && l.props.material.textureAssetId) ids.add(l.props.material.textureAssetId);
     if (l.type === 'text' && l.props.fontAssetId) ids.add(l.props.fontAssetId);
   }
-  for (const r of doc.machine.rules) for (const a of r.do) if (a.type === 'sound' && a.assetId) ids.add(a.assetId);
+  for (const r of doc.machine.rules) forEachAction([...r.do, ...(r.exit ?? [])], (a) => { if (a.type === 'sound' && a.assetId) ids.add(a.assetId); });
   return [...ids];
 }
 
@@ -28,7 +30,7 @@ export function remapSceneAssets(doc: SceneDocument, map: Record<string, string 
     machine: {
       ...doc.machine,
       // A sound whose file wasn't copied falls back to a built-in click rather than pointing nowhere.
-      rules: doc.machine.rules.map((r) => ({ ...r, do: r.do.map((a) => (a.type === 'sound' && a.assetId ? (m(a.assetId) ? { ...a, assetId: m(a.assetId) } : { ...a, assetId: null, sound: 'click' as const }) : a)) })),
+      rules: doc.machine.rules.map((r) => { const fix = (list: Action[]) => mapActions(list, (a) => (a.type === 'sound' && a.assetId ? (m(a.assetId) ? { ...a, assetId: m(a.assetId) } : { ...a, assetId: null, sound: 'click' as const }) : a)); return { ...r, do: fix(r.do), ...(r.exit ? { exit: fix(r.exit) } : {}) }; }),
     },
   };
 }

@@ -14,6 +14,7 @@ import { LeftPanel } from './LeftPanel';
 import { CanvasSettings, Customise, Inspector } from './Inspector';
 import { LIBRARY_CATEGORIES } from '../../../shared/motion/presets';
 import { QuickMoves, Timeline } from './Animate';
+import { Debugger } from './interact/Debugger';
 import { InteractPanel } from './Interact';
 import {
   clearDraft, deleteLayer, duplicateLayer, initEditor, readDraft, redo, resolveConflict, save, select, setMode, setPlaying, setProp, undo, useEditor, type Mode,
@@ -116,9 +117,11 @@ export default function Editor() {
         {mode === 'animate' && <><QuickMoves layer={layer} />{layer && <Inspector doc={doc} layer={layer} />}</>}
         {mode === 'interact' && <InteractPanel doc={doc} />}
         {mode === 'try' && <Customise doc={doc} />}
-        {mode === 'try' && <div className="sec"><div className="sec-h">Controls</div><ControlWidgets doc={doc} runtime={player.current?.runtime ?? null} onReset={() => player.current?.reset()} /></div>}
+        {mode === 'try' && <div className="sec"><div className="sec-h">Controls</div><ControlWidgets doc={doc} runtime={player.current?.runtime ?? null} onReset={() => player.current?.reset()} showLog={false} /></div>}
+        {mode === 'try' && player.current?.runtime && <Debugger doc={doc} runtime={player.current.runtime} />}
       </aside>
       {mode === 'animate' && <Timeline doc={doc} />}
+
 
       <Modal open={!!draft} onClose={() => { if (id) clearDraft(id); setDraft(null); }} title="Recover unsaved changes?" subtitle={draft ? `Changes from ${new Date(draft.at).toLocaleString()} weren’t saved to the server.` : ''}
         footer={<><button className="btn ghost" onClick={() => { if (id) clearDraft(id); setDraft(null); }}>Discard</button><button className="btn primary" onClick={() => { const d = deserializeScene(draft!.doc); useEditor.setState({ doc: d, saveState: 'dirty' }); save(true); setDraft(null); }}>Recover</button></>}><div /></Modal>

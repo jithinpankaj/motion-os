@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { Action, Animation, Binding, Easing, Input, Keyframe, Layer, LayerType, Rule, SceneDocument, Track } from '../../../shared/scene/schema';
+import type { Action, Animation, Binding, ConditionGroup, Easing, Input, Keyframe, Layer, LayerType, MachineState, Rule, SceneDocument, Track } from '../../../shared/scene/schema';
+import { defaultValueFor, mapActions, mapConditions } from '../../../shared/motion/logic';
 import { createLayer, defaultShape } from '../../../shared/scene/defaults';
 import { validateScene } from '../../../shared/scene/serialize';
 import { evaluateTrack } from '../../../shared/timeline';
@@ -36,6 +37,8 @@ type State = {
   playhead: number;
   playing: boolean;
   selectedKey: { trackId: string; keyId: string } | null;
+  /** Interact: the interaction card that is open. */
+  selectedRule: string | null;
 };
 
 const HISTORY = 150;
@@ -45,13 +48,13 @@ const draftKey = (id: string) => `mos.edit.draft.${id}`;
 
 export const useEditor = create<State>(() => ({
   projectId: null, doc: null, revision: 0, saveState: 'saved', saveError: null, conflict: null, past: [], future: [],
-  mode: 'design', selection: null, activeAnim: null, playhead: 0, playing: false, selectedKey: null,
+  mode: 'design', selection: null, activeAnim: null, playhead: 0, playing: false, selectedKey: null, selectedRule: null,
 }));
 const get = useEditor.getState;
 const set = useEditor.setState;
 
 export function initEditor(projectId: string, doc: SceneDocument, revision: number) {
-  set({ projectId, doc, revision, saveState: 'saved', saveError: null, conflict: null, past: [], future: [], selection: null, activeAnim: doc.machine.animations[0]?.id ?? null, playhead: 0, playing: false, selectedKey: null, mode: 'design' });
+  set({ projectId, doc, revision, saveState: 'saved', saveError: null, conflict: null, past: [], future: [], selection: null, activeAnim: doc.machine.animations[0]?.id ?? null, playhead: 0, playing: false, selectedKey: null, mode: 'design', selectedRule: null });
 }
 export function readDraft(id: string): { doc: SceneDocument; baseRevision: number; at: number } | null {
   try { const raw = localStorage.getItem(draftKey(id)); return raw ? JSON.parse(raw) : null; } catch { return null; }
@@ -210,7 +213,11 @@ export function addLayer(type: LayerType, patch: Partial<Layer> = {}, kind?: 're
 /** Remove things that point at deleted layers, controls or moves, so nothing silently breaks. */
 export function prune(d: SceneDocument): SceneDocument {
   const L = new Set(d.layers.map((l) => l.id)), I = new Set(d.machine.inputs.map((i) => i.id)), A = new Set(d.machine.animations.map((a) => a.id));
-  const ok = (o: any) => (!o.layerId || L.has(o.layerId)) && (!o.inputId || I.has(o.inputId)) && (!o.animationId || A.has(o.animationId));
+  const S = new Set((d.machine.states ?? []).map((s) => s.id));
+  // Anything that points at a deleted layer, variable, move or state is removed, at any depth.
+  const ok = (o: any) => (!o.layerId || L.has(o.layerId)) && (!o.inputId || I.has(o.inputId)) && (!o.otherId || I.has(o.otherId)) && (!o.animationId || A.has(o.animationId)) && (!o.stateId || S.has(o.stateId));
+  const cleanGroup = (g: ConditionGroup) => mapConditions(g, (c) => (ok(c) ? c : null));
+  const cleanActions = (list: Action[]) => mapActions(list, (a) => (a.type === 'branch' ? { ...a, if: cleanGroup(a.if) } : a.type === 'parallel' ? a : ok(a) ? a : null));
   return {
     ...d,
     layers: d.layers.map((l) => (l.parentId && !L.has(l.parentId) ? { ...l, parentId: null } : l)),
@@ -220,7 +227,16 @@ export function prune(d: SceneDocument): SceneDocument {
       ...d.machine,
       inputs: d.machine.inputs.map((i) => (i.dragLayer && !L.has(i.dragLayer) ? { ...i, dragLayer: undefined } : i)),
       animations: d.machine.animations.map((a) => ({ ...a, tracks: a.tracks.filter((t) => L.has(t.layerId)) })),
-      rules: d.machine.rules.filter((r) => ok(r.when)).map((r) => ({ ...r, only: r.only.filter(ok), do: r.do.filter(ok) })).filter((r) => r.do.length),
+      states: d.machine.states?.map((s) => (s.animationId && !A.has(s.animationId) ? { ...s, animationId: null } : s)),
+      initialState: d.machine.initialState && !S.has(d.machine.initialState) ? (d.machine.states?.[0]?.id ?? null) : d.machine.initialState,
+      rules: d.machine.rules.filter((r) => ok(r.when)).map((r) => ({
+        ...r,
+        only: cleanGroup({ type: 'group', op: 'all', items: r.only }).items,
+        do: cleanActions(r.do),
+        exit: r.exit ? cleanActions(r.exit) : undefined,
+        from: r.from && S.has(r.from) ? r.from : undefined,
+        to: r.to && S.has(r.to) ? r.to : undefined,
+      })),
       bindings: d.machine.bindings.filter(ok),
     },
   };
@@ -309,8 +325,11 @@ export const trackFor = (anim: Animation | null, layerId: string, path: string):
 export function addInput(type: Input['type']) {
   const d = get().doc;
   if (!d) return;
-  const base = type === 'boolean' ? 'Toggle' : type === 'trigger' ? 'Button' : 'Slider';
-  const i: Input = { id: uid('in'), name: uniqueName(base, d.machine.inputs.map((x) => x.name)), type, default: type === 'number' ? 0 : false, ...(type === 'number' ? { min: 0, max: 100 } : {}) };
+  const base = { boolean: 'Toggle', trigger: 'Button', number: 'Slider', string: 'Text', enum: 'Choice', vector2: 'Vector', color: 'Colour' }[type];
+  const i: Input = {
+    id: uid('in'), name: uniqueName(base, d.machine.inputs.map((x) => x.name)), type, default: defaultValueFor(type),
+    ...(type === 'number' ? { min: 0, max: 100 } : {}), ...(type === 'enum' ? { options: ['One', 'Two', 'Three'] } : {}),
+  };
   commit((doc) => ({ ...doc, machine: { ...doc.machine, inputs: [...doc.machine.inputs, i] } }));
   return i.id;
 }
@@ -318,10 +337,28 @@ export const updateInput = (id: string, patch: Partial<Input>, coalesce?: string
 export const deleteInput = (id: string) => commit((d) => prune({ ...d, machine: { ...d.machine, inputs: d.machine.inputs.filter((i) => i.id !== id) } }));
 
 export function addRule(rule: Omit<Rule, 'id'>) {
-  commit((d) => ({ ...d, machine: { ...d.machine, rules: [...d.machine.rules, { ...rule, id: uid('ru') }] } }));
+  const id = uid('ru');
+  commit((d) => ({ ...d, machine: { ...d.machine, rules: [...d.machine.rules, { ...rule, id }] } }));
+  return id;
 }
 export const updateRule = (id: string, patch: Partial<Rule>) => commit((d) => ({ ...d, machine: { ...d.machine, rules: d.machine.rules.map((r) => (r.id === id ? { ...r, ...patch } : r)) } }));
-export const deleteRule = (id: string) => commit((d) => ({ ...d, machine: { ...d.machine, rules: d.machine.rules.filter((r) => r.id !== id) } }));
+export const deleteRule = (id: string) => { commit((d) => ({ ...d, machine: { ...d.machine, rules: d.machine.rules.filter((r) => r.id !== id) } })); if (get().selectedRule === id) set({ selectedRule: null }); };
+export const selectRule = (id: string | null) => set({ selectedRule: id });
+
+// ---------- states and connections ----------
+
+export function addState(name?: string, animationId: string | null = null, at?: { x: number; y: number }) {
+  const d = get().doc;
+  if (!d) return;
+  const states = d.machine.states ?? [];
+  const st = { id: uid('st'), name: uniqueName(name ?? 'State', states.map((x) => x.name)), animationId, x: at?.x ?? 80 + states.length * 190, y: at?.y ?? 70 + (states.length % 2) * 90 };
+  commit((doc) => ({ ...doc, machine: { ...doc.machine, states: [...(doc.machine.states ?? []), st], initialState: doc.machine.initialState ?? st.id } }));
+  return st.id;
+}
+export const updateState = (id: string, patch: Partial<MachineState>, coalesce?: string) =>
+  commit((d) => ({ ...d, machine: { ...d.machine, states: (d.machine.states ?? []).map((s) => (s.id === id ? { ...s, ...patch } : s)) } }), coalesce);
+export const deleteState = (id: string) => commit((d) => prune({ ...d, machine: { ...d.machine, states: (d.machine.states ?? []).filter((s) => s.id !== id) } }));
+export const setInitialState = (id: string) => commit((d) => ({ ...d, machine: { ...d.machine, initialState: id } }));
 export const setRuleActions = (id: string, actions: Action[]) => updateRule(id, { do: actions });
 
 export function addBinding(b: Omit<Binding, 'id'>) { commit((d) => ({ ...d, machine: { ...d.machine, bindings: [...d.machine.bindings, { ...b, id: uid('bd') }] } })); }

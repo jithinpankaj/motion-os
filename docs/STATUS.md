@@ -21,7 +21,29 @@ templates/approvals and the old playground were removed (their history is in git
 | Drag | Unit: a drag slider ignores the pointer until its layer is held, then springs home with an overshoot |
 | Squash & stretch | Unit: group stretch spreads children; circles turned inside a squashed group stay correct |
 
-Automated: `npm test` 62/62, `npm run e2e` 10/10, `tsc --noEmit` clean.
+| Plain-language interactions | e2e: the New interaction helper builds “when someone clicks anywhere → play Jump, then back next time” (with the switch it remembers by), a word is changed by clicking it (clicks → presses the Enter key), Only if… starts with a condition, More options sets “ignore it”, it survives reload and Enter runs it in Try it with the debugger saying so. Editor e2e: a hover interaction plus its automatic undo, a sound step added to an open card, the Living button’s Rest/Hover/Pressed states in the debugger |
+| Runtime: states, priority, interruption, steps | Unit (logic.test.ts): from-state gating, one state change per event by priority, the coin/spin sequence (waits, parallel, branch, emitted events), key payload conditions, delay / ignore / queue, replace / additive blending, loop override, priority blocking, variable limits, expression parsing and its error messages, summaries; the Slot bird’s coin sequence end to end, including “Coins is 0. It needs to be at least 1.” |
+
+Automated: `npm test` 74/74, `npm run e2e` 11/11, `tsc --noEmit` clean, build succeeds.
+
+## Interactions
+
+Interactions are plain sentences in the Interact panel — “**When** someone **hovers over** **Button** → play
+**Hover**”. Every underlined word opens a small chooser to change it. **New interaction** asks three questions
+with picture tiles (what do people do · on what · what should happen), shows a sentence preview, and can add the
+natural undo for you (“undo it when the pointer moves off / when they let go”) or make a click flip a move on and
+off. An open card lists its steps in order (with “at the same time” and “if … otherwise …” blocks), an optional
+**Only if…** and a folded **More options** (smoothness, wait first, what happens if it fires again while running,
+which state it works in, name, on/off) with **Expert settings** inside (easing curve, priority, mixing, the
+state’s move, steps before switching). States are optional named poses listed in the panel.
+
+**Try it** shows a debugger in sentences — “✓ Released ran.” / “✗ Spin didn’t run — Coins is 0. It needs to be at
+least 1.” — with the detailed checks behind “Show the checks”, the steps running now, and every switch and value,
+which can be changed while testing.
+
+The engine underneath is unchanged: states, nested conditions, transitions, priorities, interruption and ordered,
+parallel and branching steps all still run, and files that use them keep them — richer logic is summarised on the
+card (“Advanced logic · …”) and stays editable. There is no node graph or state-diagram view (removed on request).
 
 ## The library
 
@@ -66,6 +88,9 @@ Each move carries a note explaining the motion principle it uses (shown in Anima
 - No vector paths: no pen tool, arcs, boolean shapes or masks. Leaves are ellipses, smiles can't be drawn, and the
   ribbon notches on the badge are background-coloured triangles painted over the ribbon.
 - Layers can't be skewed: a layer turned inside a stretched group gets the nearest rotation + stretch.
+- Variable scope is per file: there are no multi-file projects or nested components yet, so “project” scope
+  and “trigger another component” aren’t available. Emitted events do reach the page hosting the player.
+- Pointer “up” only reaches a layer that was pressed; there is no key-release trigger.
 - Customise settings can change colours, text and numbers, not motion amounts (e.g. "press depth" or "spring
   speed" would need move-level intensity/speed controls).
 - Text content can't be changed by moves, so counters swap between two text layers.

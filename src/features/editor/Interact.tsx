@@ -1,57 +1,37 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { Action, BuiltinSound, Condition, Input, Rule, SceneDocument, When } from '../../../shared/scene/schema';
-import { BUILTIN_SOUNDS } from '../../../shared/scene/schema';
-import { Modal, Switch, toast } from '../../ui/controls';
-import { api } from '../../lib/api';
-import { apiResolver } from '../../lib/assets';
-import { SOUND_LABELS, playSound } from '../../lib/sound';
+import { useState } from 'react';
+import type { Input, SceneDocument } from '../../../shared/scene/schema';
+import { VAR_LABEL } from '../../../shared/motion/logic';
+import { Switch } from '../../ui/controls';
 import { Icon } from '../../ui/Icon';
 import { pathLabel } from './Animate';
-import { addBinding, addInput, addRule, commit, deleteBinding, deleteInput, deleteRule, updateBinding, updateInput, updateRule } from './store';
-import { uid } from '../../../shared/util/random';
+import { addBinding, addInput, addState, deleteBinding, deleteInput, deleteState, selectRule, setInitialState, updateBinding, updateInput, updateState, useEditor } from './store';
+import { ValueInput } from './interact/Actions';
+import { InteractionCard, NewInteraction } from './interact/Simple';
 
 /**
- * Interactions in plain language. Controls are what people (or a website) change; rules say
- * "when this happens, (only if …), do that"; slider links tie a slider directly to a property.
+ * Interact, right panel. Selecting a connection on the Interaction Canvas (or a rule here) opens its
+ * inspector; otherwise this lists the variables, every interaction, slider links and the defaults new
+ * connections start with. Simple controls come first; advanced variable types are one click away.
  */
-const TYPE_INFO: Record<Input['type'], { label: string; icon: string; hint: string }> = {
-  boolean: { label: 'Toggle', icon: 'check', hint: 'on or off' },
-  trigger: { label: 'Button', icon: 'play', hint: 'pressed' },
-  number: { label: 'Slider', icon: 'gauge', hint: 'a number' },
-};
+const TYPE_ICON: Record<Input['type'], string> = { boolean: 'check', trigger: 'play', number: 'gauge', string: 'type', enum: 'layers', vector2: 'move', color: 'brand' };
 
 export function InteractPanel({ doc }: { doc: SceneDocument }) {
   const m = doc.machine;
   canvasSize = { w: doc.canvas.width, h: doc.canvas.height };
-  const [recipe, setRecipe] = useState<null | 'toggle' | 'hover' | 'press'>(null);
+  const open = useEditor((s) => s.selectedRule);
+  const [wizard, setWizard] = useState(false);
   return (
     <div>
       <div className="sec">
-        <div className="sec-h">Controls</div>
-        <div className="empty-hint">Things people can change: switches, buttons and sliders. A slider can also follow the pointer — link it to eyes or a head to make a character look at the cursor.</div>
-        {m.inputs.map((i) => <ControlRow key={i.id} input={i} doc={doc} />)}
-        <div className="row" style={{ gap: 6 }}>
-          {(['boolean', 'trigger', 'number'] as const).map((t) => <button key={t} className="btn sm grow" onClick={() => addInput(t)}><Icon name="plus" size={12} />{TYPE_INFO[t].label}</button>)}
-        </div>
+        <div className="sec-h">Interactions <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 450 }}>{m.rules.length}</span></div>
+        <div className="empty-hint">Each interaction is a sentence: <b>when</b> something happens, <b>do</b> something. Click any underlined word to change it.</div>
+        <button className="btn primary" onClick={() => setWizard(true)}><Icon name="plus" size={13} />New interaction</button>
+        {!m.animations.length && <div className="empty-hint">Tip: make a move in <b>Animate</b> first — then an interaction can play it.</div>}
+        {m.rules.map((r, i) => <InteractionCard key={r.id} doc={doc} rule={r} n={i + 1} open={open === r.id} onToggle={() => selectRule(open === r.id ? null : r.id)} />)}
       </div>
 
-      <div className="sec">
-        <div className="sec-h">Quick recipes</div>
-        <div className="moves" style={{ gridTemplateColumns: '1fr' }}>
-          <button className="move" onClick={() => setRecipe('toggle')}><Icon name="check" size={14} /><span>Click to toggle<small>Click a layer → a move plays, click again → it plays back</small></span></button>
-          <button className="move" onClick={() => setRecipe('hover')}><Icon name="crosshair" size={14} /><span>Hover effect<small>Pointer over a layer plays a move; leaving reverses it</small></span></button>
-          <button className="move" onClick={() => setRecipe('press')}><Icon name="play" size={14} /><span>Press to play<small>Clicking a layer plays a move from the start</small></span></button>
-        </div>
-      </div>
-
-      <div className="sec">
-        <div className="sec-h">Rules <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 450 }}>{m.rules.length}</span></div>
-        {!m.rules.length && <div className="empty-hint">No rules yet. A rule says <b>when</b> something happens, what to <b>do</b>. Try a quick recipe above.</div>}
-        {m.rules.map((r, i) => <RuleCard key={r.id} rule={r} doc={doc} n={i + 1} />)}
-        <button className="btn sm" onClick={() => addRule({ when: { type: 'start' }, only: [], do: [m.animations[0] ? { type: 'play', animationId: m.animations[0].id, direction: 'forward', from: 'start' } : m.inputs[0] ? defaultAction(doc) : { type: 'play', animationId: '', direction: 'forward', from: 'start' }] })} disabled={!m.animations.length && !m.inputs.length} title={!m.animations.length && !m.inputs.length ? 'Create a move or a control first' : undefined}>
-          <Icon name="plus" size={12} />Add a rule
-        </button>
-      </div>
+      <States doc={doc} />
+      <Variables doc={doc} />
 
       <div className="sec">
         <div className="sec-h">Slider links</div>
@@ -87,47 +67,80 @@ export function InteractPanel({ doc }: { doc: SceneDocument }) {
           <Icon name="plus" size={12} />Link a slider
         </button>
       </div>
-      {recipe && <RecipeDialog kind={recipe} doc={doc} onClose={() => setRecipe(null)} />}
+      {wizard && <NewInteraction doc={doc} onClose={() => setWizard(false)} onCreated={(id) => selectRule(id)} />}
     </div>
   );
 }
 
-/** Positions are stored as fractions of the canvas; links show them in pixels. */
-let canvasSize = { w: 1080, h: 1080 };
-const k = (path: string) => (path === 'transform.x' ? canvasSize.w : path === 'transform.y' ? canvasSize.h : 1);
-
-function numberPaths(l: SceneDocument['layers'][number] | undefined): string[] {
-  const common = ['transform.x', 'transform.y', 'transform.rotation', 'transform.scale', 'opacity'];
-  if (!l) return common;
-  if (l.type === 'shape') return [...common, 'props.width', 'props.height', 'props.radius', 'props.innerRadius', 'props.stroke.width', 'props.fill.angle'];
-  if (l.type === 'text') return [...common, 'props.size', 'props.tracking'];
-  if (l.type === 'image') return [...common, 'props.width', 'props.height'];
-  if (l.type === 'gradient') return ['opacity', 'props.noiseAmp', 'props.distortion', 'props.grain'];
-  if (l.type === 'particles') return ['opacity', 'props.size', 'props.velocity', 'props.noise'];
-  return common;
+/** States: named poses (Rest, Hover, Pressed). An interaction can switch to one; entering it plays its move. */
+function States({ doc }: { doc: SceneDocument }) {
+  const states = doc.machine.states ?? [];
+  const [show, setShow] = useState(states.length > 0);
+  if (!show) return (
+    <div className="sec"><button className="btn sm ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setShow(true)}><Icon name="layers" size={12} />Use states (optional)</button></div>
+  );
+  return (
+    <div className="sec">
+      <div className="sec-h">States</div>
+      <div className="empty-hint">Optional. A state is a named pose like <b>Rest</b>, <b>Hover</b> or <b>Pressed</b>. An interaction can <b>switch to</b> a state, which plays its move — handy when there are several poses.</div>
+      {states.map((st) => (
+        <div key={st.id} className="ctrl">
+          <span className="ic"><Icon name="layers" size={13} /></span>
+          <input className="nm" defaultValue={st.name} onBlur={(e) => e.target.value.trim() && updateState(st.id, { name: e.target.value.trim().slice(0, 40) })} aria-label="State name" />
+          <select className="input sm" style={{ width: 110 }} value={st.animationId ?? ''} onChange={(e) => updateState(st.id, { animationId: e.target.value || null })} aria-label={`${st.name} plays`}>
+            <option value="">no move</option>{doc.machine.animations.map((a) => <option key={a.id} value={a.id}>plays {a.name}</option>)}
+          </select>
+          {doc.machine.initialState === st.id ? <span className="start-pill" title="It starts in this state">Start</span>
+            : <button className="icon-btn sm" title="Start in this state" aria-label={`Start in ${st.name}`} onClick={() => setInitialState(st.id)}><Icon name="play" size={11} /></button>}
+          <button className="icon-btn sm" aria-label={`Delete ${st.name}`} onClick={() => { if (confirm(`Delete the state “${st.name}”? Interactions that switch to it stop switching.`)) deleteState(st.id); }}><Icon name="trash" size={12} /></button>
+        </div>
+      ))}
+      <button className="btn sm" onClick={() => addState(states.length ? 'State' : 'Rest', doc.machine.animations[0]?.id ?? null)}><Icon name="plus" size={12} />Add a state</button>
+    </div>
+  );
 }
 
-function defaultAction(doc: SceneDocument): Action {
-  const i = doc.machine.inputs[0];
-  if (i.type === 'boolean') return { type: 'setBoolean', inputId: i.id, value: 'toggle' };
-  if (i.type === 'trigger') return { type: 'fire', inputId: i.id };
-  return { type: 'setNumber', inputId: i.id, mode: 'add', value: 1 };
+/** The variable manager: name, type, starting value and limits. Live values show in Try it. */
+function Variables({ doc }: { doc: SceneDocument }) {
+  const [more, setMore] = useState(false);
+  return (
+    <div className="sec">
+      <div className="sec-h">Switches & values</div>
+      <div className="empty-hint">Things your interactions can remember and change — an on/off switch, a button, a number. People can also change them from the page.</div>
+      {doc.machine.inputs.map((i) => <ControlRow key={i.id} input={i} doc={doc} />)}
+      <div className="row wrap" style={{ gap: 6 }}>
+        {(['boolean', 'trigger', 'number'] as const).map((t) => <button key={t} className="btn sm grow" onClick={() => addInput(t)}><Icon name="plus" size={12} />{t === 'boolean' ? 'Switch' : t === 'number' ? 'Number' : 'Button'}</button>)}
+        <button className="btn sm ghost" aria-expanded={more} onClick={() => setMore(!more)}><Icon name={more ? 'chevronDown' : 'chevronRight'} size={11} />More types</button>
+      </div>
+      {more && <div className="row wrap" style={{ gap: 6 }}>{(['string', 'enum', 'vector2', 'color'] as const).map((t) => <button key={t} className="btn sm grow" onClick={() => addInput(t)}><Icon name="plus" size={12} />{VAR_LABEL[t]}</button>)}</div>}
+    </div>
+  );
 }
 
 function ControlRow({ input, doc }: { input: Input; doc: SceneDocument }) {
-  const info = TYPE_INFO[input.type];
+  const [limits, setLimits] = useState(false);
+  const hasLimits = input.type === 'number' || input.type === 'vector2' || input.type === 'string' || input.type === 'enum';
   return (
     <div className="col" style={{ gap: 4 }}>
     <div className="ctrl">
-      <span className="ic" title={info.label}><Icon name={info.icon as any} size={13} /></span>
-      <input className="nm" value={input.name} onChange={(e) => e.target.value.trim() && updateInput(input.id, { name: e.target.value }, `in-name:${input.id}`)} aria-label={`${info.label} name`} />
+      <span className="ic" title={VAR_LABEL[input.type]}><Icon name={TYPE_ICON[input.type] as any} size={13} /></span>
+      <input className="nm" value={input.name} onChange={(e) => e.target.value.trim() && updateInput(input.id, { name: e.target.value }, `in-name:${input.id}`)} aria-label={`${VAR_LABEL[input.type]} name`} />
+      <span className="ctrl-type">{VAR_LABEL[input.type]}</span>
       {input.type === 'boolean' && <Switch checked={!!input.default} onChange={(v) => updateInput(input.id, { default: v })} label="Starts on" />}
-      {input.type === 'number' && <>
-        <input className="input" style={{ width: 46, height: 26, fontSize: 11 }} type="number" value={input.min ?? 0} onChange={(e) => updateInput(input.id, { min: Number(e.target.value) }, `in-min:${input.id}`)} aria-label="Minimum" title="Minimum" />
-        <input className="input" style={{ width: 52, height: 26, fontSize: 11 }} type="number" value={input.max ?? 100} onChange={(e) => updateInput(input.id, { max: Number(e.target.value) }, `in-max:${input.id}`)} aria-label="Maximum" title="Maximum" />
-      </>}
+      {input.type !== 'boolean' && input.type !== 'trigger' && <span className="rule" style={{ padding: 0, border: 0, background: 'none', display: 'contents' }}><ValueInput type={input.type} options={input.options} min={input.min} max={input.max} value={input.default} onChange={(v) => updateInput(input.id, { default: v }, `in-def:${input.id}`)} /></span>}
+      {hasLimits && <button className="icon-btn sm" aria-label={`Limits for ${input.name}`} aria-pressed={limits} title="Limits and validation" onClick={() => setLimits(!limits)}><Icon name="settings" size={12} /></button>}
       <button className="icon-btn sm" aria-label={`Delete ${input.name}`} onClick={() => deleteInput(input.id)}><Icon name="trash" size={12} /></button>
     </div>
+    {limits && (
+      <div className="row wrap rule" style={{ gap: 6, marginLeft: 36, padding: 8 }}>
+        {(input.type === 'number' || input.type === 'vector2') && <>
+          <span className="faint">min</span><input className="inl" type="number" value={input.min ?? ''} placeholder="none" onChange={(e) => updateInput(input.id, { min: e.target.value === '' ? undefined : Number(e.target.value) }, `in-min:${input.id}`)} aria-label="Minimum" />
+          <span className="faint">max</span><input className="inl" type="number" value={input.max ?? ''} placeholder="none" onChange={(e) => updateInput(input.id, { max: e.target.value === '' ? undefined : Number(e.target.value) }, `in-max:${input.id}`)} aria-label="Maximum" />
+        </>}
+        {input.type === 'string' && <><span className="faint">at most</span><input className="inl" type="number" min={1} max={200} value={input.maxLength ?? 200} onChange={(e) => updateInput(input.id, { maxLength: Math.max(1, Math.min(200, Number(e.target.value) || 200)) }, `in-len:${input.id}`)} aria-label="Maximum length" /><span className="faint">characters</span></>}
+        {input.type === 'enum' && <><span className="faint">choices</span><input className="inl" style={{ width: 200 }} defaultValue={(input.options ?? []).join(', ')} onBlur={(e) => { const opts = [...new Set(e.target.value.split(',').map((x) => x.trim()).filter(Boolean))].slice(0, 32); if (opts.length) updateInput(input.id, { options: opts, default: opts.includes(String(input.default)) ? input.default : opts[0] }); }} aria-label="Choices, separated by commas" /></>}
+      </div>
+    )}
     {input.type === 'number' && (
       <div className="row" style={{ gap: 6, paddingLeft: 36, fontSize: 12 }}>
         <span className="faint">Follows the pointer</span>
@@ -148,206 +161,18 @@ function ControlRow({ input, doc }: { input: Input; doc: SceneDocument }) {
   );
 }
 
-// ---------- rule editor ----------
+/** Positions are stored as fractions of the canvas; links show them in pixels. */
+let canvasSize = { w: 1080, h: 1080 };
+const k = (path: string) => (path === 'transform.x' ? canvasSize.w : path === 'transform.y' ? canvasSize.h : 1);
 
-type WhenKind = 'start' | 'bool' | 'trigger' | 'number' | 'pointer' | 'finished';
-const whenKind = (w: When): WhenKind => (w.type === 'boolean' ? 'bool' : w.type === 'start' || w.type === 'trigger' || w.type === 'number' || w.type === 'pointer' || w.type === 'finished' ? w.type : 'start');
-
-function RuleCard({ rule, doc, n }: { rule: Rule; doc: SceneDocument; n: number }) {
-  const m = doc.machine;
-  const bools = m.inputs.filter((i) => i.type === 'boolean'), triggers = m.inputs.filter((i) => i.type === 'trigger'), numbers = m.inputs.filter((i) => i.type === 'number');
-  const setWhen = (when: When) => updateRule(rule.id, { when });
-  const changeKind = (k: WhenKind) => {
-    if (k === 'start') setWhen({ type: 'start' });
-    else if (k === 'bool' && bools[0]) setWhen({ type: 'boolean', inputId: bools[0].id, value: true });
-    else if (k === 'trigger' && triggers[0]) setWhen({ type: 'trigger', inputId: triggers[0].id });
-    else if (k === 'number' && numbers[0]) setWhen({ type: 'number', inputId: numbers[0].id, op: '>=', value: numbers[0].max ?? 100 });
-    else if (k === 'pointer' && doc.layers[0]) setWhen({ type: 'pointer', event: 'click', layerId: doc.layers[doc.layers.length - 1].id });
-    else if (k === 'finished' && m.animations[0]) setWhen({ type: 'finished', animationId: m.animations[0].id });
-  };
-  const w = rule.when;
-  const setAction = (i: number, a: Action) => updateRule(rule.id, { do: rule.do.map((x, j) => (j === i ? a : x)) });
-  return (
-    <div className="rule" aria-label={`Rule ${n}`}>
-      <div className="w">
-        <span className="kw when">When</span>
-        <select value={whenKind(w)} onChange={(e) => changeKind(e.target.value as WhenKind)} aria-label="When">
-          <option value="start">it starts</option>
-          <option value="pointer" disabled={!doc.layers.length}>someone interacts with a layer</option>
-          <option value="bool" disabled={!bools.length}>a toggle changes</option>
-          <option value="trigger" disabled={!triggers.length}>a button is pressed</option>
-          <option value="number" disabled={!numbers.length}>a slider reaches a value</option>
-          <option value="finished" disabled={!m.animations.length}>a move finishes</option>
-        </select>
-        <div className="grow" />
-        <button className="icon-btn sm" aria-label={`Delete rule ${n}`} onClick={() => deleteRule(rule.id)}><Icon name="trash" size={12} /></button>
-      </div>
-      {w.type === 'pointer' && (
-        <div className="w">
-          <span>someone</span>
-          <select value={w.event} onChange={(e) => setWhen({ ...w, event: e.target.value as any })} aria-label="Pointer event">
-            <option value="click">clicks</option><option value="enter">hovers over</option><option value="leave">moves off</option><option value="down">presses on</option><option value="up">lets go of</option>
-          </select>
-          <LayerSelect doc={doc} value={w.layerId} onChange={(layerId) => setWhen({ ...w, layerId })} />
-        </div>
-      )}
-      {w.type === 'boolean' && <div className="w"><InputSelect inputs={bools} value={w.inputId} onChange={(inputId) => setWhen({ ...w, inputId })} /><span>turns</span><select value={String(w.value)} onChange={(e) => setWhen({ ...w, value: e.target.value === 'true' })} aria-label="Turns"><option value="true">on</option><option value="false">off</option></select></div>}
-      {w.type === 'trigger' && <div className="w"><InputSelect inputs={triggers} value={w.inputId} onChange={(inputId) => setWhen({ ...w, inputId })} /><span>is pressed</span></div>}
-      {w.type === 'number' && <div className="w"><InputSelect inputs={numbers} value={w.inputId} onChange={(inputId) => setWhen({ ...w, inputId })} /><OpSelect value={w.op} onChange={(op) => setWhen({ ...w, op })} /><input className="inl" type="number" value={w.value} onChange={(e) => setWhen({ ...w, value: Number(e.target.value) })} aria-label="Value" /></div>}
-      {w.type === 'finished' && <div className="w"><AnimSelect doc={doc} value={w.animationId} onChange={(animationId) => setWhen({ ...w, animationId })} /><span>finishes</span></div>}
-
-      {rule.only.map((c, i) => (
-        <div key={i} className="w">
-          <span className="kw if">Only if</span>
-          <ConditionEditor doc={doc} c={c} onChange={(nc) => updateRule(rule.id, { only: rule.only.map((x, j) => (j === i ? nc : x)) })} />
-          <button className="icon-btn sm" aria-label="Remove condition" onClick={() => updateRule(rule.id, { only: rule.only.filter((_, j) => j !== i) })}><Icon name="x" size={11} /></button>
-        </div>
-      ))}
-
-      {rule.do.map((a, i) => (
-        <div key={i} className="w">
-          <span className="kw then">{i === 0 ? 'Then' : 'And'}</span>
-          <ActionEditor doc={doc} a={a} onChange={(na) => setAction(i, na)} />
-          {rule.do.length > 1 && <button className="icon-btn sm" aria-label="Remove action" onClick={() => updateRule(rule.id, { do: rule.do.filter((_, j) => j !== i) })}><Icon name="x" size={11} /></button>}
-        </div>
-      ))}
-      <div className="row" style={{ gap: 6 }}>
-        <button className="btn sm ghost" onClick={() => updateRule(rule.id, { do: [...rule.do, rule.do[rule.do.length - 1]] })}><Icon name="plus" size={11} />Also do</button>
-        <button className="btn sm ghost" disabled={!bools.length && !numbers.length} onClick={() => updateRule(rule.id, { only: [...rule.only, bools[0] ? { type: 'boolean', inputId: bools[0].id, value: true } : { type: 'number', inputId: numbers[0].id, op: '>', value: 0 }] })}><Icon name="plus" size={11} />Only if…</button>
-      </div>
-    </div>
-  );
+function numberPaths(l: SceneDocument['layers'][number] | undefined): string[] {
+  const common = ['transform.x', 'transform.y', 'transform.rotation', 'transform.scale', 'opacity'];
+  if (!l) return common;
+  if (l.type === 'shape') return [...common, 'props.width', 'props.height', 'props.radius', 'props.innerRadius', 'props.stroke.width', 'props.fill.angle'];
+  if (l.type === 'text') return [...common, 'props.size', 'props.tracking'];
+  if (l.type === 'image') return [...common, 'props.width', 'props.height'];
+  if (l.type === 'gradient') return ['opacity', 'props.noiseAmp', 'props.distortion', 'props.grain'];
+  if (l.type === 'particles') return ['opacity', 'props.size', 'props.velocity', 'props.noise'];
+  return common;
 }
 
-function ConditionEditor({ doc, c, onChange }: { doc: SceneDocument; c: Condition; onChange: (c: Condition) => void }) {
-  const inputs = doc.machine.inputs.filter((i) => i.type === 'boolean' || i.type === 'number');
-  const pick = (id: string) => { const i = inputs.find((x) => x.id === id)!; onChange(i.type === 'boolean' ? { type: 'boolean', inputId: id, value: true } : { type: 'number', inputId: id, op: '>', value: 0 }); };
-  return <>
-    <InputSelect inputs={inputs} value={c.inputId} onChange={pick} />
-    {c.type === 'boolean'
-      ? <><span>is</span><select value={String(c.value)} onChange={(e) => onChange({ ...c, value: e.target.value === 'true' })} aria-label="Is"><option value="true">on</option><option value="false">off</option></select></>
-      : <><OpSelect value={c.op} onChange={(op) => onChange({ ...c, op })} /><input className="inl" type="number" value={c.value} onChange={(e) => onChange({ ...c, value: Number(e.target.value) })} aria-label="Value" /></>}
-  </>;
-}
-
-type ActKind = 'play' | 'reverse' | 'stop' | 'toggle' | 'press' | 'number' | 'sound';
-function ActionEditor({ doc, a, onChange }: { doc: SceneDocument; a: Action; onChange: (a: Action) => void }) {
-  const m = doc.machine;
-  const bools = m.inputs.filter((i) => i.type === 'boolean'), triggers = m.inputs.filter((i) => i.type === 'trigger'), numbers = m.inputs.filter((i) => i.type === 'number');
-  const kind: ActKind = a.type === 'play' ? (a.direction === 'reverse' ? 'reverse' : 'play') : a.type === 'stop' ? 'stop' : a.type === 'setBoolean' ? 'toggle' : a.type === 'fire' ? 'press' : a.type === 'sound' ? 'sound' : 'number';
-  const anim0 = m.animations[0]?.id ?? '';
-  const change = (k: ActKind) => {
-    const animationId = 'animationId' in a ? a.animationId : anim0;
-    if (k === 'play') onChange({ type: 'play', animationId, direction: 'forward', from: 'start' });
-    else if (k === 'reverse') onChange({ type: 'play', animationId, direction: 'reverse', from: 'current' });
-    else if (k === 'stop') onChange({ type: 'stop', animationId });
-    else if (k === 'toggle' && bools[0]) onChange({ type: 'setBoolean', inputId: bools[0].id, value: 'toggle' });
-    else if (k === 'press' && triggers[0]) onChange({ type: 'fire', inputId: triggers[0].id });
-    else if (k === 'number' && numbers[0]) onChange({ type: 'setNumber', inputId: numbers[0].id, mode: 'set', value: 0 });
-    else if (k === 'sound') onChange({ type: 'sound', sound: 'pop', assetId: null, volume: 0.8 });
-  };
-  return <>
-    <select value={kind} onChange={(e) => change(e.target.value as ActKind)} aria-label="Do">
-      <option value="play" disabled={!m.animations.length}>play</option>
-      <option value="reverse" disabled={!m.animations.length}>play backwards</option>
-      <option value="stop" disabled={!m.animations.length}>stop</option>
-      <option value="toggle" disabled={!bools.length}>change toggle</option>
-      <option value="press" disabled={!triggers.length}>press button</option>
-      <option value="number" disabled={!numbers.length}>change slider</option>
-      <option value="sound">play a sound</option>
-    </select>
-    {a.type === 'sound' && <SoundPicker a={a} onChange={onChange} />}
-    {(a.type === 'play' || a.type === 'stop') && <AnimSelect doc={doc} value={a.animationId} onChange={(animationId) => onChange({ ...a, animationId })} />}
-    {a.type === 'play' && <select value={a.from} onChange={(e) => onChange({ ...a, from: e.target.value as any })} aria-label="From"><option value="start">from the {a.direction === 'reverse' ? 'end' : 'start'}</option><option value="current">from where it is</option></select>}
-    {a.type === 'setBoolean' && <><InputSelect inputs={bools} value={a.inputId} onChange={(inputId) => onChange({ ...a, inputId })} /><select value={a.value} onChange={(e) => onChange({ ...a, value: e.target.value as any })} aria-label="To"><option value="toggle">flip it</option><option value="on">to on</option><option value="off">to off</option></select></>}
-    {a.type === 'fire' && <InputSelect inputs={triggers} value={a.inputId} onChange={(inputId) => onChange({ ...a, inputId })} />}
-    {a.type === 'setNumber' && <><InputSelect inputs={numbers} value={a.inputId} onChange={(inputId) => onChange({ ...a, inputId })} /><select value={a.mode} onChange={(e) => onChange({ ...a, mode: e.target.value as any })} aria-label="How"><option value="set">to</option><option value="add">by adding</option></select><input className="inl" type="number" value={a.value} onChange={(e) => onChange({ ...a, value: Number(e.target.value) })} aria-label="Amount" /></>}
-  </>;
-}
-
-const OpSelect = ({ value, onChange }: { value: string; onChange: (v: any) => void }) => (
-  <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Comparison"><option value=">=">reaches</option><option value=">">goes above</option><option value="<">goes below</option><option value="<=">is at most</option><option value="=">equals</option></select>
-);
-const InputSelect = ({ inputs, value, onChange }: { inputs: Input[]; value: string; onChange: (v: string) => void }) => (
-  <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Control">{inputs.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}</select>
-);
-const AnimSelect = ({ doc, value, onChange }: { doc: SceneDocument; value: string; onChange: (v: string) => void }) => (
-  <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Move">{doc.machine.animations.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
-);
-const LayerSelect = ({ doc, value, onChange }: { doc: SceneDocument; value: string; onChange: (v: string) => void }) => (
-  <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Layer">{[...doc.layers].reverse().filter((l) => l.type !== 'group').map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
-);
-
-/** Recipes write ordinary rules (and a toggle when needed) that stay editable afterwards. */
-function RecipeDialog({ kind, doc, onClose }: { kind: 'toggle' | 'hover' | 'press'; doc: SceneDocument; onClose: () => void }) {
-  const layers = [...doc.layers].reverse().filter((l) => l.type !== 'group');
-  const [layerId, setLayerId] = useState(layers[0]?.id ?? '');
-  const [animId, setAnimId] = useState(doc.machine.animations[0]?.id ?? '');
-  const ready = layerId && animId;
-  const title = { toggle: 'Click to toggle', hover: 'Hover effect', press: 'Press to play' }[kind];
-  const apply = () => {
-    const play = (direction: 'forward' | 'reverse', from: 'start' | 'current'): Action => ({ type: 'play', animationId: animId, direction, from });
-    const layerName = doc.layers.find((l) => l.id === layerId)?.name ?? 'Layer';
-    // A repeating move can't "play back to the start", so turning it off stops it instead.
-    const repeats = doc.machine.animations.find((a) => a.id === animId)?.loop !== 'once';
-    const undoIt: Action = repeats ? { type: 'stop', animationId: animId } : play('reverse', 'current');
-    if (kind === 'toggle') {
-      const input: Input = { id: uid('in'), name: `${layerName} on`.slice(0, 40), type: 'boolean', default: false };
-      commit((d) => ({ ...d, machine: { ...d.machine, inputs: [...d.machine.inputs, input], rules: [...d.machine.rules,
-        { id: uid('ru'), when: { type: 'pointer', event: 'click', layerId }, only: [], do: [{ type: 'setBoolean', inputId: input.id, value: 'toggle' }] },
-        { id: uid('ru'), when: { type: 'boolean', inputId: input.id, value: true }, only: [], do: [play('forward', 'current')] },
-        { id: uid('ru'), when: { type: 'boolean', inputId: input.id, value: false }, only: [], do: [undoIt] },
-      ] } }));
-    } else if (kind === 'hover') {
-      addRule({ when: { type: 'pointer', event: 'enter', layerId }, only: [], do: [play('forward', 'current')] });
-      addRule({ when: { type: 'pointer', event: 'leave', layerId }, only: [], do: [undoIt] });
-    } else addRule({ when: { type: 'pointer', event: 'click', layerId }, only: [], do: [play('forward', 'start')] });
-    onClose();
-  };
-  return (
-    <Modal open onClose={onClose} title={title} subtitle="Pick what people interact with and which move it plays. You can edit the rules afterwards."
-      footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!ready} onClick={apply}>Add</button></>}>
-      {!doc.machine.animations.length ? <div className="empty-hint">You need a move first. Go to <b>Animate</b>, select a layer and pick a one-click move.</div> : (
-        <div className="col" style={{ gap: 12 }}>
-          <label className="col" style={{ gap: 4 }}><span className="label">{kind === 'hover' ? 'When the pointer is over' : 'When someone clicks'}</span>
-            <select className="input" value={layerId} onChange={(e) => setLayerId(e.target.value)}>{layers.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>
-          <label className="col" style={{ gap: 4 }}><span className="label">Play this move</span>
-            <select className="input" value={animId} onChange={(e) => setAnimId(e.target.value)}>{doc.machine.animations.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-          <div className="empty-hint">{kind === 'toggle' ? 'Adds a toggle control and three rules: click flips it; on plays the move; off plays it backwards (or stops it, if it repeats).' : kind === 'hover' ? 'Adds two rules: hover plays the move; moving off plays it backwards (or stops it, if it repeats).' : 'Adds one rule: a click plays the move from the start.'}</div>
-        </div>
-      )}
-    </Modal>
-  );
-}
-
-/** Choose a built-in sound or one of your uploaded sounds, hear it, and set how loud it is. */
-function SoundPicker({ a, onChange }: { a: Extract<Action, { type: 'sound' }>; onChange: (a: Action) => void }) {
-  const [mine, setMine] = useState<{ id: string; name: string }[]>([]);
-  const [busy, setBusy] = useState(false);
-  const resolver = useMemo(() => apiResolver(), []);
-  const load = () => api('/assets', { query: { kind: 'audio' } }).then((r) => setMine(r.assets.map((x: any) => ({ id: x.id, name: x.name })))).catch(() => {});
-  useEffect(() => { void load(); }, []);
-  const upload = async (f: File) => {
-    setBusy(true);
-    try {
-      const r = await api<{ id: string }>('/assets', { raw: f, query: { name: f.name.replace(/\.[^.]+$/, '').slice(0, 160) || 'Sound', kind: 'audio', category: 'sound' } });
-      await load();
-      onChange({ ...a, sound: null, assetId: r.id });
-    } catch (e) { toast('danger', 'Couldn’t add that sound', e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
-  };
-  const value = a.assetId ? `asset:${a.assetId}` : a.sound ?? '';
-  return <>
-    <select value={value} onChange={(e) => { const v = e.target.value; if (v === 'upload') return; onChange(v.startsWith('asset:') ? { ...a, sound: null, assetId: v.slice(6) } : { ...a, sound: v as BuiltinSound, assetId: null }); }} aria-label="Sound">
-      <optgroup label="Built-in">{BUILTIN_SOUNDS.map((k) => <option key={k} value={k}>{SOUND_LABELS[k]}</option>)}</optgroup>
-      {(mine.length > 0 || a.assetId) && <optgroup label="Your sounds">{mine.map((m) => <option key={m.id} value={`asset:${m.id}`}>{m.name}</option>)}{a.assetId && !mine.some((m) => m.id === a.assetId) && <option value={`asset:${a.assetId}`}>Uploaded sound</option>}</optgroup>}
-    </select>
-    <button className="icon-btn sm" title="Hear it" aria-label="Hear this sound" onClick={() => playSound({ builtin: a.sound, assetId: a.assetId, volume: a.volume }, resolver, { force: true })}><Icon name="sound" size={12} /></button>
-    <label className="row faint" style={{ gap: 4, fontSize: 11.5 }} title="Volume">
-      <input type="range" min={0} max={1} step={0.05} value={a.volume} onChange={(e) => onChange({ ...a, volume: Number(e.target.value) })} aria-label="Volume" style={{ width: 64 }} />
-    </label>
-    <label className="btn sm ghost" style={{ cursor: busy ? 'wait' : 'pointer' }} title="Upload an MP3, WAV or OGG file">
-      <Icon name="upload" size={11} />{busy ? 'Adding…' : 'Upload'}
-      <input type="file" accept="audio/mpeg,audio/wav,audio/x-wav,audio/ogg,.mp3,.wav,.ogg" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
-    </label>
-  </>;
-}

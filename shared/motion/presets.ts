@@ -35,8 +35,8 @@ export const MOTION_PRESETS: MotionPreset[] = [
   },
   {
     key: 'slot-bird', name: 'Slot bird', category: 'Characters',
-    description: 'A round bird with a slot machine in its belly. Pull the lever: it crouches, the reels stop one by one while it watches — and the third spin hits the jackpot.',
-    tip: 'Click the lever or the machine three times. Hover the bird to make it perk up.',
+    description: 'A round bird with a slot machine in its belly. Each spin costs a coin: it crouches, the reels stop one by one while it watches — and the third spin hits the jackpot.',
+    tip: 'Click the lever (or press Enter) three times. When the coins run out, the debugger in Try it explains why it stopped.',
     tags: [categoryTag('Characters'), 'character', 'slot-machine', 'state-machine', 'trigger'], build: slotBird,
   },
   {

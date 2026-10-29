@@ -171,7 +171,7 @@ describe('moves and presets', () => {
 
   describe('the living button', () => {
     const doc = MOTION_PRESETS.find((p) => p.key === 'living-button')!.build();
-    const id = (name: string) => doc.machine.inputs.find((i) => i.name === name)!.id;
+    const state = (name: string) => doc.machine.states!.find((x) => x.name === name)!.id;
     const cap = (rt: MotionRuntime) => rt.layers().find((l) => l.name === 'Cap')!.transform;
     const run = (rt: MotionRuntime, s: number) => { for (let t = 0; t < s; t += 0.01) rt.step(0.01); };
     const touch = doc.layers.find((l) => l.name === 'Touch area')!;
@@ -179,7 +179,9 @@ describe('moves and presets', () => {
     it('lifts on hover, squashes into its base when pressed, and springs past its height on release', () => {
       const rt = new MotionRuntime(doc);
       const rest = cap(rt).y;
+      expect(rt.state).toBe(state('Rest'));
       rt.pointer('enter', touch.id); run(rt, 0.6);
+      expect(rt.state).toBe(state('Hover'));
       const hovered = cap(rt).y;
       expect((rest - hovered) * 1080).toBeCloseTo(12, 0);
       rt.pointer('down', touch.id); run(rt, 0.3);
@@ -199,10 +201,14 @@ describe('moves and presets', () => {
       const rest = cap(rt).y;
       rt.pointer('enter', touch.id); rt.pointer('down', touch.id); run(rt, 0.3);
       rt.pointer('leave', touch.id);
-      expect(rt.values[id('Held')]).toBe(false);
+      expect(rt.state).toBe(state('Rest'));
       run(rt, 1.2);
       expect(cap(rt).y).toBeCloseTo(rest, 4);
-      rt.pointer('down', touch.id); run(rt, 0.3); rt.pointer('up', touch.id); run(rt, 1.2);
+      // A tap: browsers send down, up, then leave (a finger can't hover).
+      rt.pointer('down', touch.id); run(rt, 0.3);
+      expect(rt.state).toBe(state('Pressed'));
+      rt.pointer('up', touch.id); rt.pointer('leave', touch.id); run(rt, 1.2);
+      expect(rt.state).toBe(state('Rest'));
       expect(cap(rt).y).toBeCloseTo(rest, 4);
     });
     it('never has two states fighting over the idle loop', () => {

@@ -1,6 +1,7 @@
 import { createScene } from '../../scene/defaults';
-import type { Layer, SceneDocument, When } from '../../scene/schema';
-import { Rig, anim, input, is, param, play, rule, setBool, sound, tr } from './rig';
+import type { Animation, Layer, MachineState, Rule, SceneDocument, When } from '../../scene/schema';
+import { uid } from '../../util/random';
+import { Rig, anim, param, play, rule, sound, tr } from './rig';
 import { categoryTag } from './categories';
 
 // ---------- 01 · The living button ----------
@@ -133,9 +134,13 @@ export function livingButton(): SceneDocument {
     ]);
 
   // The state machine is two toggles the pointer flips. You can flip them yourself in Try it.
-  const hovered = input('Hovered', 'boolean', false);
-  const held = input('Held', 'boolean', false);
+  // The state machine: Rest, Hover and Pressed, joined by connections (the arrows on the Interaction Canvas).
+  const st = (id: string, name: string, a: Animation, x: number, y: number): MachineState => ({ id: uid(id), name, animationId: a.id, x, y });
+  const rest = st('st', 'Rest', unhover, 150, 120), hov = st('st', 'Hover', hover, 400, 40), pressed = st('st', 'Pressed', press, 660, 120);
   const on = (event: 'enter' | 'leave' | 'down' | 'up'): When => ({ type: 'pointer', event, layerId: touch.id });
+  const conn = (name: string, when: When, from: MachineState, to: MachineState, transition: Rule['transition'], ...actions: Rule['do']): Rule => ({ id: uid('ru'), name, when, only: [], do: actions, from: from.id, to: to.id, transition });
+  const hoverT = { duration: 0.2, easing: 'easeOut' as const, priority: 'normal' as const, interruption: 'allow' as const };
+  const clickT = { duration: 0.12, easing: 'easeOut' as const, priority: 'high' as const, interruption: 'allow' as const };
 
   const d = createScene({ meta: { name: 'Living button', description: 'An illustrated button with a face. Hover lifts it, pressing squashes it into its base, letting go springs it back — and it blinks and twinkles while it waits.', tags: [categoryTag('Interactive UI'), 'button', 'hover', 'press', 'squash-and-stretch'], category: 'Interactive UI' } });
   d.canvas = { ...d.canvas, width: W, height: H, background: '#f4e9d8', duration: 5, loop: true };
@@ -151,20 +156,18 @@ export function livingButton(): SceneDocument {
     param('label', 'Label', 'The words on the button.', 'text', [[label, 'props.text']], 'Let’s go!', 'Content'),
   ];
   d.machine = {
-    inputs: [hovered, held], animations: [idle, hover, unhover, press, release], bindings: [],
+    inputs: [], animations: [idle, hover, unhover, press, release], bindings: [],
+    states: [rest, hov, pressed], initialState: rest.id,
     rules: [
       rule({ type: 'start' }, [], play(idle)),
-      rule(on('enter'), [], setBool(hovered, 'on')),
-      // Letting go happens before un-hovering, so leaving mid-press releases first.
-      rule(on('leave'), [], setBool(held, 'off'), setBool(hovered, 'off')),
-      rule(on('down'), [], setBool(held, 'on')),
-      rule(on('up'), [], setBool(held, 'off')),
-      rule(is(hovered, true), [], play(hover)),
-      rule(is(hovered, false), [], play(unhover)),
-      rule(is(held, true), [], play(press), sound('tap', 0.7)),
-      rule(is(held, false), [is(hovered, true)], play(release), sound('pop', 0.5)),
-      // On touch screens there is no hover: a release goes straight back to rest.
-      rule(is(held, false), [is(hovered, false)], play(unhover)),
+      conn('Pointer enters', on('enter'), rest, hov, hoverT),
+      conn('Pointer leaves', on('leave'), hov, rest, hoverT),
+      conn('Pressed', on('down'), hov, pressed, clickT, sound('tap', 0.7)),
+      // Touch screens have no hover: pressing goes straight from Rest to Pressed.
+      conn('Pressed (touch)', on('down'), rest, pressed, clickT, sound('tap', 0.7)),
+      // Letting go plays Release instead of Hover's own move: the spring-back is the payoff.
+      conn('Released', on('up'), pressed, hov, { ...clickT, playStateMove: false }, play(release), sound('pop', 0.5)),
+      conn('Dragged off', on('leave'), pressed, rest, { ...hoverT, priority: 'high' }),
     ],
   };
   return d;

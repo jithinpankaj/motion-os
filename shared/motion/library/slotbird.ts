@@ -1,5 +1,6 @@
 import type { Animation, Layer, SceneDocument } from '../../scene/schema';
-import { Rig, anim, fire, finish, follower, input, link, numIs, onPointer, param, play, playBack, playOn, rule, setNum, sound, tr, type Key } from './rig';
+import { Rig, anim, fire, finish, follower, input, link, numIs, onPointer, param, play, playBack, playOn, rule, setBool, setNum, sound, tr, type Key } from './rig';
+import { uid } from '../../util/random';
 
 /**
  * 03 · The little slot bird. A round bird with one big eye and a slot machine in its belly. Pull the
@@ -136,14 +137,16 @@ export function slotBird(): SceneDocument {
   ]);
 
   const spinIn = input('Spin', 'trigger', false);
-  const spins = { ...input('Spins', 'number', 0), min: 0, max: 4 };
+  const spins = { ...input('Spins', 'number', 0), min: 0, max: 3, description: 'How many spins since the last jackpot — picks the result.' };
+  const coins = { ...input('Coins', 'number', 5), min: 0, max: 99, description: 'Each spin costs a coin.' };
+  const spinning = { ...input('IsSpinning', 'boolean', false), description: 'On while the reels turn, so extra clicks are ignored.' };
   const lookX = follower('Look X', 'pointerX', { smoothing: 0.7 }), lookY = follower('Look Y', 'pointerY', { smoothing: 0.7 });
   const W = r.W, H = r.H;
   const eyeLinks = [pupil, glint, glint2].flatMap((l) => [link(lookX, l, 'transform.x', [-1, 1], [-30 / W, 30 / W]), link(lookY, l, 'transform.y', [-1, 1], [-24 / H, 24 / H])]);
 
   return finish(r, {
     name: 'Slot bird', category: 'Characters', background: '#fbeee0', duration: 3,
-    description: 'A round bird with a slot machine in its belly. Pull the lever: it crouches, the reels spin and stop one by one while it watches — and on the third try it hits the jackpot.',
+    description: 'A round bird with a slot machine in its belly. Each spin costs a coin: it crouches, the reels stop one by one while it watches, and the third spin hits the jackpot. Open the Spin interaction’s Logic Canvas to see the whole sequence.',
     tags: ['character', 'slot-machine', 'state-machine', 'trigger'],
     exposed: [
       param('bodyColour', 'Body colour', 'The bird’s body.', 'color', [[bodyShape, 'props.fill.color']], BODY),
@@ -152,7 +155,7 @@ export function slotBird(): SceneDocument {
       param('bellyColour', 'Belly colour', 'The belly patch and eye.', 'color', [[belly, 'props.fill.color'], [white, 'props.fill.color']], CREAM),
     ],
     machine: {
-      inputs: [spinIn, spins, lookX, lookY],
+      inputs: [spinIn, coins, spinning, spins, lookX, lookY],
       animations: [idle, perk, crouch, miss, near, jackpot, celebrate, shrug],
       bindings: [...eyeLinks, link(lookX, body, 'transform.rotation', [-1, 1], [-5, 5])],
       rules: [
@@ -161,15 +164,29 @@ export function slotBird(): SceneDocument {
         rule(onPointer('leave', bodyShape), [], playBack(perk)),
         rule(onPointer('click', panel), [], fire(spinIn)),
         rule(onPointer('click', knob), [], fire(spinIn)),
-        rule({ type: 'trigger', inputId: spinIn.id }, [], play(crouch), sound('click', 0.6), setNum(spins, 1, 'add')),
-        // Which result comes up depends on how many times it has been spun.
-        rule(numIs(spins, '=', 1), [], play(miss), sound('spin', 0.5)),
-        rule(numIs(spins, '=', 2), [], play(near), sound('spin', 0.5)),
-        rule(numIs(spins, '=', 3), [], play(jackpot), sound('spin', 0.5)),
-        rule(numIs(spins, '>', 3), [], setNum(spins, 1)),
-        rule({ type: 'finished', animationId: miss.id }, [], play(shrug)),
-        rule({ type: 'finished', animationId: near.id }, [], play(shrug), sound('bonk', 0.4)),
-        rule({ type: 'finished', animationId: jackpot.id }, [], play(celebrate), sound('success', 0.6), setNum(spins, 0)),
+        rule({ type: 'key', key: 'Enter' }, [], fire(spinIn)),
+        // One interaction runs the whole spin as ordered steps, only if there's a coin and it isn't already spinning.
+        {
+          id: uid('ru'), name: 'Spin', when: { type: 'trigger', inputId: spinIn.id },
+          only: [numIs(coins, '>=', 1), { type: 'boolean', inputId: spinning.id, value: false }],
+          do: [
+            setBool(spinning, 'on'),
+            setNum(coins, -1, 'add'),
+            setNum(spins, 1, 'add'),
+            sound('click', 0.6),
+            play(crouch),
+            { type: 'waitFor', animationId: crouch.id },
+            sound('spin', 0.5),
+            // Which result comes up depends on how many times it has been spun since the last jackpot.
+            { type: 'branch', if: { type: 'group', op: 'all', items: [numIs(spins, '=', 1)] },
+              then: [play(miss), { type: 'waitFor', animationId: miss.id }, play(shrug)],
+              else: [{ type: 'branch', if: { type: 'group', op: 'all', items: [numIs(spins, '=', 2)] },
+                then: [play(near), { type: 'waitFor', animationId: near.id }, { type: 'parallel', actions: [play(shrug), sound('bonk', 0.4)] }],
+                else: [play(jackpot), { type: 'waitFor', animationId: jackpot.id }, { type: 'parallel', actions: [play(celebrate), sound('success', 0.6)] }, setNum(spins, 0)] }] },
+            setBool(spinning, 'off'),
+          ],
+          transition: { interruption: 'ignore', priority: 'normal' },
+        },
       ],
     },
   });

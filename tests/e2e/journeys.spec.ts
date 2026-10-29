@@ -32,16 +32,16 @@ test('Editor: try the living button, then design, animate and interact', async (
   await login(page, 'dana@motion.os');
   // A fresh copy of the component each run, so the test never depends on earlier edits.
   await page.goto(`/edit/${await freshFile(page, 'living-button', 'E2E button')}`);
-  // Try it: the controls show straight away; hovering and clicking the button runs its states.
+  // Try it: hovering and pressing the button moves it between its states; the debugger says what ran.
   await page.getByRole('button', { name: 'Try it' }).click();
-  await expect(page.getByRole('switch', { name: 'Hovered' })).toBeVisible();
   const box = await page.locator('.stage-box').boundingBox();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height * 0.55, { steps: 4 });
-  await expect(page.getByRole('switch', { name: 'Hovered' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.dbg-state')).toContainText('Hover');
   await page.mouse.down();
-  await expect(page.locator('.log')).toContainText('Press');
+  await expect(page.locator('.dbg-state')).toContainText('Pressed');
   await page.mouse.up();
-  await expect(page.locator('.log')).toContainText('Release');
+  await expect(page.locator('.dbg-state')).toContainText('Hover');
+  await expect(page.locator('.dbg')).toContainText('Released ran.');
   // Customise recolours every part that uses the colour.
   await expect(page.locator('.ed-right')).toContainText('Button colour');
   // Design: add a star; Animate: give it a one-click Spin, which becomes its own move.
@@ -51,17 +51,23 @@ test('Editor: try the living button, then design, animate and interact', async (
   await page.getByRole('button', { name: 'Animate' }).click();
   await page.locator('.move', { hasText: 'Spin' }).click();
   await expect(page.locator('.tl-head .chip[aria-pressed="true"]')).toContainText('Star · Spin');
-  // Interact: a hover recipe adds two readable rules.
+  // Interact: the helper asks three plain questions and writes two readable interactions.
   await page.getByRole('button', { name: 'Interact' }).click();
-  await page.locator('.move', { hasText: 'Hover effect' }).click();
-  await page.locator('.modal select').first().selectOption({ label: 'Star' });
-  await page.locator('.modal select').nth(1).selectOption({ index: (await page.locator('.modal select').nth(1).locator('option').count()) - 1 });
-  await page.getByRole('button', { name: 'Add', exact: true }).click();
-  await expect(page.locator('.rule').filter({ hasText: 'hovers over' }).first()).toBeVisible();
-  // A rule can play a sound: pick "play a sound" and a built-in sound appears.
-  const lastRule = page.locator('.rule').last();
-  await lastRule.getByRole('combobox', { name: 'Do' }).last().selectOption('sound');
-  await expect(lastRule.getByRole('combobox', { name: 'Sound' })).toHaveValue('pop');
+  await page.getByRole('button', { name: 'New interaction' }).click();
+  await page.locator('.tile', { hasText: 'hovers over' }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.locator('.pick-item', { hasText: /^Star$/ }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.locator('.tile', { hasText: 'Play a move' }).first().click();
+  await page.locator('.modal select').selectOption({ label: 'Star · Spin' });
+  await expect(page.locator('.wiz-preview')).toContainText('When someone hovers over Star');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await expect(page.locator('.icard', { hasText: 'hovers over Star' })).toHaveCount(1);
+  await expect(page.locator('.icard', { hasText: 'moves off Star' })).toHaveCount(1); // the "undo it" pair
+  // The Living button's "Released" interaction: open it and add a sound step.
+  await page.locator('.icard-sentence', { hasText: 'lets go of' }).click();
+  await page.locator('.icard.open').getByRole('combobox', { name: 'Add action' }).selectOption('sound');
+  await expect(page.locator('.icard.open').getByRole('combobox', { name: 'Sound' }).last()).toHaveValue('pop');
   await expect(page.locator('.ed-top')).toContainText('All changes saved', { timeout: 8000 });
   // "Add to Community" asks for a library category, pre-filled from the file.
   await page.getByRole('button', { name: 'Add to Community' }).click();
@@ -69,7 +75,43 @@ test('Editor: try the living button, then design, animate and interact', async (
   await page.locator('.modal').getByRole('button', { name: 'Cancel' }).click();
   await page.reload();
   await page.getByRole('button', { name: 'Interact' }).click();
-  await expect(page.locator('.rule').filter({ hasText: 'hovers over' }).first()).toBeVisible();
+  await expect(page.locator('.icard', { hasText: 'hovers over Star' })).toHaveCount(1);
+});
+
+test('Interactions: a beginner builds one in plain words, then changes a word and adds a condition', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page, 'dana@motion.os');
+  await page.goto(`/edit/${await freshFile(page, 'bouncy-headline', 'E2E simple')}`);
+  await page.getByRole('button', { name: 'Interact' }).click();
+  // "When someone clicks anywhere → play Jump, then back next time" — three questions, no jargon.
+  await page.getByRole('button', { name: 'New interaction' }).click();
+  await page.locator('.tile', { hasText: 'clicks' }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.locator('.pick-item', { hasText: 'Anywhere on the canvas' }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.locator('.tile', { hasText: 'Play it, then back next time' }).click();
+  await page.locator('.modal select').selectOption({ label: 'Jump' });
+  await page.getByRole('button', { name: 'Create' }).click();
+  await expect(page.locator('.icard.open')).toContainText('When someone clicks anywhere');
+  await expect(page.locator('.icard', { hasText: 'Jump on turns on' })).toHaveCount(1); // the switch it remembers with
+  // Click a word to change it: clicks → presses a key (Enter).
+  await page.locator('.icard.open .tok', { hasText: 'clicks' }).click();
+  await page.locator('.pick-item', { hasText: 'presses a key' }).click();
+  await expect(page.locator('.icard.open')).toContainText('presses the Enter key');
+  // "Only if…" and "More options" stay out of the way until asked for.
+  await page.locator('.icard.open').getByRole('button', { name: 'Only if…' }).click();
+  await expect(page.locator('.icard.open .cond-row')).toHaveCount(1);
+  await page.locator('.icard.open').getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.locator('.icard.open details.more > summary').first().click();
+  await page.locator('.icard.open').getByLabel('If it happens again while still running').selectOption('ignore');
+  await expect(page.locator('.ed-top')).toContainText('All changes saved', { timeout: 8000 });
+  // Try it: Enter plays it; the debugger says so in a sentence.
+  await page.reload();
+  await page.getByRole('button', { name: 'Try it' }).click();
+  await page.locator('.stage-box').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.dbg')).toContainText('ran.');
+  await expect(page.locator('.log, .dbg')).toContainText('Jump');
 });
 
 test('Community: try the living button, then remix it', async ({ page }) => {
@@ -83,10 +125,12 @@ test('Community: try the living button, then remix it', async ({ page }) => {
   await page.getByRole('group', { name: 'Categories' }).getByRole('button', { name: 'Interactive UI' }).click();
   await page.getByRole('button', { name: /Living button/ }).first().click();
   await expect(page.getByRole('heading', { name: 'Living button' })).toBeVisible();
-  await page.getByRole('switch', { name: 'Held' }).click();
-  await expect(page.locator('.log')).toContainText('Press');
-  await page.getByRole('switch', { name: 'Held' }).click();
-  await expect(page.locator('.log')).toContainText('Unhover');
+  await page.waitForTimeout(800); // let the page transition settle before measuring the canvas
+  const stage = await page.locator('[aria-label*="interactive preview"]').first().boundingBox();
+  await page.mouse.move(stage!.x + stage!.width / 2, stage!.y + stage!.height * 0.55, { steps: 4 });
+  await expect(page.locator('.log')).toContainText('◆ Hover');
+  await page.mouse.down(); await page.mouse.up();
+  await expect(page.locator('.log')).toContainText('Release');
   await page.getByRole('button', { name: /Remix into my files/ }).click();
   await expect(page).toHaveURL(/\/edit\/prj_/);
   await expect(page.locator('.ed-top')).toContainText('Living button remix');

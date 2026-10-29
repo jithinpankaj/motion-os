@@ -178,11 +178,15 @@ export const TrackSchema = z.object({
  *           AND optional conditions hold, DO actions (play/stop a move, change a control)
  *  - bindings: a slider drives a property directly across a range
  */
+/** Variable types. boolean/trigger/number are the original "controls"; the rest are advanced variables. */
+export const VAR_TYPES = ['boolean', 'trigger', 'number', 'string', 'enum', 'vector2', 'color'] as const;
+export const Vec2ValueSchema = z.object({ x: finite, y: finite });
+export const VarValueSchema = z.union([z.boolean(), finite, z.string().max(200), Vec2ValueSchema]);
 export const InputSchema = z.object({
   id,
   name: z.string().trim().min(1).max(40),
-  type: z.enum(['boolean', 'trigger', 'number']),
-  default: z.union([z.boolean(), finite]),
+  type: z.enum(VAR_TYPES),
+  default: VarValueSchema,
   min: finite.optional(),
   max: finite.optional(),
   /** Sliders can follow the pointer: across (x) or up and down (y), eased by `smoothing` (0 snappy … 1 lazy). */
@@ -192,6 +196,11 @@ export const InputSchema = z.object({
   dragLayer: id.optional(),
   /** Springiness when it moves (0 = settles smoothly, higher = overshoots and wobbles). */
   bounce: num(0, 0.95).optional(),
+  /** Enum choices. */
+  options: z.array(z.string().trim().min(1).max(40)).max(32).optional(),
+  /** Longest allowed text for string variables. */
+  maxLength: z.number().int().min(1).max(200).optional(),
+  description: z.string().max(200).optional(),
 });
 export const AnimationSchema = z.object({
   id,
@@ -202,42 +211,128 @@ export const AnimationSchema = z.object({
   /** A plain-language note on why the move is built the way it is, shown above its timeline. */
   note: z.string().max(600).optional(),
 });
-const CompareSchema = z.enum(['>', '<', '=', '>=', '<=']);
+export const COMPARE_OPS = ['>', '<', '=', '>=', '<=', '!='] as const;
+export const TEXT_OPS = ['is', 'isNot', 'contains', 'startsWith'] as const;
+const CompareSchema = z.enum(COMPARE_OPS);
 export const WhenSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('start') }),
   z.object({ type: z.literal('trigger'), inputId: id }),
   z.object({ type: z.literal('boolean'), inputId: id, value: z.boolean() }),
   z.object({ type: z.literal('number'), inputId: id, op: CompareSchema, value: finite }),
-  z.object({ type: z.literal('pointer'), event: z.enum(['click', 'enter', 'leave', 'down', 'up']), layerId: id }),
+  /** Pointer events on a layer; without a layer, anywhere on the canvas. */
+  z.object({ type: z.literal('pointer'), event: z.enum(['click', 'enter', 'leave', 'down', 'up']), layerId: id.optional() }),
   z.object({ type: z.literal('finished'), animationId: id }),
+  /** A key is pressed while the motion is focused or under the pointer ("any" for every key). */
+  z.object({ type: z.literal('key'), key: z.string().min(1).max(20) }),
+  /** A named event sent by an "emit" action (or by the page hosting the motion). */
+  z.object({ type: z.literal('event'), name: z.string().trim().min(1).max(40) }),
+  /** The state machine enters a state. */
+  z.object({ type: z.literal('stateEnter'), stateId: id }),
+  /** Any variable changes value (useful for text, choice, vector and colour variables). */
+  z.object({ type: z.literal('changed'), inputId: id }),
 ]);
-export const ConditionSchema = z.discriminatedUnion('type', [
+
+// ---------- conditions: leaves and nested groups (all / any / none) ----------
+export const EVENT_FIELDS = ['key', 'name', 'value', 'x', 'y'] as const;
+export const LeafConditionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('boolean'), inputId: id, value: z.boolean() }),
   z.object({ type: z.literal('number'), inputId: id, op: CompareSchema, value: finite }),
+  z.object({ type: z.literal('text'), inputId: id, op: z.enum(TEXT_OPS), value: z.string().max(200) }),
+  z.object({ type: z.literal('range'), inputId: id, min: finite, max: finite }),
+  /** Compare two variables. */
+  z.object({ type: z.literal('compare'), inputId: id, op: CompareSchema, otherId: id }),
+  z.object({ type: z.literal('vector'), inputId: id, axis: z.enum(['x', 'y']), op: CompareSchema, value: finite }),
+  z.object({ type: z.literal('state'), stateId: id, is: z.boolean() }),
+  z.object({ type: z.literal('playing'), animationId: id, is: z.boolean() }),
+  /** Compare a field of the event that triggered the rule (the key pressed, the pointer position…). */
+  z.object({ type: z.literal('event'), field: z.enum(EVENT_FIELDS), op: z.enum([...COMPARE_OPS, ...TEXT_OPS]), value: z.union([finite, z.string().max(200)]) }),
 ]);
+export type LeafCondition = z.infer<typeof LeafConditionSchema>;
+export type ConditionGroup = { type: 'group'; op: 'all' | 'any' | 'none'; items: Condition[] };
+export type Condition = LeafCondition | ConditionGroup;
+export const ConditionGroupSchema: z.ZodType<ConditionGroup> = z.lazy(() => z.object({ type: z.literal('group'), op: z.enum(['all', 'any', 'none']), items: z.array(ConditionSchema).max(24) }));
+export const ConditionSchema: z.ZodType<Condition> = z.lazy(() => z.union([LeafConditionSchema, ConditionGroupSchema]));
+
 /** Sounds that ship with the app (synthesised in the browser, so they cost nothing to load). */
 export const BUILTIN_SOUNDS = ['click', 'tap', 'pop', 'blip', 'bubble', 'boing', 'squish', 'whoosh', 'sparkle', 'chime', 'success', 'bonk', 'tick', 'spin'] as const;
-export const ActionSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('play'), animationId: id, direction: z.enum(['forward', 'reverse']), from: z.enum(['start', 'current']) }),
+
+// ---------- actions: steps run in order; "parallel" and "branch" contain steps of their own ----------
+export const LeafActionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('play'), animationId: id, direction: z.enum(['forward', 'reverse']), from: z.enum(['start', 'current']), loop: z.enum(['once', 'loop', 'pingpong']).optional() }),
   z.object({ type: z.literal('stop'), animationId: id }),
+  z.object({ type: z.literal('pause'), animationId: id }),
   z.object({ type: z.literal('setBoolean'), inputId: id, value: z.enum(['on', 'off', 'toggle']) }),
   z.object({ type: z.literal('fire'), inputId: id }),
   z.object({ type: z.literal('setNumber'), inputId: id, mode: z.enum(['set', 'add']), value: finite }),
+  /** Set a text, choice, vector or colour variable. */
+  z.object({ type: z.literal('setVar'), inputId: id, value: VarValueSchema }),
   /** Play a sound: one of the built-in sounds, or an uploaded audio file (assetId). */
   z.object({ type: z.literal('sound'), sound: z.enum(BUILTIN_SOUNDS).nullable(), assetId: id.nullable(), volume: num(0, 1) }),
+  z.object({ type: z.literal('setState'), stateId: id }),
+  z.object({ type: z.literal('visibility'), layerId: id, visible: z.enum(['show', 'hide', 'toggle']) }),
+  /** Send a named event: other rules can react to it, and so can the page the motion is embedded in. */
+  z.object({ type: z.literal('emit'), name: z.string().trim().min(1).max(40), value: z.union([finite, z.string().max(200)]).optional() }),
+  z.object({ type: z.literal('wait'), seconds: num(0, 60) }),
+  z.object({ type: z.literal('waitFor'), animationId: id }),
 ]);
-export const RuleSchema = z.object({ id, when: WhenSchema, only: z.array(ConditionSchema).max(8), do: z.array(ActionSchema).min(1).max(12) });
+export type LeafAction = z.infer<typeof LeafActionSchema>;
+export type ParallelAction = { type: 'parallel'; actions: Action[] };
+export type BranchAction = { type: 'branch'; if: ConditionGroup; then: Action[]; else: Action[] };
+export type Action = LeafAction | ParallelAction | BranchAction;
+export const ActionSchema: z.ZodType<Action> = z.lazy(() => z.union([
+  LeafActionSchema,
+  z.object({ type: z.literal('parallel'), actions: z.array(ActionSchema).max(16) }),
+  z.object({ type: z.literal('branch'), if: ConditionGroupSchema, then: z.array(ActionSchema).max(16), else: z.array(ActionSchema).max(16) }),
+]));
+
+/** How a connection moves between states and plays its moves. Every field is optional; see DEFAULT_TRANSITION. */
+export const TransitionSchema = z.object({
+  /** Cross-blend time in seconds when a move takes over properties. */
+  duration: num(0, 10).optional(),
+  /** Wait this long before the transition starts. */
+  delay: num(0, 60).optional(),
+  easing: EasingSchema.optional(),
+  playback: z.enum(['restart', 'continue', 'reverse']).optional(),
+  loop: z.enum(['default', 'once', 'loop', 'pingpong']).optional(),
+  /** What happens when this fires while another transition (or this rule's steps) is still running. */
+  interruption: z.enum(['allow', 'wait', 'queue', 'ignore']).optional(),
+  priority: z.enum(['low', 'normal', 'high', 'critical']).optional(),
+  blend: z.enum(['crossfade', 'replace', 'additive']).optional(),
+  /** Play the target state's move when entering it (default true). */
+  playStateMove: z.boolean().optional(),
+});
+export const RuleSchema = z.object({
+  id, when: WhenSchema,
+  /** Conditions; `match` says whether all (default), any or none of them must hold. Items may be nested groups. */
+  only: z.array(ConditionSchema).max(24),
+  match: z.enum(['all', 'any', 'none']).optional(),
+  do: z.array(ActionSchema).max(32),
+  /** Steps run as a connection leaves its starting state, before it enters the next one. */
+  exit: z.array(ActionSchema).max(32).optional(),
+  name: z.string().trim().max(60).optional(),
+  /** A connection between states: fires only in `from` (any state if missing) and moves to `to`. */
+  from: id.optional(),
+  to: id.optional(),
+  transition: TransitionSchema.optional(),
+  enabled: z.boolean().optional(),
+});
 export const BindingSchema = z.object({
   id, inputId: id, layerId: id, path: z.string().min(1).max(120).regex(/^[A-Za-z0-9_.]+$/),
   from: z.tuple([finite, finite]), to: z.tuple([finite, finite]),
   /** true: shift the property by the mapped amount from its designed value, instead of setting it. */
   relative: z.boolean().optional(),
 });
+/** A state on the Interaction Canvas: entering it plays its move. x/y place the node on the canvas. */
+export const StateSchema = z.object({ id, name: z.string().trim().min(1).max(40), animationId: id.nullable(), x: num(-10000, 10000), y: num(-10000, 10000) });
 export const MachineSchema = z.object({
-  inputs: z.array(InputSchema).max(32),
+  inputs: z.array(InputSchema).max(48),
   animations: z.array(AnimationSchema).max(64),
   rules: z.array(RuleSchema).max(128),
   bindings: z.array(BindingSchema).max(64),
+  states: z.array(StateSchema).max(32).optional(),
+  initialState: id.nullable().optional(),
+  /** Transition settings new connections start with (editable in Advanced Controls). */
+  defaults: TransitionSchema.optional(),
 });
 
 export const TargetSchema = z.object({ layerId: id, path: z.string().min(1).max(120).regex(/^[A-Za-z0-9_.]+$/) });
@@ -325,10 +420,11 @@ export type Input = z.infer<typeof InputSchema>;
 export type Animation = z.infer<typeof AnimationSchema>;
 export type Rule = z.infer<typeof RuleSchema>;
 export type When = z.infer<typeof WhenSchema>;
-export type Condition = z.infer<typeof ConditionSchema>;
-export type Action = z.infer<typeof ActionSchema>;
 export type BuiltinSound = (typeof BUILTIN_SOUNDS)[number];
 export type Binding = z.infer<typeof BindingSchema>;
+export type Transition = z.infer<typeof TransitionSchema>;
+export type MachineState = z.infer<typeof StateSchema>;
+export type VarValue = z.infer<typeof VarValueSchema>;
 export type Track = z.infer<typeof TrackSchema>;
 export type Keyframe = z.infer<typeof KeyframeSchema>;
 export type Easing = z.infer<typeof EasingSchema>;

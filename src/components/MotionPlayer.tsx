@@ -95,40 +95,62 @@ export const MotionPlayer = forwardRef<MotionPlayerHandle, {
     }
     return { top, inside };
   };
+  // Pointer events on the canvas as a whole (rules with no layer), and keys while it's hovered or focused.
+  const inCanvas = useRef(false), canvasDown = useRef(false);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (!runtime.listensForKeys || !host.current) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.closest('input, textarea, select, [contenteditable="true"]'))) return;
+      if (!inCanvas.current && document.activeElement !== host.current) return;
+      if (e.key === ' ' || e.key.startsWith('Arrow')) e.preventDefault();
+      runtime.key(e.key);
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [runtime]);
   const onMove = (e: React.PointerEvent) => {
     const { x, y } = scenePoint(e);
+    if (!inCanvas.current) { inCanvas.current = true; runtime.pointer('enter', null, { x, y }); }
     const { top, inside } = interactiveUnder(x, y);
     // Hover is per layer (a label on top of a card doesn't make the card "leave").
-    for (const id of inside) if (!hovered.current.has(id)) runtime.pointer('enter', id);
-    for (const id of hovered.current) if (!inside.has(id)) runtime.pointer('leave', id);
+    for (const id of inside) if (!hovered.current.has(id)) runtime.pointer('enter', id, { x, y });
+    for (const id of hovered.current) if (!inside.has(id)) runtime.pointer('leave', id, { x, y });
     hovered.current = inside;
     if (pressed.current && runtime.isDragging(pressed.current)) return;
     setCursor(top ? (runtime.dragLayers.has(top) ? 'grab' : 'pointer') : 'default');
   };
   const onLeave = () => {
+    if (inCanvas.current) { inCanvas.current = false; runtime.pointer('leave', null); }
+    if (canvasDown.current) { canvasDown.current = false; runtime.pointer('up', null); }
     for (const id of hovered.current) runtime.pointer('leave', id);
     hovered.current = new Set();
     if (pressed.current) { runtime.pointer('up', pressed.current); pressed.current = null; }
   };
   const onDown = (e: React.PointerEvent) => {
-    const { top } = interactiveUnder(scenePoint(e).x, scenePoint(e).y);
+    const p = scenePoint(e);
+    const { top } = interactiveUnder(p.x, p.y);
     pressed.current = top;
+    canvasDown.current = true;
+    runtime.pointer('down', null, p);
     if (!top) return;
     // Keep receiving the pointer while it's held, even outside the canvas (for dragging).
     try { host.current?.setPointerCapture(e.pointerId); } catch {}
-    runtime.pointer('down', top);
+    runtime.pointer('down', top, p);
     if (runtime.dragLayers.has(top)) setCursor('grabbing');
   };
   const onUp = (e: React.PointerEvent) => {
-    const { top } = interactiveUnder(scenePoint(e).x, scenePoint(e).y);
+    const p = scenePoint(e);
+    const { top } = interactiveUnder(p.x, p.y);
     const was = pressed.current;
     pressed.current = null;
-    if (was) runtime.pointer('up', was);
-    if (was && was === top) runtime.pointer('click', top);
+    if (was) runtime.pointer('up', was, p);
+    if (was && was === top) runtime.pointer('click', top, p);
+    if (canvasDown.current) { canvasDown.current = false; runtime.pointer('up', null, p); runtime.pointer('click', null, p); }
   };
 
   return (
-    <div ref={host} className={className} style={{ position: 'relative', cursor, touchAction: 'none', ...style }}
+    <div ref={host} className={className} tabIndex={0} style={{ position: 'relative', cursor: cursor === 'default' && runtime.canvasListens ? 'pointer' : cursor, touchAction: 'none', outline: 'none', ...style }}
       onPointerMove={onMove} onPointerLeave={onLeave} onPointerDown={onDown} onPointerUp={onUp}>
       <MotionCanvas ref={canvas} doc={doc} clock={clock} assets={assets} label={label} interactive={false} motion={reduced ? 'reduced' : 'full'} style={{ position: 'absolute', inset: 0 }} />
     </div>

@@ -107,15 +107,44 @@ export function validateScene(input: unknown): { ok: true; scene: SceneDocument 
   const names = new Set<string>();
   m.inputs.forEach((x, i) => { if (names.has(x.name.toLowerCase())) issues.push({ path: `machine.inputs.${i}.name`, message: 'duplicate control name' }); names.add(x.name.toLowerCase()); });
   m.animations.forEach((a, i) => a.tracks.forEach((t, j) => { if (!ids.has(t.layerId)) issues.push({ path: `machine.animations.${i}.tracks.${j}`, message: 'move targets unknown layer' }); }));
+  const stateIds = new Set((m.states ?? []).map((x) => x.id));
   const refs = (o: any, path: string) => {
     if (o.inputId && !inputIds.has(o.inputId)) issues.push({ path, message: 'refers to a missing control' });
+    if (o.otherId && !inputIds.has(o.otherId)) issues.push({ path, message: 'refers to a missing control' });
     if (o.animationId && !animIds.has(o.animationId)) issues.push({ path, message: 'refers to a missing move' });
     if (o.layerId && !ids.has(o.layerId)) issues.push({ path, message: 'refers to a missing layer' });
+    if (o.stateId && !stateIds.has(o.stateId)) issues.push({ path, message: 'refers to a missing state' });
   };
-  m.rules.forEach((r, i) => r.do.forEach((a, j) => { if (a.type === 'sound' && !a.sound === !a.assetId) issues.push({ path: `machine.rules.${i}.do.${j}`, message: 'a sound needs either a built-in sound or an uploaded file' }); }));
-  m.rules.forEach((r, i) => { refs(r.when, `machine.rules.${i}.when`); r.only.forEach((c, j) => refs(c, `machine.rules.${i}.only.${j}`)); r.do.forEach((a, j) => refs(a, `machine.rules.${i}.do.${j}`)); });
+  const conds = (c: any, path: string) => { if (c.type === 'group') c.items.forEach((x: any, j: number) => conds(x, `${path}.items.${j}`)); else refs(c, path); };
+  const acts = (list: any[], path: string) => list.forEach((a, j) => {
+    const p = `${path}.${j}`;
+    if (a.type === 'parallel') acts(a.actions, `${p}.actions`);
+    else if (a.type === 'branch') { conds(a.if, `${p}.if`); acts(a.then, `${p}.then`); acts(a.else, `${p}.else`); }
+    else {
+      refs(a, p);
+      if (a.type === 'sound' && !a.sound === !a.assetId) issues.push({ path: p, message: 'a sound needs either a built-in sound or an uploaded file' });
+      if (a.type === 'setVar') { const v = m.inputs.find((x) => x.id === a.inputId); if (v && !valueFits(v, a.value)) issues.push({ path: p, message: `value doesn’t fit ${v.name}` }); }
+    }
+  });
+  m.rules.forEach((r, i) => {
+    const p = `machine.rules.${i}`;
+    refs(r.when, `${p}.when`);
+    r.only.forEach((c, j) => conds(c, `${p}.only.${j}`));
+    acts(r.do, `${p}.do`);
+    if (r.exit) acts(r.exit, `${p}.exit`);
+    if (r.from && !stateIds.has(r.from)) issues.push({ path: `${p}.from`, message: 'refers to a missing state' });
+    if (r.to && !stateIds.has(r.to)) issues.push({ path: `${p}.to`, message: 'refers to a missing state' });
+  });
   m.bindings.forEach((b, i) => refs(b, `machine.bindings.${i}`));
-  m.inputs.forEach((x, i) => { if (x.dragLayer && !ids.has(x.dragLayer)) issues.push({ path: `machine.inputs.${i}.dragLayer`, message: 'refers to a missing layer' }); });
+  m.inputs.forEach((x, i) => {
+    if (x.dragLayer && !ids.has(x.dragLayer)) issues.push({ path: `machine.inputs.${i}.dragLayer`, message: 'refers to a missing layer' });
+    if (!valueFits(x, x.default)) issues.push({ path: `machine.inputs.${i}.default`, message: `starting value doesn’t fit a ${x.type} variable` });
+    if (x.type === 'enum' && !x.options?.length) issues.push({ path: `machine.inputs.${i}.options`, message: 'a choice variable needs at least one option' });
+  });
+  (m.states ?? []).forEach((st, i) => { if (st.animationId && !animIds.has(st.animationId)) issues.push({ path: `machine.states.${i}.animationId`, message: 'refers to a missing move' }); });
+  const snames = new Set<string>();
+  (m.states ?? []).forEach((st, i) => { if (snames.has(st.name.toLowerCase())) issues.push({ path: `machine.states.${i}.name`, message: 'duplicate state name' }); snames.add(st.name.toLowerCase()); });
+  if (m.initialState && !stateIds.has(m.initialState)) issues.push({ path: 'machine.initialState', message: 'refers to a missing state' });
   if (issues.length) return { ok: false, issues };
   return { ok: true, scene };
 }
@@ -144,4 +173,17 @@ function sortKeys(v: any): any {
   if (Array.isArray(v)) return v.map(sortKeys);
   if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])]));
   return v;
+}
+
+/** Does a value suit a variable's type? (Limits are applied at runtime; this only checks the kind.) */
+function valueFits(v: { type: string; options?: string[] }, value: unknown): boolean {
+  switch (v.type) {
+    case 'boolean': case 'trigger': return typeof value === 'boolean';
+    case 'number': return typeof value === 'number';
+    case 'string': return typeof value === 'string';
+    case 'enum': return typeof value === 'string' && (!v.options?.length || v.options.includes(value));
+    case 'color': return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
+    case 'vector2': return typeof value === 'object' && value !== null && 'x' in value && 'y' in value;
+    default: return true;
+  }
 }
