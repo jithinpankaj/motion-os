@@ -8,6 +8,8 @@ import { ensureGlobals } from './services/workspace';
 import { seedDemo } from './seed';
 import { ensurePresetPosts } from './routes/community';
 
+// Local settings (like ANTHROPIC_API_KEY for “Ask Claude”) live in .env, which is never committed.
+if (existsSync('.env')) process.loadEnvFile('.env');
 const dataDir = path.resolve(process.env.DATA_DIR ?? '.data');
 mkdirSync(dataDir, { recursive: true });
 const secretFile = path.join(dataDir, 'secret');

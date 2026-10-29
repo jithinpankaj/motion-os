@@ -21,6 +21,13 @@ the Community.
     and **slider links** that tie a number to a property.
   - **Try it** — the live result and a debugger in sentences (“✓ Released ran.”, “✗ Spin didn’t run — Coins is
     0…”); switches and values can be changed while testing.
+- **Ask Claude** — a chat in the editor: describe what you want (“when someone clicks the star, make it bounce —
+  only if Coins is above 0”) and Claude adds the moves, interactions, conditions, switches and values. It
+  answers with a fixed set of operations that the app checks against your file before applying them as one
+  undoable step, and it says plainly what it changed and what it couldn’t do. Needs `ANTHROPIC_API_KEY`
+  (see Run it).
+- **Learn** — a page for first-timers (the four steps, a five-minute walkthrough, the words the editor uses) and a
+  one-minute spotlight tour of the editor that shows on the first visit and replays from the **?** button.
 - **Library & Community** — a gallery shared by everyone on this server, filterable by category (Characters,
   Interactive UI, Illustrations, Typography, Celebrations, Loaders). The Motion OS library has twelve components
   (Living button, Wandering creature, Slot bird, Mochi, Blooming flower, Morning coffee, Day & night switch, Task
@@ -45,6 +52,9 @@ npm install
 npm run dev
 ```
 
+To turn on **Ask Claude**, copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY` (the server reads `.env` on
+start; the key never reaches the browser). Without it everything else works and the chat says it isn't connected.
+
 Open http://localhost:5173. The first start creates `.data/` (PostgreSQL via PGlite + object storage), the
 community presets, and a demo workspace, **Lumen Studio**, with a few starter files. In development you're
 signed in automatically as **alex@motion.os**; sign out (or open `/login`) to pick another demo account.
@@ -65,7 +75,7 @@ delete `.data/` to reset.
 npm test
 ```
 
-74 unit/integration tests: the interaction runtime (toggles, buttons, number thresholds, pointer events,
+80 unit/integration tests: the interaction runtime (toggles, buttons, number thresholds, pointer events,
 pointer following, slider links, resting state, chaining), one-click moves, every preset, scene validation and
 migration, timeline evaluation, permissions, compatibility, outbound-request safety, plus an in-process API
 suite (permissions, workspace isolation, exports of single moves, files, concurrency conflicts, upload
@@ -76,7 +86,7 @@ likes and unpublishing).
 npm run e2e
 ```
 
-11 Playwright tests in your installed Chrome: navigation per role; the editor end to end (hover and press the
+12 Playwright tests in your installed Chrome: navigation per role; the editor end to end (hover and press the
 Living button in Try it, add a shape, one-click move, hover recipe, a sound action, the Add to Community dialog,
 autosave and reload); filtering the Community by category, trying and remixing the Living button; exporting a
 move as MP4 and checking the file; and visual regression for six files.

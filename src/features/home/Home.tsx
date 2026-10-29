@@ -52,6 +52,7 @@ export default function Home() {
     try { await api(`/projects/${id}`, { method: 'DELETE' }); setFiles((f) => f?.filter((x) => x.id !== id) ?? null); } catch (e) { toast('danger', 'Couldn’t delete', errorMessage(e)); }
   };
 
+  const [learnHidden, setLearnHidden] = useState(() => { try { return localStorage.getItem('mos.learn.hidden') === '1'; } catch { return false; } });
   return (
     <div className="page-inner">
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.2, 0, 0, 1] }} className="row between wrap" style={{ alignItems: 'flex-end', gap: 16 }}>
@@ -61,6 +62,14 @@ export default function Home() {
         </div>
         {can('scene.create') && <button className="btn primary lg" onClick={() => setBlank(true)}><Icon name="plus" />New file</button>}
       </motion.div>
+      {!learnHidden && (
+        <div className="learn-banner">
+          <Icon name="library" size={16} />
+          <span><b>New here?</b> A five-minute guide shows the four steps — Design, Animate, Interact, Try it — and how to ask Claude for help.</span>
+          <Link to="/learn" className="btn sm primary">Show me how</Link>
+          <button className="icon-btn sm" aria-label="Hide this tip" onClick={() => { try { localStorage.setItem('mos.learn.hidden', '1'); } catch { /* private mode */ } setLearnHidden(true); }}><Icon name="x" size={12} /></button>
+        </div>
+      )}
 
       {can('scene.create') && presets.length > 0 && (
         <section className="section" style={{ marginTop: 30 }}>

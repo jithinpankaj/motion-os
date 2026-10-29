@@ -12,6 +12,7 @@ import type { PermissionKey } from '../../shared/permissions';
 const NAV: { to: string; label: string; icon: string; perm?: PermissionKey; kbd: string }[] = [
   { to: '/', label: 'Home', icon: 'home', kbd: 'G H' },
   { to: '/community', label: 'Community', icon: 'globe', kbd: 'G C' },
+  { to: '/learn', label: 'Learn', icon: 'library', kbd: 'G L' },
 ];
 
 export function AppShell({ children, bare }: { children: ReactNode; bare?: boolean }) {

@@ -1,3 +1,4 @@
+import { assistantRoutes } from './routes/assistant';
 import express, { Router } from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
@@ -35,7 +36,7 @@ export function createApp(ctx: AppContext) {
   api.use(publicCommunityRoutes());
   const tenant = Router();
   tenant.use(requireWorkspace);
-  for (const r of [workspaceRoutes, projectRoutes, assetRoutes, exportRoutes, importRoutes, communityRoutes]) tenant.use(r());
+  for (const r of [workspaceRoutes, projectRoutes, assetRoutes, exportRoutes, importRoutes, communityRoutes, assistantRoutes]) tenant.use(r());
   api.use(tenant);
   app.use('/api', api);
   app.use('/api', (_req, res) => { res.status(404).json({ error: { code: 'not_found', message: 'Unknown API route' } }); });

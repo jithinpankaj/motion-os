@@ -126,3 +126,23 @@ button.rail-item { appearance: none; background: none; border: 0; padding: 0; fo
 .channel-thumb[aria-checked='true'] .frame { border-color: var(--text); }
 .channel-thumb .cl { font-size: 11.5px; font-weight: 540; }
 .ch-status { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 12.5px; }
+
+/* Learn */
+.learn-banner { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); border: 1px solid var(--line-2); font-size: 13.5px; }
+.learn-banner > span { flex: 1; color: var(--text-2); } .learn-banner b { color: var(--text); }
+.learn .section { margin-top: 36px; }
+.learn-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 14px; }
+.learn-step { padding: 16px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--bg-1); }
+.learn-step ul, .learn-tips { margin: 10px 0 0; padding-left: 18px; color: var(--text-2); font-size: 13.5px; line-height: 1.6; }
+.learn-n { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.learn-walk { counter-reset: w; list-style: none; padding: 0; margin: 14px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.learn-walk li { counter-increment: w; display: grid; grid-template-columns: 28px 90px 1fr; gap: 10px; align-items: baseline; padding: 10px 12px; border-radius: 10px; background: var(--bg-1); border: 1px solid var(--line); font-size: 13.5px; color: var(--text-2); }
+.learn-walk li::before { content: counter(w); font-weight: 700; color: var(--accent); }
+.learn-walk b { color: var(--text); }
+.learn-ask p { color: var(--text-2); font-size: 14px; line-height: 1.6; max-width: 720px; }
+.learn-examples { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.learn-example { padding: 10px 12px; border-radius: 12px; background: var(--bg-1); border: 1px solid var(--line-2); font-size: 13px; color: var(--text-2); font-style: italic; }
+.learn-words { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px 20px; margin: 14px 0 0; }
+.learn-words div { padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.learn-words dt { font-weight: 650; font-size: 13.5px; } .learn-words dd { margin: 2px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.5; }
+@media (max-width: 640px) { .learn-walk li { grid-template-columns: 24px 1fr; } .learn-walk li span { grid-column: 2; } }

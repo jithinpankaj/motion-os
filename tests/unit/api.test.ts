@@ -10,6 +10,7 @@ import { ensureGlobals } from '../../server/services/workspace';
 import { seedDemo, DEMO_PASSWORD } from '../../server/seed';
 import { encodePng } from '../../server/services/png';
 import { ensurePresetPosts } from '../../server/routes/community';
+import { assistantConfigured, setAssistantAskerForTests } from '../../server/routes/assistant';
 import { MOTION_PRESETS } from '../../shared/motion/presets';
 
 let db: Db, server: Server, base = '';
@@ -244,5 +245,38 @@ describe('file delivery', () => {
     expect(r.status).toBe(206);
     expect(r.headers.get('content-range')).toMatch(/^bytes 0-9\/\d+$/);
     expect((await r.arrayBuffer()).byteLength).toBe(10);
+  });
+});
+
+describe('Ask Claude', () => {
+  it('sends Claude the current file and the request, returns its operations, and needs edit permission', async () => {
+    const p = (await call('designer', 'GET', '/projects')).body.projects[0];
+    const doc = (await call('designer', 'GET', `/projects/${p.id}`)).body.scene.doc;
+    const seen: { system: string; messages: any[] }[] = [];
+    setAssistantAskerForTests(async (system, messages) => {
+      seen.push({ system, messages });
+      return { refused: false, reply: { reply: 'Added a bounce on click.', operations: [{ kind: 'add_state', name: 'Hover', interaction: null, when: null, on: null, amount: null, only_if: null, steps: null, switch_to_state: null, layer: null, move: null, property: null, value: null, variable_type: null, options: null }] } };
+    });
+    try {
+      const r = await call('designer', 'POST', '/assistant', { doc, messages: [{ role: 'user', text: 'Make it bounce when clicked' }] });
+      expect(r.status, JSON.stringify(r.body)).toBe(200);
+      expect(r.body.reply).toBe('Added a bounce on click.');
+      expect(r.body.operations).toHaveLength(1);
+      expect(seen[0].system).toContain('animation helper inside Motion OS');
+      expect(seen[0].messages.at(-1).content).toContain('The file right now:');
+      expect(seen[0].messages.at(-1).content).toContain('What I’d like: Make it bounce when clicked');
+      expect((await call('viewer', 'POST', '/assistant', { doc, messages: [{ role: 'user', text: 'hi' }] })).status).toBe(403);
+      expect((await call('designer', 'POST', '/assistant', { doc, messages: [{ role: 'assistant', text: 'hi' }] })).status).toBe(400);
+      setAssistantAskerForTests(async () => ({ refused: true, reply: null }));
+      expect((await call('designer', 'POST', '/assistant', { doc, messages: [{ role: 'user', text: 'x' }] })).body.operations).toEqual([]);
+    } finally { setAssistantAskerForTests(null); }
+    // Without a Claude credential the server says so plainly instead of pretending.
+    const status = (await call('designer', 'GET', '/assistant/status')).body;
+    expect(status.configured).toBe(assistantConfigured());
+    if (!assistantConfigured()) {
+      const r = await call('designer', 'POST', '/assistant', { doc, messages: [{ role: 'user', text: 'hi' }] });
+      expect(r.status).toBe(503);
+      expect(r.body.error.code).toBe('assistant_not_configured');
+    }
   });
 });

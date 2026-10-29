@@ -24,7 +24,10 @@ templates/approvals and the old playground were removed (their history is in git
 | Plain-language interactions | e2e: the New interaction helper builds “when someone clicks anywhere → play Jump, then back next time” (with the switch it remembers by), a word is changed by clicking it (clicks → presses the Enter key), Only if… starts with a condition, More options sets “ignore it”, it survives reload and Enter runs it in Try it with the debugger saying so. Editor e2e: a hover interaction plus its automatic undo, a sound step added to an open card, the Living button’s Rest/Hover/Pressed states in the debugger |
 | Runtime: states, priority, interruption, steps | Unit (logic.test.ts): from-state gating, one state change per event by priority, the coin/spin sequence (waits, parallel, branch, emitted events), key payload conditions, delay / ignore / queue, replace / additive blending, loop override, priority blocking, variable limits, expression parsing and its error messages, summaries; the Slot bird’s coin sequence end to end, including “Coins is 0. It needs to be at least 1.” |
 
-Automated: `npm test` 74/74, `npm run e2e` 11/11, `tsc --noEmit` clean, build succeeds.
+| Ask Claude | Unit: a three-operation reply (new Coins number, new Bounce move, click interaction “only if Coins >= 1”) applies and then really works in the runtime; unknown layers, bad conditions and missing interactions are skipped with plain reasons while the rest applies; positions convert through groups; the reply schema rejects anything else. API: the request carries the current file and the ask, needs edit permission, refusals return no changes, and without a credential the route answers 503 “not connected”. **Not verified against the live API here** — this machine has no `ANTHROPIC_API_KEY` |
+| Onboarding | e2e: Home’s “New here?” banner → Learn → “Open a starter and take the tour” → seven spotlight steps → doesn’t return on reload → replays from ?; Ask Claude opens with ideas using the file’s names and says plainly when it isn’t connected |
+
+Automated: `npm test` 80/80, `npm run e2e` 12/12, `tsc --noEmit` clean, build succeeds.
 
 ## Interactions
 
@@ -44,6 +47,20 @@ which can be changed while testing.
 The engine underneath is unchanged: states, nested conditions, transitions, priorities, interruption and ordered,
 parallel and branching steps all still run, and files that use them keep them — richer logic is summarised on the
 card (“Advanced logic · …”) and stays editable. There is no node graph or state-diagram view (removed on request).
+
+## Ask Claude and onboarding
+
+**Ask Claude** (editor top bar) sends the current file and the conversation to the server, which calls
+`claude-opus-5-5` with structured output: a short reply plus operations from a fixed list (add / change / delete
+an interaction, add a move from a preset, set a layer property, add a switch or value, add a state). Conditions
+come back in the same safe expression language as the editor’s. The browser applies the operations one by one,
+checking every name, then validates the whole file; the result is one undoable step, listed in plain words, and
+anything that didn’t fit is reported instead of half-applied. The server enables the API’s refusal fallback.
+The key stays on the server (`.env`); requests are rate-limited (12/min per person) and need edit permission.
+
+**Learn** explains the four steps, walks through a first interactive button, shows example requests for Claude
+and defines the editor’s words. The **tour** spotlights the mode bar, layers, canvas, settings, Ask Claude and
+sharing; it shows once and replays from the **?** button.
 
 ## The library
 
@@ -78,7 +95,8 @@ Each move carries a note explaining the motion principle it uses (shown in Anima
 
 ## Not built / limitations
 
-- **AI “describe it and it builds”** — planned for phase 2; not started.
+- **Ask Claude** can’t draw new artwork (it works with the layers you have), edit individual keyframes, or set up
+  slider links yet; it needs an Anthropic API key on the server.
 - **Embedding** interactive files on websites (a runtime script with a control API) is not built; exports are
   video, stills or the motion file.
 - **Video export of interactions** renders one move at a time, not a recorded interactive session.

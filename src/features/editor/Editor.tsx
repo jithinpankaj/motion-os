@@ -15,6 +15,8 @@ import { CanvasSettings, Customise, Inspector } from './Inspector';
 import { LIBRARY_CATEGORIES } from '../../../shared/motion/presets';
 import { QuickMoves, Timeline } from './Animate';
 import { Debugger } from './interact/Debugger';
+import { AssistantPanel } from './Assistant';
+import { Tour, tourSeen } from './Tour';
 import { InteractPanel } from './Interact';
 import {
   clearDraft, deleteLayer, duplicateLayer, initEditor, readDraft, redo, resolveConflict, save, select, setMode, setPlaying, setProp, undo, useEditor, type Mode,
@@ -43,6 +45,14 @@ export default function Editor() {
   const [community, setCommunity] = useState<{ id: string } | null>(null);
   const [sharing, setSharing] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [asking, setAsking] = useState(false);
+  // First visit: show the tour once (also when opened with ?tour=1 from the Learn page).
+  const [tour, setTour] = useState(() => {
+    const asked = new URLSearchParams(location.search).has('tour');
+    // A ?tour link works once: drop it from the address so a reload doesn't start the tour again.
+    if (asked) history.replaceState(history.state, '', location.pathname);
+    return asked || !tourSeen();
+  });
   const player = useRef<MotionPlayerHandle | null>(null);
   const [, bump] = useReducer((x) => x + 1, 0);
   const resolver = apiResolver();
@@ -106,8 +116,10 @@ export default function Editor() {
         <div className="grow" />
         <button className="icon-btn" aria-label="Undo" disabled={!canUndo} onClick={undo}><Icon name="undo" /></button>
         <button className="icon-btn" aria-label="Redo" disabled={!canRedo} onClick={redo}><Icon name="redo" /></button>
+        <button className="icon-btn" aria-label="Show the tour" title="How does this work? (tour)" onClick={() => setTour(true)}><Icon name="info" /></button>
+        {can('scene.edit') && <button className="btn" data-tour="ask" aria-pressed={asking} onClick={() => setAsking(!asking)}><Icon name="sparkles" size={14} />Ask Claude</button>}
         {can('export.create') && <button className="btn" onClick={() => setExporting(true)}><Icon name="download" size={14} />Export</button>}
-        {can('community.publish') && <button className="btn primary" onClick={() => setSharing(true)}><Icon name="globe" size={14} />{community ? 'Update Community post' : 'Add to Community'}</button>}
+        {can('community.publish') && <button className="btn primary" data-tour="share" onClick={() => setSharing(true)}><Icon name="globe" size={14} />{community ? 'Update Community post' : 'Add to Community'}</button>}
       </header>
 
       {mode === 'try' ? <div className="ed-left"><div className="sec"><div className="sec-h">Try it</div><div className="empty-hint">This is exactly how it behaves for people. Use the controls on the right, and click or hover things on the canvas.</div></div></div> : <LeftPanel doc={doc} />}
@@ -127,6 +139,8 @@ export default function Editor() {
         footer={<><button className="btn ghost" onClick={() => { if (id) clearDraft(id); setDraft(null); }}>Discard</button><button className="btn primary" onClick={() => { const d = deserializeScene(draft!.doc); useEditor.setState({ doc: d, saveState: 'dirty' }); save(true); setDraft(null); }}>Recover</button></>}><div /></Modal>
       <Modal open={!!conflict} onClose={() => {}} title="Someone else saved this file" subtitle={`${conflict?.updatedBy ?? 'Another person'} saved a newer version while you were editing.`}
         footer={<><button className="btn" onClick={() => resolveConflict('theirs')}>Use their version</button><button className="btn primary" onClick={() => resolveConflict('mine')}>Keep mine</button></>}><div className="empty-hint">“Keep mine” saves your version over theirs (theirs stays in the history).</div></Modal>
+      {asking && <AssistantPanel doc={doc} onClose={() => setAsking(false)} />}
+      {tour && <Tour onDone={() => setTour(false)} />}
       {sharing && id && <ShareDialog projectId={id} name={doc.meta.name} category={doc.meta.category} existing={community} onClose={() => setSharing(false)} onDone={(c) => { setCommunity(c); setSharing(false); }} />}
       {exporting && id && <ExportDialog projectId={id} doc={doc} onClose={() => setExporting(false)} />}
     </div>

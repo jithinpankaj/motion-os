@@ -11,6 +11,7 @@ const Editor = lazy(() => import('./features/editor/Editor'));
 const Community = lazy(() => import('./features/community/Community'));
 const Post = lazy(() => import('./features/community/Post'));
 const Settings = lazy(() => import('./features/settings/Settings'));
+const Learn = lazy(() => import('./features/learn/Learn'));
 
 function Loading() {
   return <div style={{ display: 'grid', placeItems: 'center', height: '100%' }} role="status" aria-label="Loading"><div className="spinner" /></div>;
@@ -44,6 +45,7 @@ export function App() {
             <Route path="/" element={<Home />} />
             <Route path="/edit/:id" element={<Editor />} />
             <Route path="/community" element={<Community />} />
+            <Route path="/learn" element={<Learn />} />
             <Route path="/community/:id" element={<Post />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/invite/:token" element={<InvitePage />} />

@@ -90,6 +90,9 @@ figma_not_connected`, `429 rate_limited | quota`.
   (`?tag=interactive-ui` filters by it). Images and sounds are copied into community storage; the post never
   references the author's workspace. `POST /api/community/:id/remix` copies the post (and its images and
   sounds) into the caller's workspace.
+- `GET /api/assistant/status` → `{ configured, model }`. `POST /api/assistant` (`scene.edit`, 12/min) with
+  `{ doc, messages: [{ role, text }] }` → `{ reply, operations }` — Claude’s answer in the schema of
+  `shared/motion/assistant.ts`; the client applies it. 503 `assistant_not_configured` without a credential.
 - `POST /api/assets?kind=audio` accepts MP3, WAV or OGG (sniffed from the bytes, up to 10 MB).
 - Outbound requests for user-supplied URLs (Figma) allow only http(s), refuse private, loopback and link-local
   addresses on every redirect hop, and cap size and time. Third-party tokens are stored AES-256-GCM encrypted.

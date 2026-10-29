@@ -2,7 +2,9 @@ import { test, expect, type Page } from '@playwright/test';
 
 // Local seed credentials (see server/seed.ts). Never used outside development.
 const PASSWORD = 'motion-os-demo';
-async function login(page: Page, email: string) {
+async function login(page: Page, email: string, opts: { tour?: boolean } = {}) {
+  // Most tests skip the first-visit tour; the onboarding test sees it.
+  if (!opts.tour) await page.addInitScript(() => { try { localStorage.setItem('mos.tour.v1', 'done'); } catch { /* ignore */ } });
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(PASSWORD);
@@ -112,6 +114,35 @@ test('Interactions: a beginner builds one in plain words, then changes a word an
   await page.keyboard.press('Enter');
   await expect(page.locator('.dbg')).toContainText('ran.');
   await expect(page.locator('.log, .dbg')).toContainText('Jump');
+});
+
+test('New users: the Learn page, the editor tour, and Ask Claude', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page, 'mia@motion.os', { tour: true });
+  await expect(page.locator('.learn-banner')).toContainText('New here?');
+  await page.getByRole('link', { name: 'Show me how' }).click();
+  await expect(page.getByRole('heading', { name: 'Make things move — and react' })).toBeVisible();
+  await expect(page.locator('.learn-steps .learn-step')).toHaveCount(4);
+  // The starter opens with the tour: a spotlight walks through the editor step by step.
+  await page.getByRole('button', { name: 'Open a starter and take the tour' }).click();
+  await expect(page.getByRole('dialog', { name: /Tour step 1 of 7/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByRole('dialog', { name: /Tour step 2 of 7: Four steps/ })).toBeVisible();
+  await expect(page.locator('.tour-spot')).toBeVisible();
+  for (let i = 0; i < 5; i++) await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Start making' }).click();
+  await expect(page.locator('.tour')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('.tour')).toHaveCount(0); // seen once, not again…
+  await page.getByRole('button', { name: 'Show the tour' }).click();
+  await expect(page.locator('.tour')).toHaveCount(1); // …unless asked for
+  await page.getByRole('button', { name: 'Skip' }).click();
+  // Ask Claude opens with ideas that use this file's names. Without an API key the server says so plainly.
+  await page.getByRole('button', { name: 'Ask Claude' }).click();
+  await expect(page.locator('.ask')).toBeVisible();
+  await expect(page.locator('.ask-idea').first()).toContainText('the button');
+  const status = await page.evaluate(async () => { const s = await fetch('/api/session').then((r) => r.json()); return (await fetch('/api/assistant/status', { headers: { 'x-workspace-id': s.workspaces[0].id } }).then((r) => r.json())).configured; });
+  if (!status) await expect(page.locator('.ask-note')).toContainText('Claude isn’t connected on this server yet');
 });
 
 test('Community: try the living button, then remix it', async ({ page }) => {
