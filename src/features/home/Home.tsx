@@ -13,13 +13,14 @@ import { deserializeScene } from '../../../shared/scene/serialize';
 import { previewDoc } from '../../../shared/motion/runtime';
 import { PostCard, type Post } from '../community/Community';
 
+/** Starting sizes. `motif` picks the little sketch drawn inside each card's artboard. */
 const SIZES = [
-  { label: 'Square', w: 1080, h: 1080, hint: 'Posts, icons, cards' },
-  { label: 'Portrait', w: 1080, h: 1350, hint: 'Feed posts' },
-  { label: 'Story', w: 1080, h: 1920, hint: 'Stories, phone screens' },
-  { label: 'Wide', w: 1920, h: 1080, hint: 'Web banners, slides' },
-  { label: 'UI element', w: 800, h: 600, hint: 'Buttons, toggles, loaders' },
-];
+  { label: 'Square', w: 1080, h: 1080, hint: 'Posts, icons, cards', motif: 'square' },
+  { label: 'Portrait', w: 1080, h: 1350, hint: 'Feed posts', motif: 'portrait' },
+  { label: 'Story', w: 1080, h: 1920, hint: 'Stories, phone screens', motif: 'story' },
+  { label: 'Wide', w: 1920, h: 1080, hint: 'Web banners, slides', motif: 'wide' },
+  { label: 'UI element', w: 800, h: 600, hint: 'Buttons, toggles, loaders', motif: 'ui' },
+] as const;
 
 /** Your files, plus the two ways to start: from scratch or from a preset. */
 export default function Home() {
@@ -117,17 +118,56 @@ export default function Home() {
         </section>
       )}
 
-      <Modal open={blank} onClose={() => setBlank(false)} title="New file" subtitle="Pick a size. You can change it later.">
-        <div className="col" style={{ gap: 8 }}>
+      <Modal open={blank} wide onClose={() => setBlank(false)} title="New file" subtitle="Pick a size to start from. You can change it later in the canvas settings.">
+        <div className="size-grid">
           {SIZES.map((s) => (
-            <button key={s.label} className="move" style={{ padding: 12 }} onClick={() => { setBlank(false); create(s.w, s.h, s.label); }}>
-              <span style={{ width: 34, display: 'grid', placeItems: 'center' }}><span style={{ display: 'block', width: 30 * Math.min(1, s.w / s.h), height: 30 * Math.min(1, s.h / s.w), border: '1.5px solid var(--text-2)', borderRadius: 3 }} /></span>
-              <span className="grow">{s.label}<small>{s.hint} · {s.w}×{s.h}</small></span>
+            <button key={s.label} className="size-card" onClick={() => { setBlank(false); create(s.w, s.h, s.label); }}>
+              <SizeArt w={s.w} h={s.h} motif={s.motif} />
+              <span className="size-meta"><b>{s.label}</b><span>{s.hint}</span><span className="size-dims">{s.w} × {s.h}</span></span>
             </button>
           ))}
+          <CustomSize onCreate={(w, h) => { setBlank(false); create(w, h, 'Custom'); }} />
         </div>
       </Modal>
     </div>
   );
 }
 
+
+/** A small artboard at the size's true proportions, with a hint of what usually goes in it. */
+function SizeArt({ w, h, motif }: { w: number; h: number; motif: string }) {
+  const k = Math.min(78 / w, 92 / h);
+  return (
+    <span className="size-stage" aria-hidden>
+      <span className={`size-board m-${motif}`} style={{ width: Math.round(w * k), height: Math.round(h * k) }}>
+        {motif === 'square' && <><i className="dot" /><i className="bar" /><i className="bar short" /></>}
+        {motif === 'portrait' && <><i className="img" /><i className="bar" /><i className="bar short" /></>}
+        {motif === 'story' && <><i className="notch" /><i className="img tall" /><i className="bar" /></>}
+        {motif === 'wide' && <><i className="bar wide" /><i className="bar short" /><i className="pill" /></>}
+        {motif === 'ui' && <i className="pill big" />}
+      </span>
+    </span>
+  );
+}
+
+/** Any size: width and height in pixels, within what files support. */
+function CustomSize({ onCreate }: { onCreate: (w: number, h: number) => void }) {
+  const [w, setW] = useState('1200'), [h, setH] = useState('800');
+  const n = (v: string) => Math.round(Number(v));
+  const ok = [n(w), n(h)].every((v) => Number.isFinite(v) && v >= 16 && v <= 4096);
+  const board = ok ? { w: n(w), h: n(h) } : { w: 1, h: 1 };
+  return (
+    <form className="size-card custom" onSubmit={(e) => { e.preventDefault(); if (ok) onCreate(n(w), n(h)); }}>
+      <SizeArt w={board.w} h={board.h} motif="custom" />
+      <span className="size-meta">
+        <b>Custom</b>
+        <span className="size-inputs">
+          <input className="input" inputMode="numeric" value={w} onChange={(e) => setW(e.target.value)} aria-label="Width in pixels" />
+          <span>×</span>
+          <input className="input" inputMode="numeric" value={h} onChange={(e) => setH(e.target.value)} aria-label="Height in pixels" />
+        </span>
+        <button className="btn sm primary" type="submit" disabled={!ok}>{ok ? 'Create' : '16 to 4096 px'}</button>
+      </span>
+    </form>
+  );
+}

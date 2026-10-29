@@ -5,7 +5,7 @@ import { FULLSCREEN_VERT, DEFAULT_SHADE, gradientFrag, validateShadeSnippet } fr
 import { applyBlend, loopPhase, type FrameContext, type LayerView } from './base';
 import { hashString } from '../../../shared/util/random';
 
-const MODES = ['linear', 'radial', 'mesh', 'aurora', 'noise', 'organic'];
+const MODES = ['linear', 'radial', 'mesh', 'aurora', 'noise', 'organic', 'conic', 'diamond', 'grain', 'halftone'];
 
 export class GradientView implements LayerView {
   readonly scene = new THREE.Scene();
@@ -33,7 +33,7 @@ export class GradientView implements LayerView {
       uniforms: {
         uResolution: { value: new THREE.Vector2(1, 1) }, uStops: { value: this.stops }, uPos: { value: this.pos }, uCount: { value: 2 }, uMode: { value: 3 }, uInterp: { value: 2 },
         uAngle: { value: 0 }, uScale: { value: 1 }, uFreq: { value: 1 }, uAmp: { value: 0.5 }, uDistort: { value: 0.2 }, uGrain: { value: 0 }, uOpacity: { value: 1 },
-        uSeed: { value: 0 }, uFrame: { value: 0 }, uTime: { value: 0 }, uCenter: { value: new THREE.Vector2(0.5, 0.5) }, uPhase: { value: 0 }, uLoopRadius: { value: 0.6 }, uFlow: { value: new THREE.Vector2(1, 0) },
+        uSeed: { value: 0 }, uFrame: { value: 0 }, uTime: { value: 0 }, uCenter: { value: new THREE.Vector2(0.5, 0.5) }, uPhase: { value: 0 }, uLoopRadius: { value: 0.6 }, uFlow: { value: new THREE.Vector2(1, 0) }, uSpeed: { value: 0 },
       },
     });
   }
@@ -72,6 +72,7 @@ export class GradientView implements LayerView {
     u.uAmp.value = p.noiseAmp * (reduced ? 0.5 : 1);
     u.uDistort.value = p.distortion * (reduced ? 0.5 : 1);
     u.uGrain.value = p.grain * 0.18;
+    u.uSpeed.value = reduced ? 0 : p.speed;
     u.uOpacity.value = layer.opacity;
     u.uSeed.value = (hashString(layer.id) % 1000) / 10 + ctx.doc.seed % 97;
     u.uPhase.value = ctx.motion === 'static' ? 0.6 : loopPhase(ctx, reduced ? 1 : p.speed);

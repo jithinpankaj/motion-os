@@ -77,15 +77,36 @@ function specsFor(l: Layer, doc: SceneDocument): { title: string; items: Spec[] 
     ] },
     transform,
   ];
-  if (l.type === 'gradient') return [{ title: 'Gradient', items: [
-    { path: 'props.mode', label: 'Style', kind: 'select', options: GRADIENT_MODES.map((g) => ({ value: g, label: g[0].toUpperCase() + g.slice(1) })) },
-    ...l.props.stops.map((_, i) => ({ path: `props.stops.${i}.color`, label: `Colour ${i + 1}`, kind: 'color', anim: true } as Spec)),
-    { path: 'props.speed', label: 'Speed', kind: 'slider', min: 0, max: 4, step: 1 },
-    { path: 'props.noiseAmp', label: 'Movement', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true, adv: true },
-    { path: 'props.distortion', label: 'Swirl', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true, adv: true },
-    { path: 'props.grain', label: 'Grain', kind: 'slider', min: 0, max: 1, step: 0.01, anim: true, adv: true },
-    opacity,
-  ] }];
+  if (l.type === 'gradient') {
+    const mode = l.props.mode;
+    const style: Spec = { path: 'props.mode', label: 'Style', kind: 'select', options: GRADIENT_MODES.map((g) => ({ value: g, label: MODE_LABEL[g] ?? g })) };
+    const colours = l.props.stops.map((_, i) => ({ path: `props.stops.${i}.color`, label: mode === 'grain' ? (i ? 'Dark specks' : 'Light specks') : mode === 'halftone' && l.props.stops.length === 2 ? (i ? 'Ink' : 'Paper') : `Colour ${i + 1}`, kind: 'color', anim: true } as Spec));
+    if (mode === 'grain') return [{ title: 'Grain', items: [
+      style, ...colours,
+      { path: 'props.grain', label: 'Amount', kind: 'slider', min: 0, max: 1, step: 0.01, unit: '%', scale: 100, anim: true },
+      { path: 'props.scale', label: 'Size', kind: 'slider', min: 0.5, max: 4, step: 0.25 },
+      { path: 'props.speed', label: 'Flicker', kind: 'slider', min: 0, max: 4, step: 1 },
+      opacity,
+    ] }];
+    if (mode === 'halftone') return [{ title: 'Halftone', items: [
+      style, ...colours,
+      { path: 'props.scale', label: 'Dot size', kind: 'slider', min: 0.4, max: 4, step: 0.05, anim: true },
+      { path: 'props.angle', label: 'Angle', kind: 'number', unit: '°', anim: true },
+      { path: 'props.noiseAmp', label: 'Unevenness', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true, adv: true },
+      opacity,
+    ] }];
+    const angled = mode === 'linear' || mode === 'conic' || mode === 'diamond';
+    return [{ title: 'Gradient', items: [
+      style, ...colours,
+      ...(angled ? [{ path: 'props.angle', label: 'Angle', kind: 'number', unit: '°', anim: true } as Spec] : []),
+      { path: 'props.scale', label: 'Scale', kind: 'slider', min: 0.2, max: 4, step: 0.05, anim: true },
+      { path: 'props.speed', label: 'Speed', kind: 'slider', min: 0, max: 4, step: 1 },
+      { path: 'props.noiseAmp', label: 'Movement', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true, adv: true },
+      { path: 'props.distortion', label: 'Swirl', kind: 'slider', min: 0, max: 2, step: 0.01, anim: true, adv: true },
+      { path: 'props.grain', label: 'Grain', kind: 'slider', min: 0, max: 1, step: 0.01, anim: true, adv: true },
+      opacity,
+    ] }];
+  }
   if (l.type === 'particles') return [{ title: 'Particles', items: [
     { path: 'props.count', label: 'Amount', kind: 'slider', min: 100, max: 30000, step: 100 },
     { path: 'props.size', label: 'Size', kind: 'slider', min: 0.5, max: 16, step: 0.1, anim: true },
@@ -97,6 +118,8 @@ function specsFor(l: Layer, doc: SceneDocument): { title: string; items: Spec[] 
   ] }];
   return [{ title: 'Appearance', items: [opacity] }, transform];
 }
+
+const MODE_LABEL: Record<string, string> = { linear: 'Linear', radial: 'Radial', conic: 'Conic', diamond: 'Diamond', mesh: 'Mesh', aurora: 'Aurora', organic: 'Blobs', noise: 'Noise field', grain: 'Film grain', halftone: 'Halftone' };
 
 /** One collapsible inspector section. Open/closed is remembered per section title. */
 const SECTIONS_KEY = 'mos.inspector.closed';
@@ -158,7 +181,7 @@ export function Inspector({ doc, layer }: { doc: SceneDocument; layer: Layer }) 
       })}
       {layer.type === 'group' && (
         <Section title={`Contents · ${children.length}`}>
-          {children.map((c) => <button key={c.id} className="child-row" onClick={() => select(c.id)}><Icon name={c.type === 'group' ? 'folder' : c.type === 'text' ? 'type' : 'shapes'} size={12} accent={false} />{c.name}</button>)}
+          {children.map((c) => <button key={c.id} className="child-row" onClick={() => select(c.id)}><Icon name={c.type === 'group' ? 'folder' : c.type === 'text' ? 'type' : 'shapes'} size={12} />{c.name}</button>)}
         </Section>
       )}
     </div>

@@ -27,7 +27,8 @@ export const TransformSchema = z.object({
   scaleY: num(0.01, 20).default(1),
 });
 
-export const GRADIENT_MODES = ['linear', 'radial', 'mesh', 'aurora', 'noise', 'organic'] as const;
+/** New modes are only ever appended, so saved files keep their meaning. grain and halftone are texture effects. */
+export const GRADIENT_MODES = ['linear', 'radial', 'mesh', 'aurora', 'noise', 'organic', 'conic', 'diamond', 'grain', 'halftone'] as const;
 export const GradientStopSchema = z.object({ color: ColorSchema, pos: num(0, 1) });
 export const GradientPropsSchema = z.object({
   mode: z.enum(GRADIENT_MODES),

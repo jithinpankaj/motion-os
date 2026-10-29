@@ -115,7 +115,7 @@ export function LayersPanel({ doc }: { doc: SceneDocument }) {
             {hasKids
               ? <button className="lp-twist" aria-label={open.has(l.id) ? `Collapse ${l.name}` : `Expand ${l.name}`} onClick={(e) => { e.stopPropagation(); toggle(l.id); }}><Icon name={open.has(l.id) || q ? 'chevronDown' : 'chevronRight'} size={11} /></button>
               : <span className="lp-twist" />}
-            <Icon name={(ICON[l.type] ?? 'layers') as any} size={13} accent={false} />
+            <Icon name={(ICON[l.type] ?? 'layers') as any} size={13} />
             {renaming === l.id
               ? <input className="lp-rename" autoFocus defaultValue={l.name} aria-label="Layer name" onClick={(e) => e.stopPropagation()}
                   onBlur={(e) => { if (e.target.value.trim()) setProp(l.id, 'name', e.target.value.trim()); setRenaming(null); tree.current?.focus(); }}

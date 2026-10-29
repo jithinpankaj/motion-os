@@ -74,10 +74,8 @@
   --signal-key-dim: #B89B4E;
   --signal-record: #F2554A;
 
-  /* Hand-drawn icons: the warm accent printed behind expressive icons */
+  /* A warm accent for small illustrations (e.g. the New file size cards) */
   --icon-accent: #E8A27C;
-  --icon-accent-opacity: 0.55;
-  --icon-accent-solid: #E2583E;
 
   /* Metallic */
   --metal-graphite: linear-gradient(180deg, #2B2B2F 0%, #1E1E21 46%, #18181A 100%);
@@ -222,8 +220,6 @@
   --tone-else: #F0B37A;  --tone-else-bg: rgba(240, 179, 122, 0.12);
 
   --icon-accent: #C97A52;
-  --icon-accent-opacity: 0.5;
-  --icon-accent-solid: #F07A5C;
   --ai-shell: var(--metal-graphite);
   --ai-rim-mix: 1;
   --ai-inner: #1A1A1C;
@@ -327,9 +323,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
 .icon-btn.on, .icon-btn[aria-pressed='true'] { color: var(--text); background: var(--state-active); }
 .icon-btn.sm { width: 22px; height: 22px; border-radius: 6px; }
 .icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-svg.i { width: 16px; height: 16px; flex: none; fill: currentColor; stroke: none; overflow: visible; }
-svg.i .i-accent { fill: var(--icon-accent); opacity: var(--icon-accent-opacity); }
-svg.i .i-fill { fill: var(--icon-accent-solid); }
+svg.i { width: 16px; height: 16px; flex: none; fill: currentColor; stroke: none; }
 .icon-btn.sm svg.i { width: 14px; height: 14px; }
 
 /* ─── Inputs ─────────────────────────────────────────────────────────────── */

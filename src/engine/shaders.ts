@@ -63,7 +63,7 @@ uniform float uPos[6];
 uniform int uCount;
 uniform int uMode;
 uniform int uInterp;
-uniform float uAngle, uScale, uFreq, uAmp, uDistort, uGrain, uOpacity, uSeed, uFrame, uTime;
+uniform float uAngle, uScale, uFreq, uAmp, uDistort, uGrain, uOpacity, uSeed, uFrame, uTime, uSpeed;
 uniform vec2 uCenter;
 ${NOISE}
 ${LOOP_NOISE}
@@ -98,6 +98,7 @@ void main(){
   vec2 rp = mat2(ca, -sa, sa, ca) * p;
   vec2 warp = uDistort * vec2(lfbm(p * uFreq * 0.7, 0.0), lfbm(p * uFreq * 0.7 + 5.2, 1.0));
   vec3 col;
+  float alphaOut = 1.0;
   if (uMode == 0) {               // linear
     col = ramp(rp.x * 0.5 / max(aspect, 1.0) + 0.5 + uAmp * 0.25 * lfbm(p * uFreq + warp, 2.0));
   } else if (uMode == 1) {        // radial
@@ -132,6 +133,27 @@ void main(){
   } else if (uMode == 4) {        // noise field
     float n = lfbm(p * uFreq + warp * 1.4, 4.0);
     col = ramp(0.5 + n * (0.55 + uAmp * 0.6));
+  } else if (uMode == 6) {        // conic: colour sweeps around the centre
+    float a = atan(rp.y, rp.x) / 6.2831853 + 0.5;
+    col = ramp(fract(a + uAmp * 0.06 * lfbm(p * uFreq + warp, 5.0)));
+  } else if (uMode == 7) {        // diamond: square rings out from the centre
+    col = ramp((abs(rp.x) + abs(rp.y)) * 0.8 + uAmp * 0.2 * lfbm(p * uFreq + warp, 6.0));
+  } else if (uMode == 8) {        // film grain: light and dark specks over whatever is below
+    float cell = max(1.0, uScale * 2.0);
+    float tick = uSpeed > 0.0 ? floor(uFrame * min(uSpeed, 4.0) / 2.0) : 0.0;
+    float n = hash12(floor(uv * uResolution / cell) + vec2(tick * 13.1 + uSeed, tick * 7.7));
+    float v = n - 0.5;
+    col = v > 0.0 ? stopColor(0) : stopColor(1);
+    alphaOut = pow(abs(v) * 2.0, 2.2) * clamp(uGrain / 0.18, 0.0, 1.0);
+  } else if (uMode == 9) {        // halftone: a printed dot screen, dots growing along the angle
+    float cell = max(3.0, uScale * 12.0);
+    vec2 frag = mat2(ca, -sa, sa, ca) * (uv * uResolution);
+    vec2 f = fract(frag / cell) - 0.5;
+    float tone = clamp(rp.x * 0.5 / max(aspect, 1.0) + 0.5 + uAmp * 0.25 * lfbm(p * uFreq + warp, 7.0), 0.0, 1.0);
+    float r = sqrt(tone) * 0.62;
+    float px = 1.0 / cell;
+    float dotMask = 1.0 - smoothstep(r - px, r + px, length(f));
+    col = mix(stopColor(0), stopColor(uCount - 1), dotMask);
   } else {                        // organic metaballs
     float field = 0.0; vec3 acc = vec3(0.0);
     for (int i = 0; i < 6; i++) {
@@ -149,9 +171,11 @@ void main(){
     col = mix(stopColor(0), blob, edge) + blob * glow * (1.0 - edge);
   }
   col = shade(uv, uTime, col);
-  float g = hash12(uv * uResolution + vec2(uFrame * 17.0, uFrame * 31.0)) - 0.5;
-  col += g * uGrain;
-  gl_FragColor = vec4(clamp(col, 0.0, 1.0), uOpacity);
+  if (uMode != 8) {
+    float g = hash12(uv * uResolution + vec2(uFrame * 17.0, uFrame * 31.0)) - 0.5;
+    col += g * uGrain;
+  }
+  gl_FragColor = vec4(clamp(col, 0.0, 1.0), uOpacity * alphaOut);
 }
 `;
 

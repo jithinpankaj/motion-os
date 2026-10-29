@@ -2,18 +2,11 @@ import { ICONS } from './icons';
 
 export type IconName = keyof typeof ICONS | string;
 
-/**
- * Hand-drawn interface icons (see src/ui/icons.ts). Expressive icons carry a warm accent shape,
- * printed a little off-register behind the line; pass accent={false} to leave it out (it is also
- * left out below 13px, where it would only blur the glyph).
- */
-export function Icon({ name, size, className = '', label, accent = true }: { name: IconName; size?: number; className?: string; label?: string; accent?: boolean }) {
-  const icon = ICONS[name] ?? ICONS.info;
-  const showAccent = !!icon.accent && accent && (size === undefined || size >= 13);
+/** Interface icons (Phosphor, regular weight; see src/ui/icons.ts), drawn in the current text colour. */
+export function Icon({ name, size, className = '', label }: { name: IconName; size?: number; className?: string; label?: string }) {
   return (
     <svg className={`i ${className}`} viewBox="0 0 256 256" width={size} height={size} style={size ? { width: size, height: size } : undefined} aria-hidden={label ? undefined : true} role={label ? 'img' : undefined} aria-label={label}>
-      {showAccent && <path className={icon.solid ? 'i-fill' : 'i-accent'} d={icon.accent} transform={icon.solid ? undefined : 'translate(14 12)'} />}
-      <path d={icon.d} />
+      <path d={(ICONS[name] ?? ICONS.info).d} />
     </svg>
   );
 }

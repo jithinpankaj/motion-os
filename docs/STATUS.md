@@ -144,8 +144,12 @@ Each move carries a note explaining the motion principle it uses (shown in Anima
 - **Tutorial pictures:** tour cards and the first-time canvas tips show real crops of the editor, one set per theme (`src/assets/tour/`).
 - **New file button:** drifting film grain gathered along the bottom edge (its own layer; paused with reduced motion).
 
-## Hand-drawn icons
+## Icons
 
-- Every interface icon comes from `src/ui/icons.ts`: Phosphor icons (MIT, see THIRD_PARTY_NOTICES.md) redrawn by `scripts/icons.mjs` with a gentle, deterministic wobble and a small per-icon tilt. Run `node scripts/icons.mjs` to regenerate (add names to its MAP to add icons).
-- Expressive icons (navigation, heart, star, sparkle, sun, moon, play, image, film, shapes, folders, pin) carry a warm accent printed off-register behind the line (`--icon-accent`); dense lists like Layers use plain line icons (`accent={false}`). The Like button uses a filled heart when liked, with a small pop.
-- The tour and tip pictures in `src/assets/tour/` show the hand-drawn icons and the Interact map.
+- Every interface icon is a Phosphor icon (regular weight, MIT, see THIRD_PARTY_NOTICES.md) from `src/ui/icons.ts`, drawn in the current text colour. Run `node scripts/icons.mjs` to regenerate; add names to its MAP to add icons. The Like button switches to Phosphor's filled heart when liked.
+
+## Gradients and textures
+
+- The gradient layer has four more styles (appended, so saved files keep their meaning): **Conic**, **Diamond**, **Film grain** (transparent light and dark specks over everything below, optionally flickering) and **Halftone** (a printed dot screen).
+- The creation rail has a **Gradients** flyout (Linear, Radial, Conic, Diamond, Mesh, Aurora, Blobs) and a **Texture & effects** flyout (Film grain, Paper grain, Noise field, Halftone, Particles), each with a colour preview. Presets live in `src/features/editor/effects.ts`.
+- The inspector shows the controls each style needs: Amount, Size and Flicker for grain; Dot size, Angle and Unevenness for halftone; Angle and Scale for the shaped gradients.
